@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build + Lint + Format + Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install (frozen)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck + build (tsc -b)
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
+
+  validate-context:
+    name: Validate context (ADRs + core boundary + PII + SII libs)
+    runs-on: ubuntu-latest
+    # Pure git/bash checks — no install needed, so this gate is green from the
+    # first commit, before any dependency lands.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ADR index integrity
+        # Every docs/decisions/NNN-*.md must be listed in _index.md, and every
+        # link from _index.md must point to a real file.
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in docs/decisions/[0-9]*.md; do
+            name=$(basename "$f")
+            if ! grep -q "$name" docs/decisions/_index.md; then
+              echo "::error file=docs/decisions/_index.md::ADR $name exists on disk but is not listed in the index."
+              fail=1
+            fi
+          done
+          while IFS= read -r ref; do
+            if [ -n "$ref" ] && [ ! -f "$ref" ]; then
+              echo "::error file=docs/decisions/_index.md::Index links to missing file: $ref"
+              fail=1
+            fi
+          done < <(grep -oE 'docs/decisions/[0-9]+-[a-zA-Z0-9-]+\.md' docs/decisions/_index.md | sort -u)
+          exit $fail
+
+      - name: ADR completeness (5 mandatory sections)
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in docs/decisions/[0-9]*.md; do
+            for section in '## Status' '## Context' '## Decision' '## Alternatives Considered' '## Consequences'; do
+              if ! grep -qxF "$section" "$f"; then
+                echo "::error file=$f::Missing required ADR section '$section'."
+                fail=1
+              fi
+            done
+          done
+          exit $fail
+
+      - name: Surface boundary (ADR-003 — surfaces call @sii/core tasks only)
+        # The CLI + MCP packages must import only @sii/core (its task layer +
+        # port interfaces), never reach into a portal/dte facade — that bypasses
+        # the throttling / audit / credential rails the core owns.
+        run: |
+          set -euo pipefail
+          if git grep -nE "from ['\"]@sii/core/(portal|dte|auth|storage)" -- 'packages/cli/**/*.ts' 'packages/mcp/**/*.ts'; then
+            echo "::error::A surface imports a @sii/core internal (portal/dte/auth/storage) directly — ADR-003 forbids. Go through the task layer."
+            exit 1
+          fi
+          echo "Surface boundary guard: CLI + MCP reach the core only via tasks."
+
+      - name: No third-party SII libraries (ADR-004)
+        run: |
+          set -euo pipefail
+          if git grep -nE '(cl-sii|cl_sii|libredte|python-sii|dansanti)' -- packages/ ; then
+            echo "::error::Third-party SII library reference found — ADR-004 forbids. Derive from first-hand observation and cite it."
+            exit 1
+          fi
+          echo "ADR-004 guard: no third-party SII library references."
+
+      - name: PII guard (no real-person RUTs in committed files)
+        # Real PII never lands in a tracked file. Synthetic Mod-11-valid RUTs
+        # (20000042-0, 12345670-K, 11111111-1) are allowed. The denylist of real
+        # RUT digit-bodies lives in the PII_RUT_DENYLIST repo secret — NOT here
+        # (this file is public). On forks the secret is unset and the check is
+        # skipped.
+        env:
+          PII_RUT_DENYLIST: ${{ secrets.PII_RUT_DENYLIST }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PII_RUT_DENYLIST:-}" ]; then
+            echo "PII guard: no denylist secret configured (fork or unset) — skipping."
+            exit 0
+          fi
+          if git grep -nE "$PII_RUT_DENYLIST" -- packages/ docs/ ; then
+            echo "::error::Real-person RUT digits found in tracked files — PII leak. Replace with a synthetic Mod-11-valid value."
+            exit 1
+          fi
+          echo "PII guard: no forbidden RUT digits found."

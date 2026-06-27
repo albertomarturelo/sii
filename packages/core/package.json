@@ -1,0 +1,18 @@
+{
+  "name": "@sii/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared SII domain core: rut, config (prod hostnames), contracts, tasks, ports. Runtime-agnostic; platform side-effects are injected via ports (ADR-003).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

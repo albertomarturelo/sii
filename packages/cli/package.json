@@ -1,0 +1,16 @@
+{
+  "name": "@sii/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Human-facing CLI. Each command is a thin call into @sii/core tasks (ADR-003).",
+  "bin": {
+    "sii": "./dist/main.js"
+  },
+  "dependencies": {
+    "@sii/core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b"
+  }
+}

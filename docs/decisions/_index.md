@@ -1,0 +1,15 @@
+# Architecture Decision Records
+
+Foundational decisions for the TypeScript rewrite. Lineage to the Python
+`sii-cli` ADRs is cited inside each record where a rule is ported.
+
+| ID  | Title                                                                                          | Status   | Date       |
+| --- | ---------------------------------------------------------------------------------------------- | -------- | ---------- |
+| 001 | [Adopt Context-First Development (CFD) for this repo](001-adopt-cfd-methodology.md)             | Accepted | 2026-06-27 |
+| 002 | [TypeScript + Node + pnpm-workspaces monorepo toolchain](002-typescript-node-pnpm-monorepo.md)  | Accepted | 2026-06-27 |
+| 003 | [Shared core consumed by CLI + MCP; injectable seams for external deps](003-shared-core-ports-adapters.md) | Accepted | 2026-06-27 |
+| 004 | [Port the SII guardrails + ToS posture from sii-py](004-port-sii-guardrails-and-tos-posture.md) | Accepted | 2026-06-27 |
+| 005 | [Single-account, operate-centric identity model](005-single-account-operate-centric-identity.md)| Accepted | 2026-06-27 |
+| 006 | [Auth posture — browser cookies-only default + keyring fallback](006-auth-posture-browser-cookies-host-secrets.md) | Accepted | 2026-06-27 |
+| 007 | [Modular core layout + worktree-parallel boundaries](007-modular-core-layout.md) | Accepted | 2026-06-27 |
+| 008 | [Runtime library choices — commander CLI, browser-first auth](008-runtime-library-choices.md) | Accepted | 2026-06-27 |

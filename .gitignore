@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# test / coverage
+coverage/
+.vitest/
+
+# SII local state — NEVER commit (mirrors sii-py ~/.sii/ discipline, ADR-004)
+.sii/
+*.pfx
+*.p12
+
+# secrets / env
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
