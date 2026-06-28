@@ -17,7 +17,8 @@ Last updated: 2026-06-28
   JSON POST from the browser context) + `cookie()` — the reusable basis for ALL
   future read surfaces (rcv/f29/bte). New `portal/representacion.ts` ports the wire
   contract first-hand (cited; `docs/sii-contract/empresas-autorizadas.md`). 9 tests
-  vs fakes (no SII). NOT yet live-validated (real empresas readback is the follow-up).
+  vs fakes (no SII). **Live-validated 2026-06-28**: a real session returned 1
+  represented empresa + self (the `.sii.cl` cookie covers www4 — no SPA nav needed).
 - [x] **MCP stdio surface (ADR-011 — zod adopted).** `@sii/mcp` server built over
   `@sii/core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
   delegates to the browser flow, ADR-006), `auth_status` (`refresh`), `operate`

@@ -40,7 +40,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | 🚧 | auth + identity base | core logic + Playwright driver + CLI surface landed & tested; **CLI real-SII validated (#5)** — login/status/--refresh/logout; MCP next | ADR-005, ADR-006 |
 | ✅ | Node Playwright `PortalDriver` | Headed login / headless cookies-only restore wired into `createNodeRuntime`; **real-SII login validated (#5)** — landed on Mi-SII off `zeusr.sii.cl`, cookies-only restore + `DatosCntrNow` read confirmed | ADR-006, ADR-008 |
 | 💭 | Operate reach (representación) | Spike: does a persona's operate reach F29/F22/BHE, or only RCV? Decides the identity contract | ADR-005 |
-| 🚧 | Operable fetch | `getDcvEmpresasAutorizadas` wired into login (best-effort → `[self]` on failure) + `PortalSession.requestJson` seam; tested vs fakes. ✅ on a real persona-login readback of actual empresas | ADR-005 |
+| ✅ | Operable fetch | `getDcvEmpresasAutorizadas` wired into login (best-effort → `[self]` on failure) + `PortalSession.requestJson` seam. **Live-validated 2026-06-28** (real session → 1 empresa + self; the `.sii.cl` cookie covers www4, no SPA nav). | ADR-005 |
 
 ## Identity & auth (the operate-centric center — ADR-005)
 
