@@ -80,7 +80,7 @@ Last updated: 2026-06-28
    wiring `getDcvEmpresasAutorizadas` (a portal POST) to populate real represented
    empresas is the next identity increment.
 3. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
-   (ADR-008). **`zod`** — only when the first MCP input schema lands.
+   (ADR-008). _(`zod` resolved — adopted in ADR-011 for MCP input schemas.)_
 
 ## Known Issues
 

@@ -40,6 +40,10 @@ Python `sii-cli`, adapted to TypeScript.
   RUT is ALWAYS visible (status + an `operating as:` header). (ADR-005)
 - **Per-call `--rut` overrides the operate pointer** for one operation; it is the
   same value-domain (the operable set), not a separate concept.
+- **Validate external inputs at the boundary with `zod` (ADR-011).** MCP tool
+  inputs (the SDK derives the protocol JSON Schema from the zod shape) and, later,
+  SII wire payloads in `@sii/core`. Validation stays at the boundary — internal
+  domain invariants are plain TypeScript types, never zod.
 
 ## SII domain rules
 
