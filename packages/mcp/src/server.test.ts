@@ -38,6 +38,8 @@ const toolText = (res: unknown): string =>
 const resourceText = (res: unknown): string =>
   (res as { contents?: { text?: string }[] }).contents?.[0]?.text ?? '';
 
+const isError = (res: unknown): boolean => (res as { isError?: boolean }).isError === true;
+
 const propKeys = (schema: unknown): string[] =>
   Object.keys((schema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {});
 
@@ -100,5 +102,29 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(
       toolText(await client.callTool({ name: 'operate', arguments: { self: true } })),
     ).toContain('Operando como tú mismo: 11.111.111-1.');
+  });
+
+  it('auth_status refresh=true reads the identity from the portal', async () => {
+    const client = await connect(makeRuntime());
+    await client.callTool({ name: 'auth_login', arguments: {} });
+    const text = toolText(
+      await client.callTool({ name: 'auth_status', arguments: { refresh: true } }),
+    );
+    expect(text).toContain('11.111.111-1');
+    expect(text).toContain('Juan Pérez');
+    expect(text).toContain('persona');
+  });
+
+  it('operate by a rut in the operable set selects it; outside it errors (isError)', async () => {
+    const client = await connect(makeRuntime());
+    await client.callTool({ name: 'auth_login', arguments: {} });
+    // self IS operable → selects it.
+    expect(
+      toolText(await client.callTool({ name: 'operate', arguments: { rut: '11111111-1' } })),
+    ).toContain('Operando como tú mismo: 11.111.111-1.');
+    // A valid RUT NOT in the operable set → domain error surfaced as isError.
+    const res = await client.callTool({ name: 'operate', arguments: { rut: '12345670-K' } });
+    expect(isError(res)).toBe(true);
+    expect(toolText(res).length).toBeGreaterThan(0); // SII/domain message passed through
   });
 });

@@ -84,6 +84,10 @@ export function buildServer(runtime: Runtime): McpServer {
   );
 
   // --- Tools: actions, each a thin call into a @sii/core task ---
+  // NOTE: auth_login can block up to the browser-login budget (~180s) while the
+  // user types the Clave into SII's page. Some MCP clients enforce a shorter
+  // tool-call timeout — confirm/tune the budget when live-validating in Claude
+  // Desktop (a credential-free, CLI-only fast path stays out of MCP by design).
   server.registerTool(
     'auth_login',
     {
