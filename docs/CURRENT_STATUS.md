@@ -8,6 +8,16 @@ Last updated: 2026-06-28
 
 ## Recently Completed
 
+- [x] **Operable fetch on login (ADR-005).** `getDcvEmpresasAutorizadas` is now
+  wired into login: a persona's operable set is fetched from SII (the empresas it
+  can operate), replacing the `[self]` placeholder; empresa accounts skip it.
+  Best-effort — any failure degrades to `[self]`, so a login never fails on the
+  lookup; razón social is PII (never audited, only the count). Added the
+  SPA-JSON-facade primitive to the seam — `PortalSession.requestJson` (authenticated
+  JSON POST from the browser context) + `cookie()` — the reusable basis for ALL
+  future read surfaces (rcv/f29/bte). New `portal/representacion.ts` ports the wire
+  contract first-hand (cited; `docs/sii-contract/empresas-autorizadas.md`). 9 tests
+  vs fakes (no SII). NOT yet live-validated (real empresas readback is the follow-up).
 - [x] **MCP stdio surface (ADR-011 — zod adopted).** `@sii/mcp` server built over
   `@sii/core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
   delegates to the browser flow, ADR-006), `auth_status` (`refresh`), `operate`
@@ -100,12 +110,14 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **Validate the MCP server live** — register `@sii/mcp` in Claude Code
-   (`.mcp.json`) and Claude Desktop (`claude_desktop_config.json`); confirm the
-   tools/resources show up and `auth_login` drives the browser flow end-to-end.
-2. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets
-   (also fills the `sii://operable` resource).
+1. **Live-validate MCP + operable** — register `@sii/mcp` in Claude Desktop /
+   Claude Code; confirm the tools/resources appear and `auth_login` drives the
+   browser flow; on a real persona login, confirm `getDcvEmpresasAutorizadas`
+   returns the account's actual represented empresas.
+2. **Surface operable** — MCP `sii://operable` resource + `operate <rut|alias>`
+   (alias now that real empresas exist).
 3. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
-   against the now-stable seams + task contract (ADR-007).
+   against the now-stable seams + task contract (ADR-007) — they reuse
+   `PortalSession.requestJson`.
 
 See `docs/ROADMAP.md` for the full surface checklist.
