@@ -8,6 +8,16 @@ Last updated: 2026-06-28
 
 ## Recently Completed
 
+- [x] **`withSession` session-acquisition primitive (#14).** Factored the
+  restore-session lifecycle out of login/`statusRefresh` into `auth/session.ts`:
+  `withSession(runtime, fn, {rut?})` restores the cookies-only session into a live
+  `PortalSession`, resolves the operating/body RUT (override > pointer > self, ADR-005),
+  hands both to `fn`, and always closes — raising `NotAuthenticated` when none. Consumes,
+  never mints (ADR-006/019); no eager liveness probe (expiry surfaces as the facade's
+  typed error); never retries after a block. `session.ts` now owns the session storage
+  primitives; `statusRefresh`/`probeLive` reuse it (no behavior change). The reusable
+  basis every domain read surface (rcv/f29/bte) wraps its facade call in. 4 new tests vs
+  fakes (no SII), 84/84 green.
 - [x] **MCP `auth_logout` tool (#11).** Added `auth_logout` to `@sii/mcp` — a thin
   call into the existing `logout` task (best-effort server-side close + local cookie
   wipe), no input args. Logout carries no secret, so ADR-006 doesn't bar it from MCP;
@@ -106,10 +116,10 @@ Last updated: 2026-06-28
 
 ## Open Decisions / Questions
 
-1. **Operate reach (representación) spike** — does a persona's `operate` reach the
-   session-keyed surfaces (F29/F22/BHE), or only RCV? Decides the ADR-005 reach
-   contract. Run before wiring those domain modules. (Now testable live — the
-   operable set resolves real represented empresas.)
+1. **Operate reach (representación) spike (#15)** — does a persona's `operate` reach
+   the session-keyed surfaces (F29/F22/BHE), or only RCV? Decides the ADR-005 reach
+   contract. Run before wiring those domain modules; does NOT gate RCV (body-RUT). Now
+   testable live — the operable set resolves real represented empresas.
 2. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
    (ADR-008). _(`zod` resolved — adopted in ADR-011 for MCP input schemas.)_
 
@@ -121,13 +131,15 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **Confirm MCP live in Claude Desktop** — the config now points at the TS binary;
-   confirm the `sii` tools/resources appear and `auth_login` drives the browser flow.
-2. **`operate <alias>`** — alias targets now that the operable set has real empresas.
-3. **Operate-reach spike** (ADR-005) — does `operate` reach F29/F22/BHE or only RCV?
-   Run before wiring those domain modules.
-4. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
-   against the now-stable seams + task contract (ADR-007) — they reuse
-   `PortalSession.requestJson`.
+1. **RCV — first domain read surface** — now unblocked: wrap `getDcv*` facades in
+   `withSession` (#14) + `PortalSession.requestJson`. Body-RUT, so the operate spike
+   doesn't gate it. The template the rest (f29/f22/bte) follow.
+2. **Operate-reach spike (#15)** (ADR-005) — does `operate` reach F29/F22/BHE or only
+   RCV? Run before wiring those (not RCV). Now testable live.
+3. **Confirm MCP live in Claude Desktop** — the config points at the TS binary; confirm
+   the `sii` tools/resources appear and `auth_login` drives the browser flow.
+4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
+5. **Then fan out** f29 → f22 → bte → dte via worktrees against the now-stable seams +
+   task contract (ADR-007), reusing `withSession` + `PortalSession.requestJson`.
 
 See `docs/ROADMAP.md` for the full surface checklist.

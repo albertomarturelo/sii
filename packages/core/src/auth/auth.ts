@@ -1,4 +1,4 @@
-import { HOSTS } from '../config/index.js';
+import { HOSTS, LOGIN_HOST, LOGOUT_URL } from '../config/index.js';
 import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
@@ -7,25 +7,14 @@ import type { AccountType, OperableEntry } from '../identity/index.js';
 import { fetchEmpresasAutorizadas } from '../portal/representacion.js';
 import type { EmpresaAutorizada } from '../portal/representacion.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
+import { deleteSession, readSession, withSession, writeSession } from './session.js';
 
-// Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
-const SESSION_KEY = 'session';
-// Server-side logout endpoint; the close redirects OFF this path (sii-py, observed).
-const LOGOUT_URL = 'https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi';
 const DEFAULT_LOGIN_TIMEOUT_MS = 180_000;
 // Console login submits machine-fast (no human typing in the browser) and fails
 // fast on a rejected Clave, so it needs a far smaller budget than the headed flow.
 const CONSOLE_LOGIN_TIMEOUT_MS = 60_000;
 // The Mi-SII landing serves this inline JS object with the contribuyente snapshot.
 const DATOS_EXPR = "typeof DatosCntrNow !== 'undefined' ? DatosCntrNow : null";
-
-export interface StoredSession {
-  /** Canonical session-principal RUT (read from the portal, not a credential). */
-  readonly rut: string;
-  /** Cookies-only storage state (opaque to the core). */
-  readonly cookies: unknown;
-  readonly savedAt: string;
-}
 
 interface DatosContribuyente {
   rut?: number | string;
@@ -63,10 +52,6 @@ export interface AuthLogoutResult {
   readonly serverClosed: boolean;
 }
 
-export async function readSession(store: Runtime['store']): Promise<StoredSession | null> {
-  return store.read<StoredSession>(SESSION_KEY);
-}
-
 /** Pure local read — NO portal call (sii-py "local-only" labelling). */
 export async function localStatus(store: Runtime['store']): Promise<AuthStatusLocal> {
   const session = await readSession(store);
@@ -88,33 +73,34 @@ function identityFromDatos(datos: DatosCntr | null): AuthIdentity {
 }
 
 function landedOnLoginHost(landed: string): boolean {
-  return new URL(landed).hostname === 'zeusr.sii.cl';
+  return new URL(landed).hostname === LOGIN_HOST;
 }
 
-async function probeLive(runtime: Runtime, session: StoredSession): Promise<boolean> {
-  let s: PortalSession | null = null;
+/** The session-principal RUT if the cached session is still live on the portal, else
+ *  null — never throws (the login path needs "is it warm?", not an error). A single
+ *  `withSession` acquisition (no separate pre-read); a missing/expired session → null. */
+async function liveSessionRut(runtime: Runtime): Promise<string | null> {
   try {
-    s = await runtime.portal.restore(session.cookies);
-    return !landedOnLoginHost(await s.goto(HOSTS.miSii));
+    return await withSession(runtime, async (s, ctx) =>
+      landedOnLoginHost(await s.goto(HOSTS.miSii)) ? null : ctx.sessionRut,
+    );
   } catch {
-    return false;
-  } finally {
-    await s?.close();
+    return null;
   }
 }
 
 /** If a cached session is still live, return `already_authenticated` (no mint).
  *  Shared by both login paths so neither re-mints over a warm session. */
 async function reuseLiveSession(runtime: Runtime): Promise<AuthLoginResult | null> {
-  const existing = await readSession(runtime.store);
-  if (existing && (await probeLive(runtime, existing))) {
+  const rut = await liveSessionRut(runtime);
+  if (rut) {
     recordAudit(runtime, {
       action: 'auth_login',
       result: 'ok',
-      rut: existing.rut,
+      rut,
       reason: 'already_authenticated',
     });
-    return { authenticated: true, rut: existing.rut, reason: 'already_authenticated' };
+    return { authenticated: true, rut, reason: 'already_authenticated' };
   }
   return null;
 }
@@ -175,7 +161,7 @@ async function finalizeFreshSession(
   const datos = await session.evaluate<DatosCntr | null>(DATOS_EXPR);
   const identity = identityFromDatos(datos);
   const cookies = await session.storageState();
-  await runtime.store.write<StoredSession>(SESSION_KEY, {
+  await writeSession(runtime.store, {
     rut: identity.rut,
     cookies,
     savedAt: runtime.clock.now().toISOString(),
@@ -271,28 +257,22 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
     await s?.close();
   }
 
-  await runtime.store.delete(SESSION_KEY);
+  await deleteSession(runtime.store);
   await clearOperateState(runtime.store);
   recordAudit(runtime, { action: 'logout', result: 'ok', rut: session.rut, serverClosed });
   return { loggedOut: true, serverClosed };
 }
 
-/** Curated identity readback from the portal. Requires a live session (no implicit login). */
+/** Curated identity readback from the portal. Requires a live session (no implicit
+ *  login) — acquired via `withSession`; here an expired jar is an explicit
+ *  NotAuthenticated (URL-based detection), since the whole job is the readback. */
 export async function statusRefresh(runtime: Runtime): Promise<AuthIdentity> {
-  const session = await readSession(runtime.store);
-  if (!session) {
-    throw new NotAuthenticatedError('No hay sesión. Ejecuta `sii auth login`.');
-  }
-  let s: PortalSession | null = null;
-  try {
-    s = await runtime.portal.restore(session.cookies);
+  return withSession(runtime, async (s) => {
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
       throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
     }
     const identity = identityFromDatos(await s.evaluate<DatosCntr | null>(DATOS_EXPR));
     recordAudit(runtime, { action: 'auth_status_refresh', result: 'ok', rut: identity.rut });
     return identity;
-  } finally {
-    await s?.close();
-  }
+  });
 }

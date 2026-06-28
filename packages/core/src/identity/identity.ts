@@ -48,6 +48,24 @@ export async function clearOperateState(store: KeyValueStore): Promise<void> {
   await store.delete(OPERATE_KEY);
 }
 
+/** Validate + canonicalise an operate target against the cached operable set —
+ *  SELECTS, never mints (ADR-005). Throws `ValidationError` for an empresa account
+ *  (no operate capability) or a RUT outside the operable set. Shared by the
+ *  persistent `operate` command AND the per-call `--rut` override so both enforce the
+ *  same value-domain (CONVENTIONS: `--rut` is the operable set, not a separate concept). */
+export function resolveOperableTarget(state: OperateState, target: string): string {
+  if (state.accountType === 'empresa') {
+    throw new ValidationError('Una cuenta empresa no puede operar a nombre de otra.');
+  }
+  const parsed = Rut.parse(target);
+  if (!state.operable.some((e) => e.rut === parsed.canonical)) {
+    throw new ValidationError(
+      `RUT ${parsed.formatted} no está en el conjunto operable. Revisa los RUT autorizados con \`sii operate --list\`.`,
+    );
+  }
+  return parsed.canonical;
+}
+
 /** Set the operating RUT, validated against the cached operable set. SELECTS,
  *  never mints (ADR-005). Accepts any RUT format. */
 export async function setOperatingRut(store: KeyValueStore, target: string): Promise<OperateState> {
@@ -55,17 +73,7 @@ export async function setOperatingRut(store: KeyValueStore, target: string): Pro
   if (!state) {
     throw new ValidationError('No hay sesión activa. Ejecuta `sii auth login` primero.');
   }
-  if (state.accountType === 'empresa') {
-    throw new ValidationError('Una cuenta empresa no puede operar a nombre de otra.');
-  }
-  const parsed = Rut.parse(target);
-  const match = state.operable.find((e) => e.rut === parsed.canonical);
-  if (!match) {
-    throw new ValidationError(
-      `RUT ${parsed.formatted} no está en el conjunto operable. Revisa los RUT autorizados con \`sii operate --list\`.`,
-    );
-  }
-  const next: OperateState = { ...state, operatingRut: parsed.canonical };
+  const next: OperateState = { ...state, operatingRut: resolveOperableTarget(state, target) };
   await store.write(OPERATE_KEY, next);
   return next;
 }
@@ -97,11 +105,4 @@ export function operatingContext(state: OperateState): OperatingContext {
     isSelf,
     razonSocial: entry?.razonSocial ?? null,
   };
-}
-
-/** Resolver precedence (ADR-005): explicit override > operate pointer > self.
- *  Returns null only when there is no state at all and no override. */
-export function resolveOperatingRut(state: OperateState | null, override?: string): string | null {
-  if (override) return Rut.parse(override).canonical;
-  return state ? state.operatingRut : null;
 }

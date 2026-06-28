@@ -85,7 +85,7 @@ hexagonal ceremony (ADR-003).
 | `rut` | RUT parse / canonicalise / Mod-11 DV (in-house) | Planned |
 | `config` | Prod hostname constants + rate limits (single source of truth) | Planned |
 | `seams` | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` interfaces + Node defaults. `PortalSession` includes `requestJson`/`cookie` — the authenticated SPA-JSON-facade primitive (www4 SDI endpoints) | Done |
-| `auth` | Session lifecycle: browser cookies-only login, logout, status; only login mints | Planned |
+| `auth` | Session lifecycle: browser cookies-only login, logout, status; only login mints. `withSession` is the consume-path — domain tasks acquire a live `PortalSession` (+ resolved operating RUT) through it; it never mints, raises `NotAuthenticated` when none | login/logout/status + `withSession` done; rest planned |
 | `identity` | Operate-centric model: operating RUT, operable set | Planned |
 | `portal/*` | Portal surfaces as typed facades over `PortalSession.requestJson`. `representacion` (empresas autorizadas / operable set) landed; rcv, f29, f22, bte, dte-public next | representación done; rest planned |
 | `tasks/*` | High-level operations the surfaces call (auth, profile, rcv, iva, renta, …) | Planned |
