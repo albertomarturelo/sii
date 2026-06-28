@@ -11,6 +11,7 @@ import {
   authStatus,
   listOperable,
   login,
+  logout,
   operate,
   operateSelf,
   operatingStatus,
@@ -139,6 +140,26 @@ export function buildServer(runtime: Runtime): McpServer {
         const ctx = await operatingStatus(runtime);
         const op = ctx && !ctx.isSelf ? `\n${describeOperating(ctx)}` : '';
         return `Autenticado (sesión local) como ${fmt(s.rut)}.${op}`;
+      }),
+  );
+
+  // logout carries NO secret (best-effort server close + local cookie wipe), so
+  // ADR-006 does not bar it from MCP — switching accounts is logout→login (ADR-005).
+  server.registerTool(
+    'auth_logout',
+    {
+      title: 'Cerrar sesión',
+      description:
+        'Cierra la sesión: intenta cerrarla en el servidor (mejor esfuerzo) y borra las cookies locales. ' +
+        'No recibe argumentos. Para cambiar de cuenta: auth_logout y luego auth_login.',
+      // Touches SII: the best-effort server-side close is a real portal call (like auth_login).
+      annotations: { readOnlyHint: false, openWorldHint: true },
+    },
+    () =>
+      toolText(async () => {
+        const r = await logout(runtime);
+        if (!r.loggedOut) return 'No había sesión activa.';
+        return r.serverClosed ? 'Sesión cerrada (servidor y local).' : 'Sesión cerrada (local).';
       }),
   );
 

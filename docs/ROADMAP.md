@@ -48,7 +48,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 |---|---|---|---|
 | 🚧 | `sii auth login` (browser) / `--console` | `auth_login` (no password arg) | **CLI real-SII validated (#5)**; **MCP tool built + tested** (no password arg; delegates to the browser flow). **`--console`** (ADR-010): RUT + hidden Clave in the terminal → headless form-fill → same cookies-only session, Clave never stored. CLI-only. Headed login persists `~/.sii/session.json` (0600, no secret). |
 | 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | **CLI real-SII validated (#5)**; **MCP tool + resource built + tested**. Local read (who am I, operating-as); `refresh=true` reads `DatosCntrNow` live. |
-| ✅ | `sii auth logout` | (CLI-only) | **Real-SII validated (#5)**: server-side close (best-effort, redirect off `autTermino.cgi`) + local wipe. Switching accounts = logout→login. |
+| ✅ | `sii auth logout` | `auth_logout` | **Real-SII validated (#5)**: server-side close (best-effort, redirect off `autTermino.cgi`) + local wipe. **MCP tool built + tested** (#11) — no secret, so MCP-eligible (ADR-006); no input args. Switching accounts = logout→login. |
 | 🚧 | `sii operate <rut\|alias>` / `--self` / `--list` | `operate` / Resources `sii://operating`, `sii://operable` | CLI built + tested incl. **`--list`** (operable set with self/current markers); **MCP tool + `sii://operable` resource built + tested**. Validated against the operable set; always visible. Alias TBD. |
 | 📋 | `sii profile` | `profile` | Full contributor snapshot INCLUDING PII (opt-in name; states exposure). |
 
@@ -80,9 +80,10 @@ client (no SII), and binary-smoke-validated (`initialize` handshake):
 - **Resources** (read-only context): ✅ `sii://session`, `sii://operating`,
   `sii://operable`, `sii://config`. NOT tools — the model reads them to orient.
 - **Tools** (actions): ✅ `auth_login` (no password — delegates to the browser
-  flow), `auth_status` (`refresh`), `operate` (`rut`/`self`), annotated
-  `readOnlyHint`. Each is a thin call into a `@sii/core` task; future writes get
-  `destructiveHint`. `auth logout` stays CLI-only (not an MCP tool).
+  flow), `auth_logout` (no args — best-effort server close + local wipe),
+  `auth_status` (`refresh`), `operate` (`rut`/`self`), annotated `readOnlyHint`.
+  Each is a thin call into a `@sii/core` task; future writes get `destructiveHint`.
+  `auth_logout` is MCP-eligible because it carries no secret (ADR-006).
 - **Prompts** (workflow templates): 📋 "revisar IVA del mes", "preparar renta",
   "conciliar folio" — deferred until the read surfaces they orchestrate land.
 
