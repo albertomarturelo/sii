@@ -40,7 +40,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | 🚧 | auth + identity base | core logic + Playwright driver + CLI surface landed & tested; **CLI real-SII validated (#5)** — login/status/--refresh/logout; MCP next | ADR-005, ADR-006 |
 | ✅ | Node Playwright `PortalDriver` | Headed login / headless cookies-only restore wired into `createNodeRuntime`; **real-SII login validated (#5)** — landed on Mi-SII off `zeusr.sii.cl`, cookies-only restore + `DatosCntrNow` read confirmed | ADR-006, ADR-008 |
 | 💭 | Operate reach (representación) | Spike: does a persona's operate reach F29/F22/BHE, or only RCV? Decides the identity contract | ADR-005 |
-| 📋 | Operable fetch | `getDcvEmpresasAutorizadas` on login → real operate targets (currently caches `[self]`) | ADR-005 |
+| ✅ | Operable fetch | `getDcvEmpresasAutorizadas` wired into login (best-effort → `[self]` on failure) + `PortalSession.requestJson` seam. **Live-validated 2026-06-28** (real session → 1 empresa + self; the `.sii.cl` cookie covers www4, no SPA nav). | ADR-005 |
 
 ## Identity & auth (the operate-centric center — ADR-005)
 
@@ -49,7 +49,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | 🚧 | `sii auth login` (browser) / `--console` | `auth_login` (no password arg) | **CLI real-SII validated (#5)**; **MCP tool built + tested** (no password arg; delegates to the browser flow). **`--console`** (ADR-010): RUT + hidden Clave in the terminal → headless form-fill → same cookies-only session, Clave never stored. CLI-only. Headed login persists `~/.sii/session.json` (0600, no secret). |
 | 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | **CLI real-SII validated (#5)**; **MCP tool + resource built + tested**. Local read (who am I, operating-as); `refresh=true` reads `DatosCntrNow` live. |
 | ✅ | `sii auth logout` | (CLI-only) | **Real-SII validated (#5)**: server-side close (best-effort, redirect off `autTermino.cgi`) + local wipe. Switching accounts = logout→login. |
-| 🚧 | `sii operate <rut\|alias>` / `--self` | `operate` / Resource `sii://operating` | CLI built + tested; **MCP tool + resource built + tested** (alias TBD with operable fetch). Validated against the operable set; always visible. |
+| 🚧 | `sii operate <rut\|alias>` / `--self` / `--list` | `operate` / Resources `sii://operating`, `sii://operable` | CLI built + tested incl. **`--list`** (operable set with self/current markers); **MCP tool + `sii://operable` resource built + tested**. Validated against the operable set; always visible. Alias TBD. |
 | 📋 | `sii profile` | `profile` | Full contributor snapshot INCLUDING PII (opt-in name; states exposure). |
 
 ## Read surfaces
@@ -78,8 +78,7 @@ Desktop, so structure it to the spec. The stdio server is built
 client (no SII), and binary-smoke-validated (`initialize` handshake):
 
 - **Resources** (read-only context): ✅ `sii://session`, `sii://operating`,
-  `sii://config`. 📋 `sii://operable` (lands with the operable fetch). NOT
-  tools — the model reads them to orient.
+  `sii://operable`, `sii://config`. NOT tools — the model reads them to orient.
 - **Tools** (actions): ✅ `auth_login` (no password — delegates to the browser
   flow), `auth_status` (`refresh`), `operate` (`rut`/`self`), annotated
   `readOnlyHint`. Each is a thin call into a `@sii/core` task; future writes get

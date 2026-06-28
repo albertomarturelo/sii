@@ -6,12 +6,19 @@ import {
   readOperateState,
   setOperatingRut,
 } from '../identity/index.js';
-import type { OperatingContext } from '../identity/index.js';
+import type { OperableEntry, OperatingContext } from '../identity/index.js';
 import type { AuditEntry, Runtime } from '../seams/index.js';
 
 export interface OperateResult {
   readonly context: OperatingContext;
   readonly reason: 'switched' | 'self';
+}
+
+export interface OperableList {
+  /** The RUT currently operated AS (to flag the active row). */
+  readonly operatingRut: string;
+  /** Self + represented empresas (the valid `operate` / `--rut` targets). */
+  readonly operable: readonly OperableEntry[];
 }
 
 /** Operate AS a represented empresa (validated against the operable set). */
@@ -39,4 +46,11 @@ export async function operateSelf(runtime: Runtime): Promise<OperateResult> {
 export async function operatingStatus(runtime: Runtime): Promise<OperatingContext | null> {
   const state = await readOperateState(runtime.store);
   return state ? operatingContext(state) : null;
+}
+
+/** List the operable set — self + represented empresas (local read). Null when
+ *  there is no session. The valid targets for `operate` / `--rut`. */
+export async function listOperable(runtime: Runtime): Promise<OperableList | null> {
+  const state = await readOperateState(runtime.store);
+  return state ? { operatingRut: state.operatingRut, operable: state.operable } : null;
 }
