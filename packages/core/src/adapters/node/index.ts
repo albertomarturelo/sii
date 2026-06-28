@@ -3,7 +3,7 @@
 import { promises as fsp, appendFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { AuditEntry, AuditSink, Clock, KeyValueStore } from '../../seams/index';
+import type { AuditEntry, AuditSink, Clock, KeyValueStore } from '../../seams/index.js';
 
 export const SII_DIR = join(homedir(), '.sii');
 

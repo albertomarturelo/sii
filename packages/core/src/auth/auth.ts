@@ -1,10 +1,10 @@
-import { HOSTS } from '../config/index';
-import { LoginFailedError, NotAuthenticatedError } from '../errors/index';
-import { Rut } from '../rut/index';
-import { recordAudit } from '../audit/index';
-import { clearOperateState, initOperateState } from '../identity/index';
-import type { AccountType, OperableEntry } from '../identity/index';
-import type { PortalSession, Runtime } from '../seams/index';
+import { HOSTS } from '../config/index.js';
+import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
+import { Rut } from '../rut/index.js';
+import { recordAudit } from '../audit/index.js';
+import { clearOperateState, initOperateState } from '../identity/index.js';
+import type { AccountType, OperableEntry } from '../identity/index.js';
+import type { PortalSession, Runtime } from '../seams/index.js';
 
 // Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
 const SESSION_KEY = 'session';

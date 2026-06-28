@@ -3,19 +3,19 @@
 // a sub-module (auth/portal/identity internals) from a surface is forbidden.
 
 // --- tasks: the public operations ---
-export { login, logout, authStatus, statusRefresh } from './tasks/auth';
+export { login, logout, authStatus, statusRefresh } from './tasks/auth.js';
 export type {
   AuthIdentity,
   AuthLoginResult,
   AuthLogoutResult,
   AuthStatusLocal,
-} from './tasks/auth';
-export { operate, operateSelf, operatingStatus } from './tasks/operate';
-export type { OperateResult } from './tasks/operate';
-export type { OperatingContext } from './identity/index';
+} from './tasks/auth.js';
+export { operate, operateSelf, operatingStatus } from './tasks/operate.js';
+export type { OperateResult } from './tasks/operate.js';
+export type { OperatingContext } from './identity/index.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
-export { createNodeRuntime } from './runtime';
+export { createNodeRuntime } from './runtime.js';
 export type {
   AuditEntry,
   AuditSink,
@@ -26,12 +26,12 @@ export type {
   PortalSession,
   Runtime,
   SecretStore,
-} from './seams/index';
+} from './seams/index.js';
 
 // --- shared primitives ---
-export { Rut } from './rut/index';
-export { HOSTS, LOGIN_HOST } from './config/index';
-export * from './errors/index';
+export { Rut } from './rut/index.js';
+export { HOSTS, LOGIN_HOST } from './config/index.js';
+export * from './errors/index.js';
 
 // --- testing helpers: in-memory fakes for surface / integration tests ---
-export * as testing from './adapters/fake/index';
+export * as testing from './adapters/fake/index.js';

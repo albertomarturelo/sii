@@ -1,12 +1,12 @@
 // Public auth API the surfaces call. Uniform: every operation takes a Runtime.
-import * as auth from '../auth/index';
+import * as auth from '../auth/index.js';
 import type {
   AuthIdentity,
   AuthLoginResult,
   AuthLogoutResult,
   AuthStatusLocal,
-} from '../auth/index';
-import type { Runtime } from '../seams/index';
+} from '../auth/index.js';
+import type { Runtime } from '../seams/index.js';
 
 export function login(runtime: Runtime): Promise<AuthLoginResult> {
   return auth.login(runtime);

@@ -33,11 +33,12 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 |---|---|---|---|
 | ✅ | CFD scaffolding | docs, ADRs, slash commands, CI validate-context | ADR-001 |
 | ✅ | Monorepo skeleton | pnpm workspaces + TS project references; core + cli + mcp stubs | ADR-002 |
-| ✅ | Install + build green | `pnpm install` + `tsc -b` (strict) + eslint + prettier + 29 vitest tests, all green | ADR-002 |
+| ✅ | Install + build green | `pnpm install` + `tsc -b` (strict) + eslint + prettier + 39 vitest tests, all green | ADR-002 |
+| ✅ | NodeNext build | `module`/`moduleResolution` → NodeNext; `.js` on relative imports; `tsc -b` output runs directly on Node (no bundler), verified via the built `sii` binary | ADR-009 |
 | ✅ | Seams spine | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` interfaces + Node defaults + in-memory fakes | ADR-003 |
 | ✅ | `rut` + `config` + `audit` | Pure-core modules: Mod-11 RUT, prod hostnames, secret-dropping audit | ADR-004 |
-| 🚧 | auth + identity base | login / logout / operate CORE logic done + tested (fake driver); Playwright adapter + CLI/MCP surfaces next | ADR-005, ADR-006 |
-| 📋 | Node Playwright `PortalDriver` | Real headed login / headless restore; wires into `createNodeRuntime` | ADR-006, ADR-008 |
+| 🚧 | auth + identity base | core logic + Playwright driver + CLI surface landed & tested (fake driver); real-SII run + MCP next | ADR-005, ADR-006 |
+| 🚧 | Node Playwright `PortalDriver` | Headed login / headless cookies-only restore landed + wired into `createNodeRuntime`; offline-smoke-validated. ✅ on a real-SII login run | ADR-006, ADR-008 |
 | 💭 | Operate reach (representación) | Spike: does a persona's operate reach F29/F22/BHE, or only RCV? Decides the identity contract | ADR-005 |
 | 📋 | Operable fetch | `getDcvEmpresasAutorizadas` on login → real operate targets (currently caches `[self]`) | ADR-005 |
 
@@ -45,10 +46,10 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 
 | Status | CLI | MCP | Spec |
 |---|---|---|---|
-| 📋 | `sii auth login` (browser) | `auth_login` (no password arg) | Headed cookies-only login; user types Clave into SII. The MCP-safe path for Claude Desktop. |
-| 📋 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | Local read (who am I, operating-as); `--refresh` reads `DatosCntrNow`. |
-| 📋 | `sii auth logout` | (CLI-only) | Server-side close + wipe local session. Switching accounts = logout→login. |
-| 📋 | `sii operate <rut\|alias>` / `--self` | `operate` / Resource `sii://operating` | Set/clear the persona's operating RUT, validated against the operable set. Always visible. |
+| 🚧 | `sii auth login` (browser) | `auth_login` (no password arg) | CLI built + tested (fake driver); real-SII run + MCP pending. Headed cookies-only login; user types Clave into SII. |
+| 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | CLI built + tested; MCP pending. Local read (who am I, operating-as); `--refresh` reads `DatosCntrNow`. |
+| 🚧 | `sii auth logout` | (CLI-only) | CLI built + tested. Server-side close (best-effort) + wipe local session. Switching accounts = logout→login. |
+| 🚧 | `sii operate <rut\|alias>` / `--self` | `operate` / Resource `sii://operating` | CLI built + tested (alias TBD with operable fetch); MCP pending. Validated against the operable set; always visible. |
 | 📋 | `sii profile` | `profile` | Full contributor snapshot INCLUDING PII (opt-in name; states exposure). |
 
 ## Read surfaces

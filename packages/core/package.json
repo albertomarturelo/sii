@@ -14,5 +14,8 @@
   },
   "scripts": {
     "build": "tsc -b"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
   }
 }

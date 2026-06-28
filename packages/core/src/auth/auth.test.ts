@@ -4,12 +4,12 @@ import {
   FixedClock,
   InMemoryKeyValueStore,
   RecordingAuditSink,
-} from '../adapters/fake/index';
-import type { Runtime } from '../seams/index';
-import { HOSTS } from '../config/index';
-import { LoginFailedError, NotAuthenticatedError } from '../errors/index';
-import { localStatus, login, logout, readSession, statusRefresh } from './auth';
-import { readOperateState } from '../identity/index';
+} from '../adapters/fake/index.js';
+import type { Runtime } from '../seams/index.js';
+import { HOSTS } from '../config/index.js';
+import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
+import { localStatus, login, logout, readSession, statusRefresh } from './auth.js';
+import { readOperateState } from '../identity/index.js';
 
 function personaDatos(): unknown {
   return { contribuyente: { rut: 20000042, dv: '0', nombres: 'Juan', apellidoPaterno: 'Pérez' } };

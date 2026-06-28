@@ -7,7 +7,7 @@ import type {
   KeyValueStore,
   PortalDriver,
   PortalSession,
-} from '../../seams/index';
+} from '../../seams/index.js';
 
 export class FixedClock implements Clock {
   constructor(private current: Date) {}

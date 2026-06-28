@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HOSTS, LOGIN_HOST, loginUrl } from './config';
+import { HOSTS, LOGIN_HOST, loginUrl } from './config.js';
 
 describe('config', () => {
   it('exposes the prod hosts', () => {

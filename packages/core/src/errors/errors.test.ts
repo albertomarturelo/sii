@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { NotAuthenticatedError, SessionExpiredError, RateLimitError, SiiError } from './errors';
+import { NotAuthenticatedError, SessionExpiredError, RateLimitError, SiiError } from './errors.js';
 
 describe('errors', () => {
   it('sets the subclass name', () => {

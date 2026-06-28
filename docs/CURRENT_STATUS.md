@@ -4,11 +4,15 @@ Last updated: 2026-06-27
 
 ## In Progress
 
-- **Auth + identity base — core LOGIC landed and tested; surfaces + real driver
-  next.** `login` / `logout` / `authStatus` / `statusRefresh` / `operate` /
-  `operateSelf` are implemented in `@sii/core` and fully unit-tested against the
-  fake `PortalDriver` (no SII touched). What's left to make it usable: the real
-  Node Playwright `PortalDriver` adapter, then the CLI (commander) + MCP surfaces.
+- **Auth + identity base — core logic, Playwright driver, AND the CLI surface
+  landed; runnable binary, real-SII validation + MCP next.** `@sii/core` exposes
+  `login` / `logout` / `authStatus` / `statusRefresh` / `operate` / `operateSelf`
+  (unit-tested against the fake driver). The Node Playwright `PortalDriver` is
+  wired into `createNodeRuntime`. The `@sii/cli` (commander) surface is built and
+  runs as a real Node binary: `sii auth login|status [--refresh]|logout`,
+  `sii operate <rut>|--self`, with the always-visible `operating as:` STDERR
+  header and the documented exit-code mapping. What's left: a real-SII `auth login`
+  end-to-end run (headed browser against `zeusr.sii.cl`), then the MCP surface.
 
 ## Recently Completed
 
@@ -33,8 +37,25 @@ Last updated: 2026-06-27
   local), `statusRefresh` (portal readback). Tested with the fake driver.
 - [x] **`tasks/{auth,operate}`** public API (uniform `Runtime` arg) + the
   `@sii/core` barrel (surfaces import only this).
-- [x] **Toolchain green** — pnpm install; `tsc -b` (strict) ✓, eslint ✓,
-  prettier ✓, **29/29 vitest tests** ✓.
+- [x] **Node Playwright `PortalDriver`** — `adapters/node/portal.ts`: headed
+  Chromium `interactiveLogin` (resolves off `zeusr.sii.cl` via URL-based
+  detection), headless `restore`, cookies-only `storageState` (ADR-006). The only
+  module importing Playwright (ADR-003). Wired into `createNodeRuntime`; the
+  throwing stub is gone. Offline-smoke-validated (no SII). (ADR-008)
+- [x] **ADR-009 — NodeNext module resolution.** `module`/`moduleResolution` →
+  `NodeNext`; all relative imports carry `.js`. `tsc -b` output now runs directly
+  on Node (no bundler) — the prior extensionless-ESM output couldn't. Verified by
+  running the built `sii` binary.
+- [x] **`@sii/cli` (commander) surface** — `program.ts` command tree, thin calls
+  into `@sii/core` tasks (ADR-003): `auth login|status [--refresh]|logout`,
+  `operate [rut]|--self`. Always-visible `operating as:` STDERR header (ADR-005);
+  error→exit-code mapping (NotAuthenticated 2 / LoginFailed 3 / RateLimit 4). Runs
+  as a real binary; 8 CLI tests drive the whole tree against fakes (no SII).
+- [x] **GitHub process bootstrap** — issue templates (bug / feature / work-unit)
+  plus a PR template (adapted from sii-py to pnpm/vitest/TS); `/issue:*` and
+  `/review-pr` slash commands pointed at `AltumStack/sii`.
+- [x] **Toolchain green** — pnpm install (+ `playwright`, `commander`, Chromium
+  binary); `tsc -b` (strict) ✓, eslint ✓, prettier ✓, **39/39 vitest tests** ✓.
 
 ## Open Decisions / Questions
 
@@ -49,24 +70,23 @@ Last updated: 2026-06-27
 
 ## Known Issues
 
-- **`createNodeRuntime().portal` is an unwired stub that throws** — real browser
-  login needs the Node Playwright `PortalDriver` adapter (next task). All auth
-  logic is already validated via the fake driver, so this is a drop-in.
+- **No real-SII login has been run yet.** The CLI runs and the Playwright driver
+  is wired + offline-smoke-validated, but no `sii auth login` has gone against the
+  live `zeusr.sii.cl` page. That headed end-to-end run is the next validation.
 - pnpm 10 blocked esbuild's postinstall build script (warning only) — vitest
-  bundles its own esbuild, tests run fine.
+  bundles its own esbuild, tests run fine. (Same for `playwright`'s install
+  script; the Chromium binary is fetched explicitly via `playwright install`.)
 
 ## Next Priorities
 
-1. **Node Playwright `PortalDriver` adapter** — headed `interactiveLogin` (resolve
-   off `zeusr.sii.cl`) + headless `restore`; wire into `createNodeRuntime`. Makes
-   `auth login` real. Add `playwright` to `@sii/core` deps (ADR-008).
-2. **CLI surface (commander)** — `sii auth login` / `logout` / `status [--refresh]`,
-   `sii operate <rut> [--self]`, the always-visible `operating as:` header (STDERR).
-3. **MCP surface** — `auth_login` (no password arg) / `auth_status` / `operate`
-   + Resources (`sii://session`, `sii://operating`); validate it connects from
+1. **Real-SII login validation** — run `sii auth login` against `zeusr.sii.cl`:
+   headed browser, user types the Clave, confirm cookies-only persistence +
+   `auth status --refresh` readback. First live contact with SII.
+2. **MCP surface** — `auth_login` (no password arg) / `auth_status` / `operate`,
+   plus Resources (`sii://session`, `sii://operating`); validate it connects from
    Claude Code (`.mcp.json`) and Claude Desktop (`claude_desktop_config.json`).
-4. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets.
-5. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
+3. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets.
+4. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
    against the now-stable seams + task contract (ADR-007).
 
 See `docs/ROADMAP.md` for the full surface checklist.

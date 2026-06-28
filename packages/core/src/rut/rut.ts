@@ -1,4 +1,4 @@
-import { ValidationError } from '../errors/index';
+import { ValidationError } from '../errors/index.js';
 
 const WEIGHT_RESET = 7;
 

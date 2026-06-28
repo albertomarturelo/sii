@@ -13,6 +13,9 @@ Python `sii-cli`, adapted to TypeScript.
 - Comments explain WHY, not WHAT — non-obvious constraints, SII quirks, subtle
   invariants. Never restate the code.
 - ESM only (`"type": "module"`). Named exports; avoid default exports.
+- **NodeNext modules: relative imports end in `.js`** (e.g. `from './rut/index.js'`)
+  so the compiled output runs directly on Node; bare specifiers (`@sii/core`,
+  `commander`) stay extensionless. `tsc` errors on a missing extension. (ADR-009)
 
 ## Architecture patterns
 

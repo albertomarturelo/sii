@@ -1,4 +1,4 @@
-import type { AuditEntry, AuditSink, Clock } from '../seams/index';
+import type { AuditEntry, AuditSink, Clock } from '../seams/index.js';
 
 /** Keys whose presence (substring, case-insensitive) means "secret" — dropped
  *  before the line hits the sink. RUTs are NOT secrets and pass through. */

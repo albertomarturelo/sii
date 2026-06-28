@@ -4,10 +4,10 @@ import {
   FixedClock,
   InMemoryKeyValueStore,
   RecordingAuditSink,
-} from '../adapters/fake/index';
-import type { Runtime } from '../seams/index';
-import { initOperateState } from '../identity/index';
-import { operate, operateSelf, operatingStatus } from './operate';
+} from '../adapters/fake/index.js';
+import type { Runtime } from '../seams/index.js';
+import { initOperateState } from '../identity/index.js';
+import { operate, operateSelf, operatingStatus } from './operate.js';
 
 function makeRuntime(): Runtime {
   return {
