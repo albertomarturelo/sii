@@ -152,7 +152,8 @@ export function buildServer(runtime: Runtime): McpServer {
       description:
         'Cierra la sesión: intenta cerrarla en el servidor (mejor esfuerzo) y borra las cookies locales. ' +
         'No recibe argumentos. Para cambiar de cuenta: auth_logout y luego auth_login.',
-      annotations: { readOnlyHint: false },
+      // Touches SII: the best-effort server-side close is a real portal call (like auth_login).
+      annotations: { readOnlyHint: false, openWorldHint: true },
     },
     () =>
       toolText(async () => {

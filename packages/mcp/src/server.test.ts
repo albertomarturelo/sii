@@ -104,8 +104,11 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(propKeys(tools.find((t) => t.name === 'auth_logout')?.inputSchema)).toEqual([]);
 
     await client.callTool({ name: 'auth_login', arguments: {} });
-    expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toContain(
-      'Sesión cerrada',
+    // The fake lands off the logout host → serverClosed=true; pin the exact mapped
+    // string so the branch that ran is unambiguous (the false-branch mapping is
+    // trivial and is core's concern — see auth.test.ts).
+    expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toBe(
+      'Sesión cerrada (servidor y local).',
     );
     // After logout the local session is gone → auth_status reports not-authenticated.
     expect(toolText(await client.callTool({ name: 'auth_status', arguments: {} }))).toContain(
