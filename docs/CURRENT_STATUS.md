@@ -4,7 +4,10 @@ Last updated: 2026-06-28
 
 ## In Progress
 
-- _(nothing actively in progress — issue #5 closed; pick the next priority below)._
+- **PR #25 (F22 #19) open, awaiting merge** — CI green; the session closed here. On the
+  next session: merge #25, then pick from Next Priorities (live-revalidate RCV+F22, or
+  F29 #18 reusing the f22 session-keyed task shape). Two read templates now exist:
+  **RCV** (body-RUT) and **F22** (session-keyed) — new modules copy the matching one.
 
 ## Recently Completed
 
