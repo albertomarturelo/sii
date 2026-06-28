@@ -60,6 +60,18 @@ describe('fetchEmpresasAutorizadas', () => {
     );
   });
 
+  it('maps a non-JSON requestJson rejection to RepresentacionError', async () => {
+    // requestJson rejects (e.g. an expired-session HTML redirect) → typed error.
+    const s = new FakePortalSession({
+      requestJson: () => {
+        throw new Error('Unexpected token < in JSON');
+      },
+    });
+    await expect(fetchEmpresasAutorizadas(s, '20000042-0')).rejects.toBeInstanceOf(
+      RepresentacionError,
+    );
+  });
+
   it('POSTs to the SDI endpoint with the conversation TOKEN cookie', async () => {
     const s = session(ok([]), { TOKEN: 'conv-123' });
     await fetchEmpresasAutorizadas(s, '20000042-0');

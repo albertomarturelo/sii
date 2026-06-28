@@ -397,16 +397,22 @@ describe('auth — operable fetch on login (ADR-005, synthetic data)', () => {
   });
 
   it('empresa accounts skip the fetch — operable is just self', async () => {
+    let fetchCalled = false;
     const driver = new FakePortalDriver({
       loginSession: {
         landingUrl: HOSTS.miSii,
         evaluate: datosEval(realEmpresaDatos),
         storageState: { cookies: ['c'] },
-        // requestJson intentionally absent: must NOT be called for an empresa.
+        // Must NOT be called for an empresa account (no representación).
+        requestJson: () => {
+          fetchCalled = true;
+          return null;
+        },
       },
     });
     const rt = makeRuntime(driver);
     await login(rt);
+    expect(fetchCalled).toBe(false);
     const op = await readOperateState(rt.store);
     expect(op?.accountType).toBe('empresa');
     expect(op?.operable).toHaveLength(1);

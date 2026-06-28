@@ -170,5 +170,14 @@ export async function fetchEmpresasAutorizadas(
       data: {},
     },
   };
-  return parseResponse(await session.requestJson(EMPRESAS_URL, request), authRutCanonical);
+  let raw: unknown;
+  try {
+    raw = await session.requestJson(EMPRESAS_URL, request);
+  } catch {
+    // requestJson rejects on a non-JSON body (e.g. an expired-session HTML
+    // redirect) or a network error — surface the typed error (ADR-004), not a
+    // raw Playwright/SyntaxError, so a direct caller gets a consistent contract.
+    throw new RepresentacionError('Respuesta inesperada de SII (no es JSON).');
+  }
+  return parseResponse(raw, authRutCanonical);
 }

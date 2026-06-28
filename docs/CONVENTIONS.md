@@ -59,6 +59,12 @@ Python `sii-cli`, adapted to TypeScript.
   destination. URL is part of the auth contract; DOM markers are a guess.
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
+- **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The
+  `www4.sii.cl` SDI endpoints (RCV, representación, …) are reached via the seam's
+  authenticated JSON POST (the session cookies ride along), never a bespoke HTTP
+  client. Cite the endpoint + observation date; parse the `data[]` rows
+  alias-tolerantly (observed name first); curated + `raw`; surface the
+  `respEstado` error envelope verbatim. (ADR-003 / ADR-004)
 - **Curated + raw for rich payloads.** When SII returns 30+ fields per row,
   expose a curated typed shape (~10–15 fields) plus a `raw` carrying the full
   payload for tax-special edge cases.
