@@ -4,6 +4,8 @@ import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
 import { clearOperateState, initOperateState } from '../identity/index.js';
 import type { AccountType, OperableEntry } from '../identity/index.js';
+import { fetchEmpresasAutorizadas } from '../portal/representacion.js';
+import type { EmpresaAutorizada } from '../portal/representacion.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
 
 // Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
@@ -117,6 +119,46 @@ async function reuseLiveSession(runtime: Runtime): Promise<AuthLoginResult | nul
   return null;
 }
 
+/** Best-effort operable-set fetch on login (ADR-005). Persona accounts ask SII for
+ *  the empresas they can operate (getDcvEmpresasAutorizadas); empresa accounts have
+ *  no representación, so operable = [self]. ANY failure degrades to [self] — a login
+ *  must never fail because the operable lookup did. Razón social is PII → never
+ *  audited (only the count). */
+async function resolveOperable(
+  runtime: Runtime,
+  session: PortalSession,
+  identity: AuthIdentity,
+): Promise<OperableEntry[]> {
+  const self: OperableEntry = {
+    rut: identity.rut,
+    razonSocial: identity.nombre ?? identity.rut,
+    isSelf: true,
+  };
+  if (identity.accountType === 'empresa') return [self];
+  try {
+    const { empresas } = await fetchEmpresasAutorizadas(session, identity.rut);
+    const entries: OperableEntry[] = empresas
+      .filter((e): e is EmpresaAutorizada & { rut: string } => e.rut !== null)
+      .map((e) => ({
+        rut: e.rut,
+        razonSocial: e.razonSocial ?? e.rut,
+        isSelf: e.rut === identity.rut,
+      }));
+    // The endpoint includes self, but be defensive: guarantee exactly one self row.
+    const operable = entries.some((e) => e.isSelf) ? entries : [self, ...entries];
+    recordAudit(runtime, {
+      action: 'operable_fetch',
+      result: 'ok',
+      rut: identity.rut,
+      count: operable.length,
+    });
+    return operable;
+  } catch {
+    recordAudit(runtime, { action: 'operable_fetch', result: 'failed', rut: identity.rut });
+    return [self];
+  }
+}
+
 /** Turn a freshly-minted PortalSession into a persisted cookies-only session:
  *  confirm we landed off the login host, read identity, persist cookies (NO
  *  secret), default operate to self. Shared by the browser + console paths. */
@@ -139,11 +181,8 @@ async function finalizeFreshSession(
     savedAt: runtime.clock.now().toISOString(),
   });
 
-  // Operate defaults to self. The operable fetch (getDcvEmpresasAutorizadas) is a
-  // later portal increment; until then operable = [self].
-  const operable: OperableEntry[] = [
-    { rut: identity.rut, razonSocial: identity.nombre ?? identity.rut, isSelf: true },
-  ];
+  // Operate defaults to self; the operable set is fetched best-effort (ADR-005).
+  const operable = await resolveOperable(runtime, session, identity);
   await initOperateState(runtime.store, {
     selfRut: identity.rut,
     accountType: identity.accountType,

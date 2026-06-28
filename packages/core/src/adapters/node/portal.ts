@@ -14,6 +14,7 @@ import { parseSiiLoginError } from '../../auth/login-error.js';
 import type {
   CredentialLoginOptions,
   InteractiveLoginOptions,
+  JsonRequest,
   PortalDriver,
   PortalSession,
 } from '../../seams/index.js';
@@ -57,6 +58,23 @@ class PlaywrightPortalSession implements PortalSession {
 
   async evaluate<T>(expression: string): Promise<T> {
     return (await this.page.evaluate(expression)) as T;
+  }
+
+  async requestJson(url: string, options: JsonRequest = {}): Promise<unknown> {
+    // Issue from the browser's APIRequestContext so the session cookies ride along
+    // (the SDI facades on www4.sii.cl authorize by the SPA session). domcontentloaded
+    // is irrelevant here — this is a raw XHR-equivalent, not a navigation.
+    const response = await this.context.request.fetch(url, {
+      method: options.method ?? 'POST',
+      ...(options.headers ? { headers: options.headers } : {}),
+      ...(options.body !== undefined ? { data: JSON.stringify(options.body) } : {}),
+    });
+    return response.json();
+  }
+
+  async cookie(url: string, name: string): Promise<string | null> {
+    const cookies = await this.context.cookies(url);
+    return cookies.find((c) => c.name === name)?.value ?? null;
   }
 
   async storageState(): Promise<unknown> {

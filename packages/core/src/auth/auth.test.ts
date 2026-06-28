@@ -339,3 +339,77 @@ describe('auth — console login (ADR-010, synthetic data)', () => {
     expect(driver.interactiveLoginCalls).toBe(0); // never touched the browser path
   });
 });
+
+// ---------------------------------------------------------------------------
+// Operable-set fetch on login (ADR-005): persona accounts ask SII for the empresas
+// they can operate (getDcvEmpresasAutorizadas); best-effort — any failure → [self].
+// ---------------------------------------------------------------------------
+
+const EMPRESAS_OK = {
+  respEstado: { codRespuesta: 0 },
+  data: [
+    { usrEmpRut: '96500000', usrEmpDv: '3', razonSocONombreEmp: 'Empresa Sintética SpA' },
+    { usrEmpRut: '20000042', usrEmpDv: '0' }, // self (matches realPersonaDatos)
+  ],
+};
+
+describe('auth — operable fetch on login (ADR-005, synthetic data)', () => {
+  it('persona login populates operable with self + represented empresas', async () => {
+    const rt = makeRuntime(
+      new FakePortalDriver({
+        loginSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datosEval(realPersonaDatos),
+          storageState: { cookies: ['c'] },
+          requestJson: () => EMPRESAS_OK,
+          cookies: { TOKEN: 'tok' },
+        },
+        restoreSession: { landingUrl: HOSTS.miSii, evaluate: datosEval(realPersonaDatos) },
+      }),
+    );
+    await login(rt);
+    const op = await readOperateState(rt.store);
+    expect(op?.operable.map((e) => e.rut).sort()).toEqual(['20000042-0', '96500000-3']);
+    expect(op?.operable.find((e) => e.rut === '96500000-3')).toMatchObject({
+      razonSocial: 'Empresa Sintética SpA',
+      isSelf: false,
+    });
+    expect(op?.operable.find((e) => e.rut === '20000042-0')?.isSelf).toBe(true);
+  });
+
+  it('falls back to [self] when the operable fetch fails (login still succeeds)', async () => {
+    const rt = makeRuntime(
+      new FakePortalDriver({
+        loginSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datosEval(realPersonaDatos),
+          storageState: { cookies: ['c'] },
+          requestJson: () => ({ respEstado: { codRespuesta: '-1', msgeRespuesta: 'falló' } }),
+        },
+        restoreSession: { landingUrl: HOSTS.miSii, evaluate: datosEval(realPersonaDatos) },
+      }),
+    );
+    const res = await login(rt);
+    expect(res.authenticated).toBe(true); // operable failure never fails the login
+    const op = await readOperateState(rt.store);
+    expect(op?.operable).toHaveLength(1);
+    expect(op?.operable[0]).toMatchObject({ rut: '20000042-0', isSelf: true });
+  });
+
+  it('empresa accounts skip the fetch — operable is just self', async () => {
+    const driver = new FakePortalDriver({
+      loginSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datosEval(realEmpresaDatos),
+        storageState: { cookies: ['c'] },
+        // requestJson intentionally absent: must NOT be called for an empresa.
+      },
+    });
+    const rt = makeRuntime(driver);
+    await login(rt);
+    const op = await readOperateState(rt.store);
+    expect(op?.accountType).toBe('empresa');
+    expect(op?.operable).toHaveLength(1);
+    expect(op?.operable[0]).toMatchObject({ rut: '96500000-3', isSelf: true });
+  });
+});

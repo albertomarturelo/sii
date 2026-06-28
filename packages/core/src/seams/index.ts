@@ -39,11 +39,26 @@ export interface SecretStore {
 
 /** A logged-in browser context (cookies loaded). All portal reads go through
  *  here, so the core never imports Playwright. */
+export interface JsonRequest {
+  readonly method?: 'GET' | 'POST';
+  readonly headers?: Record<string, string>;
+  /** JSON-serialisable request body (sent as the POST payload). */
+  readonly body?: unknown;
+}
+
 export interface PortalSession {
   /** Navigate; returns the URL actually landed on (for URL-based auth detection). */
   goto(url: string): Promise<string>;
   /** Evaluate a JS expression in the page; returns its JSON-serialisable result. */
   evaluate<T>(expression: string): Promise<T>;
+  /** Issue an authenticated JSON request from the session's browser context (the
+   *  session cookies are sent automatically). The primitive behind the SII SPA
+   *  JSON facades (the `www4.sii.cl` SDI endpoints — RCV, representación, …).
+   *  Resolves the parsed JSON body; rejects on a non-JSON response. */
+  requestJson(url: string, options?: JsonRequest): Promise<unknown>;
+  /** Value of a cookie visible to `url` (e.g. the SPA conversation `TOKEN`), or
+   *  null. Used to seed SDI request metadata. */
+  cookie(url: string, name: string): Promise<string | null>;
   /** The cookies-only storage state to persist. */
   storageState(): Promise<unknown>;
   close(): Promise<void>;

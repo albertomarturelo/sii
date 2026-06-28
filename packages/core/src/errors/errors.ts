@@ -29,3 +29,7 @@ export class CredentialNotFoundError extends SiiError {}
 
 /** Invalid user input: bad RUT, an operate target not in the operable set, etc. */
 export class ValidationError extends SiiError {}
+
+/** SII rejected a portal/SDI facade request (error envelope or unparseable
+ *  response). Carries SII's message verbatim — never translated (ADR-004). */
+export class RepresentacionError extends SiiError {}

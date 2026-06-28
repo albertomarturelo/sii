@@ -5,6 +5,7 @@ import type {
   Clock,
   CredentialLoginOptions,
   InteractiveLoginOptions,
+  JsonRequest,
   KeyValueStore,
   PortalDriver,
   PortalSession,
@@ -46,17 +47,30 @@ export interface FakeSessionScript {
   landingUrl?: string;
   /** Result for `evaluate(expression)`. */
   evaluate?: (expression: string) => unknown;
+  /** Result for `requestJson(url, options)` — the SDI facade JSON envelope. */
+  requestJson?: (url: string, options?: JsonRequest) => unknown;
+  /** Cookie name → value map for `cookie(url, name)`. */
+  cookies?: Record<string, string>;
   storageState?: unknown;
 }
 
 export class FakePortalSession implements PortalSession {
   closed = false;
+  /** The last requestJson call — lets a test assert the URL/body sent to SII. */
+  lastRequest: { url: string; options?: JsonRequest } | null = null;
   constructor(private readonly script: FakeSessionScript = {}) {}
   async goto(url: string): Promise<string> {
     return this.script.landingUrl ?? url;
   }
   async evaluate<T>(expression: string): Promise<T> {
     return (this.script.evaluate?.(expression) ?? null) as T;
+  }
+  async requestJson(url: string, options?: JsonRequest): Promise<unknown> {
+    this.lastRequest = options ? { url, options } : { url };
+    return this.script.requestJson?.(url, options) ?? null;
+  }
+  async cookie(_url: string, name: string): Promise<string | null> {
+    return this.script.cookies?.[name] ?? null;
   }
   async storageState(): Promise<unknown> {
     return this.script.storageState ?? { cookies: [] };
