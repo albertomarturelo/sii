@@ -8,6 +8,13 @@ Last updated: 2026-06-28
 
 ## Recently Completed
 
+- [x] **MCP `operate list=true` (#23).** The operable set was only reachable as the
+  `sii://operable` Resource, which MCP clients don't surface as a callable method —
+  so testing in Claude Desktop there was no way to *invoke* "list the accounts I can
+  operate". Added `list=true` to the `operate` tool (equivalent to CLI `operate
+  --list`): returns the operable set with self/current markers, no-session → an
+  actionable `auth_login` hint. Thin call into the existing `listOperable` task
+  (ADR-003); the resource stays. 1 new MCP test.
 - [x] **`withSession` session-acquisition primitive (#14).** Factored the
   restore-session lifecycle out of login/`statusRefresh` into `auth/session.ts`:
   `withSession(runtime, fn, {rut?})` restores the cookies-only session into a live
