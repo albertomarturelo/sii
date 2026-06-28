@@ -48,7 +48,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     const client = await connect(makeRuntime());
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['auth_login', 'auth_status', 'operate']);
+    expect(names).toEqual(['auth_login', 'auth_logout', 'auth_status', 'operate']);
 
     // ADR-006: no tool INPUT FIELD accepts a password (descriptions may mention
     // "Clave" — that's fine; we inspect the input-schema property names only).
@@ -93,6 +93,31 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(resourceText(session)).toContain('11111111-1');
     const operable = await client.readResource({ uri: 'sii://operable' });
     expect(resourceText(operable)).toContain('11111111-1'); // self in the operable set
+  });
+
+  it('auth_logout takes no input and ends the session (server + local)', async () => {
+    const runtime = makeRuntime();
+    const client = await connect(runtime);
+
+    // No input fields — it delegates to the logout task, carries no secret (ADR-006).
+    const { tools } = await client.listTools();
+    expect(propKeys(tools.find((t) => t.name === 'auth_logout')?.inputSchema)).toEqual([]);
+
+    await client.callTool({ name: 'auth_login', arguments: {} });
+    expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toContain(
+      'Sesión cerrada',
+    );
+    // After logout the local session is gone → auth_status reports not-authenticated.
+    expect(toolText(await client.callTool({ name: 'auth_status', arguments: {} }))).toContain(
+      'No autenticado',
+    );
+  });
+
+  it('auth_logout with no live session reports nothing to close', async () => {
+    const client = await connect(makeRuntime());
+    expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toContain(
+      'No había sesión activa.',
+    );
   });
 
   it('operate reports the context and selects self', async () => {
