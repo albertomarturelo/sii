@@ -164,12 +164,20 @@ const asInt = (v: unknown): number | null => {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 };
 
-/** SDI error envelope: `respEstado.codRespuesta != 0` ⇒ SII signaled an error;
- *  return its message verbatim (ADR-004), else null. */
+// RCV `respEstado.codRespuesta` semantics, observed live 2026-06-28:
+//   0 = OK; 3 = consulta VÁLIDA pero SIN MOVIMIENTOS for that (RUT, período, lado) —
+//   `data` comes empty, message comes null (NOT an error). Any OTHER non-zero code is
+//   a real rejection. (Confirmed: a persona's self VENTA and a represented empresa's
+//   COMPRA both returned code 3 with no rows, while the empresa's VENTA returned 0 + a
+//   row — so code 3 is "empty", not "denied", and `--rut` DOES reach the empresa.)
+const RCV_OK = new Set([0, '0', 3, '3']);
+
+/** SDI error envelope. Returns SII's message verbatim (ADR-004) for a real rejection,
+ *  else null (OK or the "sin movimientos" code 3 → handled as an empty result). */
 function siiRejected(resp: Envelope['respEstado']): string | null {
   if (!resp) return null;
   const code = resp.codRespuesta;
-  if (code === 0 || code === '0' || code === undefined || code === null) return null;
+  if (code === undefined || code === null || RCV_OK.has(code)) return null;
   return asStr(resp.msgeRespuesta ?? resp.codError) ?? 'SII rechazó la consulta del RCV.';
 }
 

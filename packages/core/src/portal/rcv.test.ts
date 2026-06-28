@@ -69,6 +69,14 @@ describe('RCV facade (fake session, synthetic envelopes, no SII)', () => {
     expect(res.totalDocumentos).toBeNull();
   });
 
+  it('getResumen: codRespuesta 3 ("sin movimientos") is an empty result, not an error', async () => {
+    // Observed live 2026-06-28: SII returns code 3 (null message, no rows) for a
+    // valid query with no documents that side/period — must NOT throw.
+    const s = session(() => ({ respEstado: { codRespuesta: 3, msgeRespuesta: null }, data: null }));
+    const res = await fetchRcvResumen(s, { rut: RUT, periodo: PERIODO, side: 'VENTA' });
+    expect(res.rows).toEqual([]);
+  });
+
   it('getResumen: a respEstado error is surfaced verbatim as RcvError', async () => {
     const s = session(() => ({
       respEstado: { codRespuesta: -1, msgeRespuesta: 'Periodo fuera de rango' },
