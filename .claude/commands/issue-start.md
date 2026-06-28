@@ -2,12 +2,12 @@
      Pick up a GitHub issue as the focus of THIS session.
      Token budget: ~2,000–4,000 (issue + ADRs + 1 reference file).
 
-     NOTE: replace OWNER/REPO with the real slug once the remote exists. -->
+     Repo slug: AltumStack/sii. -->
 
 The user passes an issue number. If they don't, ask which (or list open
-issues via `gh issue list --repo OWNER/REPO --state open`).
+issues via `gh issue list --repo AltumStack/sii --state open`).
 
-1. **Fetch the issue:** `gh issue view <n> --repo OWNER/REPO`
+1. **Fetch the issue:** `gh issue view <n> --repo AltumStack/sii`
 
 2. **Parse the 6 fixed sections:** `Context`, `Target`, `ADRs to load`,
    `Acceptance criteria`, `Reproduction` (fixes only),
