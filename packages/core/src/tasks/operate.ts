@@ -1,13 +1,13 @@
 // Public operate API. Sets/clears the persona's operating RUT (ADR-005).
-import { recordAudit } from '../audit/index';
+import { recordAudit } from '../audit/index.js';
 import {
   clearOperatingRut,
   operatingContext,
   readOperateState,
   setOperatingRut,
-} from '../identity/index';
-import type { OperatingContext } from '../identity/index';
-import type { AuditEntry, Runtime } from '../seams/index';
+} from '../identity/index.js';
+import type { OperatingContext } from '../identity/index.js';
+import type { AuditEntry, Runtime } from '../seams/index.js';
 
 export interface OperateResult {
   readonly context: OperatingContext;

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { recordAudit } from './audit';
-import { FixedClock, RecordingAuditSink } from '../adapters/fake/index';
+import { recordAudit } from './audit.js';
+import { FixedClock, RecordingAuditSink } from '../adapters/fake/index.js';
 
 describe('recordAudit', () => {
   it('stamps ts and drops secret-substring keys', () => {

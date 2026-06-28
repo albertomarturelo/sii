@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { InMemoryKeyValueStore } from '../adapters/fake/index';
+import { InMemoryKeyValueStore } from '../adapters/fake/index.js';
 import {
   clearOperatingRut,
   initOperateState,
@@ -7,8 +7,8 @@ import {
   readOperateState,
   setOperatingRut,
   type OperableEntry,
-} from './identity';
-import { ValidationError } from '../errors/index';
+} from './identity.js';
+import { ValidationError } from '../errors/index.js';
 
 const PERSONA = '20000042-0';
 const EMPRESA = '78362507-5';

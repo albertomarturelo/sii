@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { Rut } from './rut';
-import { ValidationError } from '../errors/index';
+import { Rut } from './rut.js';
+import { ValidationError } from '../errors/index.js';
 
 describe('Rut', () => {
   // Synthetic, Mod-11-valid RUTs only (no real PII).

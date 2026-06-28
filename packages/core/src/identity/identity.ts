@@ -1,6 +1,6 @@
-import type { KeyValueStore } from '../seams/index';
-import { ValidationError } from '../errors/index';
-import { Rut } from '../rut/index';
+import type { KeyValueStore } from '../seams/index.js';
+import { ValidationError } from '../errors/index.js';
+import { Rut } from '../rut/index.js';
 
 export type AccountType = 'persona' | 'empresa';
 

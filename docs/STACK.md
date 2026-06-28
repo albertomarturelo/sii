@@ -5,6 +5,8 @@
 - **TypeScript** `^5.6` — `strict` plus `noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`, `noImplicitOverride`. This is the equivalent of
   the Python project's `mypy --strict` gate; keep it at zero errors. (ADR-002)
+  Module mode is **NodeNext**: relative imports end in `.js` so `tsc -b` output
+  runs directly on Node with no bundler. (ADR-009)
 - **Node.js** `>=20` (LTS) — the runtime for both surfaces (CLI + MCP).
   `@sii/core` is a Node library; external dependencies sit behind injectable
   seams for testability (ADR-003).
@@ -20,10 +22,14 @@ These are intended choices; versions are pinned when first installed.
   transport. The stdio server is what Claude Code and Claude Desktop both
   connect to. Expose Resources (identity/config), Tools (actions), and Prompts
   (contador workflows).
-- **`playwright`** `^1.x` — portal scraping (the portal is JS-heavy and
-  session-stateful). The default `PortalDriver` adapter; tests inject a fake.
-- **CLI framework** — TBD via ADR (candidates: `commander`, `clipanion`,
-  `yargs`). Pick one before the first CLI command lands.
+- **`playwright`** `^1.49.0` (1.61.1 installed) — portal scraping (the portal is
+  JS-heavy and session-stateful). Backs the default `PortalDriver` adapter
+  (`@sii/core` `adapters/node/portal.ts`): headed Chromium for `interactiveLogin`,
+  headless cookies-only for `restore`. Tests inject a fake instead. Chromium binary
+  via `pnpm --filter @sii/core exec playwright install chromium`. (ADR-008)
+- **`commander`** `^12.1.0` — the CLI framework for `@sii/cli` (ADR-008). Nested
+  subcommands (`sii auth login`, `sii operate`). Lives in `@sii/cli` only;
+  `@sii/core` never imports it.
 - **Secret storage** — TBD via ADR (candidate: `keytar` / `@napi-rs/keyring`
   for the OS keychain). The default `SecretStore` adapter.
 - **`zod`** (likely) — runtime validation at the wire boundary and for MCP tool
