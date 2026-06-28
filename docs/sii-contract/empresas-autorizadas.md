@@ -80,8 +80,16 @@ isSelf: boolean, raw: <full row> }` — curated + `raw` (CONVENTIONS). On login,
 rows with a parseable `rut` map to `OperableEntry { rut, razonSocial, isSelf }`;
 `razonSocial` is PII → never audited (only the count).
 
-## Not yet validated against live SII (this branch)
+## Live-validated 2026-06-28
 
-Built + tested against the fake session (synthetic envelopes). The live readback —
-a real persona login returning the account's actual represented empresas — is the
-follow-up validation (the same account was confirmed working in the Python tool).
+Confirmed against a real persona session (read-only, via the Node adapter's
+`requestJson`): `getDcvEmpresasAutorizadas` returned `count=2` — one represented
+empresa (`isSelf:false`) + the account's own RUT (`isSelf:true`, correctly
+flagged). Findings:
+
+- The POST authorizes **without navigating to the SPA first** — the session
+  carries a domain-wide `.sii.cl` cookie that covers `www4.sii.cl`; no www4-
+  specific cookie and no `conversationId` were needed (sent empty). So login's
+  `resolveOperable` (restore → fetch, no SPA nav) works as written.
+- `razonSocONombreEmp` came **null** again (curated `razonSocial` falls back to the
+  RUT in `OperableEntry`); `usrPrivilegios` also null for this account.
