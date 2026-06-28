@@ -3,6 +3,7 @@ import type {
   AuditEntry,
   AuditSink,
   Clock,
+  CredentialLoginOptions,
   InteractiveLoginOptions,
   KeyValueStore,
   PortalDriver,
@@ -67,14 +68,21 @@ export class FakePortalSession implements PortalSession {
 
 export interface FakeDriverScript {
   loginSession?: FakeSessionScript | (() => FakeSessionScript);
+  credentialSession?: FakeSessionScript | (() => FakeSessionScript);
   restoreSession?: FakeSessionScript | (() => FakeSessionScript);
   /** When set, interactiveLogin rejects with this (simulate timeout / window close). */
   failLogin?: Error;
+  /** When set, credentialLogin rejects with this (simulate bad Clave / lock / timeout). */
+  failCredentialLogin?: Error;
 }
 
 export class FakePortalDriver implements PortalDriver {
   interactiveLoginCalls = 0;
+  credentialLoginCalls = 0;
   restoreCalls = 0;
+  /** The last RUT + Clave passed to credentialLogin — lets a test assert the Clave
+   *  reached the driver but was NOT persisted anywhere (cookies-only, ADR-010). */
+  lastCredential: { rut: string; clave: string } | null = null;
   constructor(private readonly script: FakeDriverScript = {}) {}
   async interactiveLogin(_options: InteractiveLoginOptions): Promise<PortalSession> {
     this.interactiveLoginCalls++;
@@ -83,6 +91,16 @@ export class FakePortalDriver implements PortalDriver {
       typeof this.script.loginSession === 'function'
         ? this.script.loginSession()
         : this.script.loginSession;
+    return new FakePortalSession(s ?? {});
+  }
+  async credentialLogin(options: CredentialLoginOptions): Promise<PortalSession> {
+    this.credentialLoginCalls++;
+    this.lastCredential = { rut: options.rut, clave: options.clave };
+    if (this.script.failCredentialLogin) throw this.script.failCredentialLogin;
+    const s =
+      typeof this.script.credentialSession === 'function'
+        ? this.script.credentialSession()
+        : this.script.credentialSession;
     return new FakePortalSession(s ?? {});
   }
   async restore(_storageState: unknown): Promise<PortalSession> {

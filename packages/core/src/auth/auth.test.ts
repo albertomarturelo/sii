@@ -8,7 +8,7 @@ import {
 import type { Runtime } from '../seams/index.js';
 import { HOSTS } from '../config/index.js';
 import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
-import { localStatus, login, logout, readSession, statusRefresh } from './auth.js';
+import { consoleLogin, localStatus, login, logout, readSession, statusRefresh } from './auth.js';
 import { readOperateState } from '../identity/index.js';
 
 function personaDatos(): unknown {
@@ -266,5 +266,76 @@ describe('auth — real-SII flow (replicated, synthetic data)', () => {
     const rt = makeRuntime(liveDriver(() => ({ contribuyente: { rut: 20000042 } })));
     await expect(login(rt)).rejects.toBeInstanceOf(LoginFailedError);
     expect(await readSession(rt.store)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Console login (ADR-010): RUT + Clave typed in the terminal, headless form-fill,
+// cookies-only result — the Clave is used once and NEVER persisted.
+// ---------------------------------------------------------------------------
+
+/** A driver whose credentialLogin lands on Mi-SII serving `datos`; restore (used
+ *  by the warm-session probe) lands on `restoreUrl`. */
+const credDriver = (datos: () => unknown, restoreUrl: string = HOSTS.miSii): FakePortalDriver =>
+  new FakePortalDriver({
+    credentialSession: {
+      landingUrl: HOSTS.miSii,
+      evaluate: datosEval(datos),
+      storageState: { cookies: ['session-cookie'] },
+    },
+    restoreSession: { landingUrl: restoreUrl, evaluate: datosEval(datos) },
+  });
+
+const CRED = { rut: '20000042-0', clave: 'synthetic-clave-XYZ' };
+
+describe('auth — console login (ADR-010, synthetic data)', () => {
+  it('persists a cookies-only session + defaults operate to self, reason console_login', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos));
+    const res = await consoleLogin(rt, CRED);
+    expect(res).toMatchObject({ authenticated: true, rut: '20000042-0', reason: 'console_login' });
+    const op = await readOperateState(rt.store);
+    expect(op).toMatchObject({ operatingRut: '20000042-0', accountType: 'persona' });
+  });
+
+  it('forwards RUT + Clave to the driver but NEVER persists the Clave', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    await consoleLogin(rt, CRED);
+    // The Clave reached the driver (to fill the form)...
+    expect(driver.lastCredential).toEqual(CRED);
+    // ...but nothing on disk carries it: the stored session is cookies-only.
+    const session = await readSession(rt.store);
+    expect(session && Object.keys(session)).toEqual(['rut', 'cookies', 'savedAt']);
+    expect(JSON.stringify(session)).not.toContain(CRED.clave);
+  });
+
+  it('idempotent: a live cached session returns already_authenticated, no form-fill', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    await consoleLogin(rt, CRED); // mint
+    expect(driver.credentialLoginCalls).toBe(1);
+    const again = await consoleLogin(rt, CRED);
+    expect(again).toMatchObject({ reason: 'already_authenticated' });
+    expect(driver.credentialLoginCalls).toBe(1); // form NOT re-filled
+  });
+
+  it('a failed console login (lands back on the login host) raises LoginFailedError, no session', async () => {
+    // credentialLogin "succeeds" but lands back on the login host (bad Clave / lock).
+    const driver = new FakePortalDriver({
+      credentialSession: { landingUrl: 'https://zeusr.sii.cl/AUT2000/x' },
+    });
+    const rt = makeRuntime(driver);
+    await expect(consoleLogin(rt, CRED)).rejects.toBeInstanceOf(LoginFailedError);
+    expect(await readSession(rt.store)).toBeNull();
+  });
+
+  it('propagates a driver failure (bad Clave / lock / timeout), writes no session', async () => {
+    const driver = new FakePortalDriver({
+      failCredentialLogin: new LoginFailedError('cuenta bloqueada'),
+    });
+    const rt = makeRuntime(driver);
+    await expect(consoleLogin(rt, CRED)).rejects.toBeInstanceOf(LoginFailedError);
+    expect(await readSession(rt.store)).toBeNull();
+    expect(driver.interactiveLoginCalls).toBe(0); // never touched the browser path
   });
 });

@@ -50,7 +50,7 @@ export interface AuthStatusLocal {
 export interface AuthLoginResult {
   readonly authenticated: true;
   readonly rut: string;
-  readonly reason: 'browser_login' | 'already_authenticated';
+  readonly reason: 'browser_login' | 'console_login' | 'already_authenticated';
 }
 
 export interface AuthLogoutResult {
@@ -98,12 +98,9 @@ async function probeLive(runtime: Runtime, session: StoredSession): Promise<bool
   }
 }
 
-/** Browser cookies-only login (ADR-006). Only this mints a session (ADR-019 lineage).
- *  Idempotent: a live cached session returns `already_authenticated` without
- *  opening a window. */
-export async function login(runtime: Runtime): Promise<AuthLoginResult> {
-  const start = runtime.clock.now().getTime();
-
+/** If a cached session is still live, return `already_authenticated` (no mint).
+ *  Shared by both login paths so neither re-mints over a warm session. */
+async function reuseLiveSession(runtime: Runtime): Promise<AuthLoginResult | null> {
   const existing = await readSession(runtime.store);
   if (existing && (await probeLive(runtime, existing))) {
     recordAudit(runtime, {
@@ -114,6 +111,59 @@ export async function login(runtime: Runtime): Promise<AuthLoginResult> {
     });
     return { authenticated: true, rut: existing.rut, reason: 'already_authenticated' };
   }
+  return null;
+}
+
+/** Turn a freshly-minted PortalSession into a persisted cookies-only session:
+ *  confirm we landed off the login host, read identity, persist cookies (NO
+ *  secret), default operate to self. Shared by the browser + console paths. */
+async function finalizeFreshSession(
+  runtime: Runtime,
+  session: PortalSession,
+  reason: 'browser_login' | 'console_login',
+  start: number,
+): Promise<AuthLoginResult> {
+  const landed = await session.goto(HOSTS.miSii);
+  if (landedOnLoginHost(landed)) {
+    throw new LoginFailedError('Login no completado (seguimos en la página de autenticación).');
+  }
+  const datos = await session.evaluate<DatosCntr | null>(DATOS_EXPR);
+  const identity = identityFromDatos(datos);
+  const cookies = await session.storageState();
+  await runtime.store.write<StoredSession>(SESSION_KEY, {
+    rut: identity.rut,
+    cookies,
+    savedAt: runtime.clock.now().toISOString(),
+  });
+
+  // Operate defaults to self. The operable fetch (getDcvEmpresasAutorizadas) is a
+  // later portal increment; until then operable = [self].
+  const operable: OperableEntry[] = [
+    { rut: identity.rut, razonSocial: identity.nombre ?? identity.rut, isSelf: true },
+  ];
+  await initOperateState(runtime.store, {
+    selfRut: identity.rut,
+    accountType: identity.accountType,
+    operable,
+  });
+
+  recordAudit(runtime, {
+    action: 'auth_login',
+    result: 'ok',
+    rut: identity.rut,
+    reason,
+    durationMs: runtime.clock.now().getTime() - start,
+  });
+  return { authenticated: true, rut: identity.rut, reason };
+}
+
+/** Browser cookies-only login (ADR-006). Only this + `consoleLogin` mint a session
+ *  (ADR-019 lineage). Idempotent: a live cached session returns
+ *  `already_authenticated` without opening a window. */
+export async function login(runtime: Runtime): Promise<AuthLoginResult> {
+  const start = runtime.clock.now().getTime();
+  const warm = await reuseLiveSession(runtime);
+  if (warm) return warm;
 
   let session: PortalSession | null = null;
   try {
@@ -121,40 +171,38 @@ export async function login(runtime: Runtime): Promise<AuthLoginResult> {
       destination: HOSTS.miSii,
       timeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
     });
-    const landed = await session.goto(HOSTS.miSii);
-    if (landedOnLoginHost(landed)) {
-      throw new LoginFailedError('Login no completado (seguimos en la página de autenticación).');
-    }
-    const datos = await session.evaluate<DatosCntr | null>(DATOS_EXPR);
-    const identity = identityFromDatos(datos);
-    const cookies = await session.storageState();
-    await runtime.store.write<StoredSession>(SESSION_KEY, {
-      rut: identity.rut,
-      cookies,
-      savedAt: runtime.clock.now().toISOString(),
-    });
-
-    // Operate defaults to self. The operable fetch (getDcvEmpresasAutorizadas) is a
-    // later portal increment; until then operable = [self].
-    const operable: OperableEntry[] = [
-      { rut: identity.rut, razonSocial: identity.nombre ?? identity.rut, isSelf: true },
-    ];
-    await initOperateState(runtime.store, {
-      selfRut: identity.rut,
-      accountType: identity.accountType,
-      operable,
-    });
-
-    recordAudit(runtime, {
-      action: 'auth_login',
-      result: 'ok',
-      rut: identity.rut,
-      reason: 'browser_login',
-      durationMs: runtime.clock.now().getTime() - start,
-    });
-    return { authenticated: true, rut: identity.rut, reason: 'browser_login' };
+    return await finalizeFreshSession(runtime, session, 'browser_login', start);
   } catch (err) {
     recordAudit(runtime, { action: 'auth_login', result: 'failed', reason: 'browser_login' });
+    throw err;
+  } finally {
+    await session?.close();
+  }
+}
+
+/** CLI-only console login (ADR-010): the Clave is typed into the TERMINAL, used
+ *  once to fill SII's real form headless, and never persisted — only cookies are
+ *  stored, exactly like the browser path. ONE attempt, never retried (ADR-004).
+ *  The Clave never reaches MCP (this task is CLI-only) nor the audit log. */
+export async function consoleLogin(
+  runtime: Runtime,
+  credentials: { rut: string; clave: string },
+): Promise<AuthLoginResult> {
+  const start = runtime.clock.now().getTime();
+  const warm = await reuseLiveSession(runtime);
+  if (warm) return warm;
+
+  let session: PortalSession | null = null;
+  try {
+    session = await runtime.portal.credentialLogin({
+      rut: credentials.rut,
+      clave: credentials.clave,
+      destination: HOSTS.miSii,
+      timeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
+    });
+    return await finalizeFreshSession(runtime, session, 'console_login', start);
+  } catch (err) {
+    recordAudit(runtime, { action: 'auth_login', result: 'failed', reason: 'console_login' });
     throw err;
   } finally {
     await session?.close();

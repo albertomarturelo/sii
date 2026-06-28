@@ -8,6 +8,14 @@ Last updated: 2026-06-28
 
 ## Recently Completed
 
+- [x] **Console login `sii auth login --console` (ADR-010)** — a CLI-only input
+  method peer to the browser login. Prompts RUT + Clave (hidden, never a flag),
+  validates the RUT (Mod-11) locally first, then headless form-fills SII's real
+  login form (`#rutcntr`/`#clave`/`#bt_ingresar`, observed) and persists the SAME
+  cookies-only session. The Clave is used once and NEVER stored (no keyring); it
+  never reaches MCP or the audit log. One attempt, no retry (account-lock safety).
+  New seam `PortalDriver.credentialLogin` + fake; `consoleLogin` core/task; 8 new
+  tests (55/55). Not yet exercised against live SII (a session was already warm).
 - [x] **Real-SII auth login validated (issue #5)** — first live contact with SII.
   Headed `sii auth login` against `zeusr.sii.cl`: user typed the Clave, landed on
   Mi-SII (`misiir.sii.cl`, off the login host → URL detection holds), identity read

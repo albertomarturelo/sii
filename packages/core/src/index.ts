@@ -3,7 +3,7 @@
 // a sub-module (auth/portal/identity internals) from a surface is forbidden.
 
 // --- tasks: the public operations ---
-export { login, logout, authStatus, statusRefresh } from './tasks/auth.js';
+export { login, consoleLogin, logout, authStatus, statusRefresh } from './tasks/auth.js';
 export type {
   AuthIdentity,
   AuthLoginResult,
@@ -20,6 +20,7 @@ export type {
   AuditEntry,
   AuditSink,
   Clock,
+  CredentialLoginOptions,
   InteractiveLoginOptions,
   KeyValueStore,
   PortalDriver,

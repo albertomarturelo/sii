@@ -10,6 +10,7 @@ import {
 } from '@sii/core';
 import { buildProgram } from './program.js';
 import { exitCodeFor } from './io.js';
+import type { Prompters } from './prompt.js';
 
 // Synthetic, Mod-11-valid RUT (CONVENTIONS): 11.111.111-1.
 const SELF_RUT_BODY = 11111111;
@@ -31,14 +32,20 @@ function makeRuntime(): Runtime {
         evaluate: datos,
         storageState: { cookies: [] },
       },
+      // credentialLogin() backs `auth login --console` (ADR-010).
+      credentialSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datos,
+        storageState: { cookies: [] },
+      },
       // restore() backs the idempotent live-probe and `auth status --refresh`.
       restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos },
     }),
   };
 }
 
-/** Run the command tree, capturing STDOUT (STDERR — incl. the header — is muted). */
-async function run(runtime: Runtime, ...argv: string[]): Promise<string> {
+/** Capture STDOUT while running `fn` (STDERR — incl. the header + prompts — muted). */
+async function capture(fn: () => Promise<void>): Promise<string> {
   const lines: string[] = [];
   const stdout = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
     lines.push(String(chunk));
@@ -46,15 +53,37 @@ async function run(runtime: Runtime, ...argv: string[]): Promise<string> {
   });
   const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   try {
-    const program = buildProgram(runtime);
-    program.exitOverride();
-    await program.parseAsync(['node', 'sii', ...argv]);
+    await fn();
   } finally {
     stdout.mockRestore();
     stderr.mockRestore();
   }
   return lines.join('');
 }
+
+/** Run the command tree with the default (real) prompters. */
+async function run(runtime: Runtime, ...argv: string[]): Promise<string> {
+  return capture(async () => {
+    const program = buildProgram(runtime);
+    program.exitOverride();
+    await program.parseAsync(['node', 'sii', ...argv]);
+  });
+}
+
+/** Run with injected prompters (for `auth login --console`, no real stdin). */
+async function runWith(runtime: Runtime, prompters: Prompters, ...argv: string[]): Promise<string> {
+  return capture(async () => {
+    const program = buildProgram(runtime, prompters);
+    program.exitOverride();
+    await program.parseAsync(['node', 'sii', ...argv]);
+  });
+}
+
+/** Fake prompters: hidden() returns the Clave; line() returns the RUT (if prompted). */
+const fakePrompters = (clave: string, rut = ''): Prompters => ({
+  line: () => Promise.resolve(rut),
+  hidden: () => Promise.resolve(clave),
+});
 
 describe('sii CLI command tree (fake runtime, no SII)', () => {
   it('auth login mints a session and reports the RUT', async () => {
@@ -67,6 +96,44 @@ describe('sii CLI command tree (fake runtime, no SII)', () => {
     await run(rt, 'auth', 'login');
     const out = await run(rt, 'auth', 'login');
     expect(out).toContain('Ya tienes una sesión activa como 11.111.111-1.');
+  });
+
+  it('auth login --console mints a session from terminal RUT + Clave', async () => {
+    const out = await runWith(
+      makeRuntime(),
+      fakePrompters('synthetic-clave'),
+      'auth',
+      'login',
+      '--console',
+      '--rut',
+      '11111111-1',
+    );
+    expect(out).toContain('Sesión iniciada como 11.111.111-1.');
+  });
+
+  it('auth login --console prompts for the RUT when --rut is omitted', async () => {
+    const out = await runWith(
+      makeRuntime(),
+      fakePrompters('synthetic-clave', '11111111-1'),
+      'auth',
+      'login',
+      '--console',
+    );
+    expect(out).toContain('Sesión iniciada como 11.111.111-1.');
+  });
+
+  it('auth login --console with an empty Clave fails before any attempt', async () => {
+    await expect(
+      runWith(
+        makeRuntime(),
+        fakePrompters(''),
+        'auth',
+        'login',
+        '--console',
+        '--rut',
+        '11111111-1',
+      ),
+    ).rejects.toThrow(/Clave vacía/);
   });
 
   it('auth status reports the local session after login', async () => {

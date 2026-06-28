@@ -10,7 +10,12 @@ import { chromium } from 'playwright';
 import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playwright';
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
-import type { InteractiveLoginOptions, PortalDriver, PortalSession } from '../../seams/index.js';
+import type {
+  CredentialLoginOptions,
+  InteractiveLoginOptions,
+  PortalDriver,
+  PortalSession,
+} from '../../seams/index.js';
 
 /** A session owns its browser; close() tears the whole instance down. */
 class PlaywrightPortalSession implements PortalSession {
@@ -62,6 +67,37 @@ export class PlaywrightPortalDriver implements PortalDriver {
       await browser.close();
       throw new LoginFailedError(
         'Login no completado (tiempo agotado o ventana cerrada). Reintenta `sii auth login`.',
+      );
+    }
+  }
+
+  async credentialLogin(options: CredentialLoginOptions): Promise<PortalSession> {
+    // HEADLESS (ADR-010): the user typed the Clave into the TERMINAL; we fill SII's
+    // real login form and let its own JS derive the hidden rut/dv + referencia and
+    // POST. We never hand-build the POST. The Clave is used only here — only cookies
+    // are persisted by the caller. ONE attempt, never retried (account-lock safety,
+    // ADR-004). Selectors observed 2026-06-28 (docs/sii-contract/auth-login.md):
+    //   #rutcntr (full RUT, text) · #clave (password) · #bt_ingresar (submit).
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      await page.goto(loginUrl(options.destination), { waitUntil: 'domcontentloaded' });
+      await page.fill('#rutcntr', options.rut);
+      await page.fill('#clave', options.clave);
+      await page.click('#bt_ingresar');
+      // Success = redirect OFF the login host (URL-based detection). A wrong Clave /
+      // locked account keeps us ON zeusr.sii.cl, so this times out → LoginFailedError.
+      await page.waitForURL((url) => url.hostname !== LOGIN_HOST, {
+        timeout: options.timeoutMs,
+      });
+      return new PlaywrightPortalSession(browser, context, page);
+    } catch {
+      await browser.close();
+      throw new LoginFailedError(
+        'Login con Clave por consola fallido (Clave inválida, cuenta bloqueada, o el ' +
+          'formulario del SII cambió). NO reintentes; verifica tu Clave o usa ' +
+          '`sii auth login` (navegador).',
       );
     }
   }

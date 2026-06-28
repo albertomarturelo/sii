@@ -12,6 +12,15 @@ export function login(runtime: Runtime): Promise<AuthLoginResult> {
   return auth.login(runtime);
 }
 
+/** CLI-only (ADR-010): RUT + Clave from the console → headless login → cookies
+ *  only. The Clave is used once and never stored. NEVER expose over MCP. */
+export function consoleLogin(
+  runtime: Runtime,
+  credentials: { rut: string; clave: string },
+): Promise<AuthLoginResult> {
+  return auth.consoleLogin(runtime, credentials);
+}
+
 export function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   return auth.logout(runtime);
 }

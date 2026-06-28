@@ -46,7 +46,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 
 | Status | CLI | MCP | Spec |
 |---|---|---|---|
-| 🚧 | `sii auth login` (browser) | `auth_login` (no password arg) | **CLI real-SII validated (#5)**; MCP pending. Headed cookies-only login; user types Clave into SII; lands on Mi-SII, persists `~/.sii/session.json` (0600, no secret). |
+| 🚧 | `sii auth login` (browser) / `--console` | `auth_login` (no password arg) | **CLI real-SII validated (#5)**; MCP pending. Headed cookies-only login; user types Clave into SII; lands on Mi-SII, persists `~/.sii/session.json` (0600, no secret). **`--console`** (ADR-010): RUT + hidden Clave in the terminal → headless form-fill → same cookies-only session, Clave never stored. CLI-only. |
 | 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | **CLI real-SII validated (#5)**; MCP pending. Local read (who am I, operating-as); `--refresh` reads `DatosCntrNow` live. |
 | ✅ | `sii auth logout` | (CLI-only) | **Real-SII validated (#5)**: server-side close (best-effort, redirect off `autTermino.cgi`) + local wipe. Switching accounts = logout→login. |
 | 🚧 | `sii operate <rut\|alias>` / `--self` | `operate` / Resource `sii://operating` | CLI built + tested (alias TBD with operable fetch); MCP pending. Validated against the operable set; always visible. |
