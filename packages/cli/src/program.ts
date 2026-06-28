@@ -6,7 +6,6 @@ import {
   LoginFailedError,
   Rut,
   authStatus,
-  consoleLogin,
   login,
   logout,
   operate,
@@ -15,6 +14,9 @@ import {
   statusRefresh,
   type Runtime,
 } from '@sii/core';
+// CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
+// can't wire it (ADR-006 / ADR-010).
+import { consoleLogin } from '@sii/core/cli';
 import { out } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
