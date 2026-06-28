@@ -7,8 +7,8 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
-import { NotAuthenticatedError } from '../errors/index.js';
-import { initOperateState } from '../identity/index.js';
+import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
+import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { withSession, writeSession } from './session.js';
 
 // Synthetic, Mod-11-valid RUTs (CONVENTIONS): persona 20.000.042-0, empresa 78.362.507-5.
@@ -74,17 +74,52 @@ describe('withSession (session-acquisition primitive)', () => {
     expect(rt.portal.restoreCalls).toBe(1);
   });
 
-  it('resolves operatingRut by precedence: --rut override > pointer > self', async () => {
+  it('no override → uses the operate pointer (self by default, or a selected empresa)', async () => {
     const rt = makeRuntime(new FakePortalDriver({ restoreSession: {} }));
     await seedSession(rt);
 
-    // Override wins (a represented empresa in the operable set).
-    const overridden = await withSession(rt, async (_s, c) => c, { rut: EMPRESA });
-    expect(overridden.operatingRut).toBe(EMPRESA);
+    // Default pointer is self.
+    expect((await withSession(rt, async (_s, c) => c)).operatingRut).toBe(SELF);
+    // Point at a represented empresa → no-override resolves to it (the MIDDLE tier).
+    await setOperatingRut(rt.store, EMPRESA);
+    expect((await withSession(rt, async (_s, c) => c)).operatingRut).toBe(EMPRESA);
+  });
 
-    // No override → the operate pointer (here still self) is used.
-    const pointer = await withSession(rt, async (_s, c) => c);
-    expect(pointer.operatingRut).toBe(SELF);
+  it('--rut override beats the pointer and is validated against the operable set', async () => {
+    const rt = makeRuntime(new FakePortalDriver({ restoreSession: {} }));
+    await seedSession(rt);
+    await setOperatingRut(rt.store, EMPRESA); // pointer = empresa
+
+    // Override back to self wins over the pointer.
+    expect((await withSession(rt, async (_s, c) => c, { rut: SELF })).operatingRut).toBe(SELF);
+
+    // A valid RUT OUTSIDE the operable set is rejected LOCALLY (never sent to SII).
+    await expect(withSession(rt, async (_s, c) => c, { rut: '12345670-K' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    expect(rt.portal.restoreCalls).toBe(1); // only the successful override restored
+  });
+
+  it('an empresa account cannot override --rut to another RUT (no operate capability)', async () => {
+    const rt = makeRuntime(new FakePortalDriver({ restoreSession: {} }));
+    await writeSession(rt.store, { rut: EMPRESA, cookies: ['c'], savedAt: '2026-06-27T12:00:00Z' });
+    await initOperateState(rt.store, {
+      selfRut: EMPRESA,
+      accountType: 'empresa',
+      operable: [{ rut: EMPRESA, razonSocial: 'Mi Empresa SpA', isSelf: true }],
+    });
+    await expect(withSession(rt, async (_s, c) => c, { rut: SELF })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
+
+  it('an override with a session but no operate state → NotAuthenticated (broken state)', async () => {
+    const rt = makeRuntime(new FakePortalDriver({ restoreSession: {} }));
+    await writeSession(rt.store, { rut: SELF, cookies: ['c'], savedAt: '2026-06-27T12:00:00Z' });
+    // No initOperateState — an override cannot be validated, so reject (re-login).
+    await expect(withSession(rt, async (_s, c) => c, { rut: EMPRESA })).rejects.toBeInstanceOf(
+      NotAuthenticatedError,
+    );
   });
 
   it('always closes the session — when fn resolves AND when fn throws', async () => {

@@ -7,6 +7,8 @@ export const HOSTS = {
   login: 'https://zeusr.sii.cl',
   /** Login page path; takes the post-login destination as an UNKEYED query string (observed). */
   loginPath: '/AUT2000/InicioAutenticacion/IngresoRutClave.html',
+  /** Server-side logout endpoint path; the close redirects OFF this path (sii-py, observed). */
+  logoutPath: '/cgi_AUT2000/autTermino.cgi',
   /** Mi SII landing — serves the inline `DatosCntrNow` object with the contribuyente snapshot. */
   miSii: 'https://misiir.sii.cl/cgi_misii/siihome.cgi',
   portal: 'https://www.sii.cl',
@@ -22,6 +24,9 @@ export const LOGIN_HOST = 'zeusr.sii.cl';
 
 /** Full login page URL (host + path). */
 export const LOGIN_URL = `${HOSTS.login}${HOSTS.loginPath}`;
+
+/** Full server-side logout URL (host + path). The close redirects OFF this path. */
+export const LOGOUT_URL = `${HOSTS.login}${HOSTS.logoutPath}`;
 
 export interface Settings {
   /** Max requests/second used to pace portal POSTs (sii-py ADR-011). */

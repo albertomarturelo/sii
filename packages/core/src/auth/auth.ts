@@ -1,4 +1,4 @@
-import { HOSTS } from '../config/index.js';
+import { HOSTS, LOGIN_HOST, LOGOUT_URL } from '../config/index.js';
 import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
@@ -9,8 +9,6 @@ import type { EmpresaAutorizada } from '../portal/representacion.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
 import { deleteSession, readSession, withSession, writeSession } from './session.js';
 
-// Server-side logout endpoint; the close redirects OFF this path (sii-py, observed).
-const LOGOUT_URL = 'https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi';
 const DEFAULT_LOGIN_TIMEOUT_MS = 180_000;
 // Console login submits machine-fast (no human typing in the browser) and fails
 // fast on a rejected Clave, so it needs a far smaller budget than the headed flow.
@@ -75,32 +73,34 @@ function identityFromDatos(datos: DatosCntr | null): AuthIdentity {
 }
 
 function landedOnLoginHost(landed: string): boolean {
-  return new URL(landed).hostname === 'zeusr.sii.cl';
+  return new URL(landed).hostname === LOGIN_HOST;
 }
 
-/** Liveness check over the stored session — boolean, never throws (the login path
- *  needs "is it warm?", not an error). Reuses `withSession` for the restore+close
- *  lifecycle; a missing/expired session resolves to `false`. */
-async function probeLive(runtime: Runtime): Promise<boolean> {
+/** The session-principal RUT if the cached session is still live on the portal, else
+ *  null — never throws (the login path needs "is it warm?", not an error). A single
+ *  `withSession` acquisition (no separate pre-read); a missing/expired session → null. */
+async function liveSessionRut(runtime: Runtime): Promise<string | null> {
   try {
-    return await withSession(runtime, async (s) => !landedOnLoginHost(await s.goto(HOSTS.miSii)));
+    return await withSession(runtime, async (s, ctx) =>
+      landedOnLoginHost(await s.goto(HOSTS.miSii)) ? null : ctx.sessionRut,
+    );
   } catch {
-    return false;
+    return null;
   }
 }
 
 /** If a cached session is still live, return `already_authenticated` (no mint).
  *  Shared by both login paths so neither re-mints over a warm session. */
 async function reuseLiveSession(runtime: Runtime): Promise<AuthLoginResult | null> {
-  const existing = await readSession(runtime.store);
-  if (existing && (await probeLive(runtime))) {
+  const rut = await liveSessionRut(runtime);
+  if (rut) {
     recordAudit(runtime, {
       action: 'auth_login',
       result: 'ok',
-      rut: existing.rut,
+      rut,
       reason: 'already_authenticated',
     });
-    return { authenticated: true, rut: existing.rut, reason: 'already_authenticated' };
+    return { authenticated: true, rut, reason: 'already_authenticated' };
   }
   return null;
 }

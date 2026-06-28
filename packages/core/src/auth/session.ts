@@ -1,5 +1,5 @@
 import { NotAuthenticatedError } from '../errors/index.js';
-import { readOperateState, resolveOperatingRut } from '../identity/index.js';
+import { readOperateState, resolveOperableTarget } from '../identity/index.js';
 import type { KeyValueStore, PortalSession, Runtime } from '../seams/index.js';
 
 // Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
@@ -51,11 +51,21 @@ export async function withSession<T>(
   if (!stored) {
     throw new NotAuthenticatedError('No hay sesión. Ejecuta `sii auth login`.');
   }
-  // No operate state (defensive) or no override falls back to the session principal.
-  // An out-of-operable override is left for SII to reject verbatim (ADR-004) — the
-  // operate pointer itself is already validated against the operable set on set.
+  // Resolve the operating/body RUT (ADR-005). A `--rut` override is the same
+  // value-domain as the operate pointer, so it is validated against the operable set
+  // HERE (empresa account / out-of-set RUT rejected locally, not round-tripped to SII)
+  // — the single enforcement point for per-call `--rut`. No override → the operate
+  // pointer; missing operate state alongside a session is broken → re-login.
   const operateState = await readOperateState(runtime.store);
-  const operatingRut = resolveOperatingRut(operateState, options.rut) ?? stored.rut;
+  let operatingRut: string;
+  if (options.rut !== undefined) {
+    if (!operateState) {
+      throw new NotAuthenticatedError('No hay sesión. Ejecuta `sii auth login`.');
+    }
+    operatingRut = resolveOperableTarget(operateState, options.rut);
+  } else {
+    operatingRut = operateState?.operatingRut ?? stored.rut;
+  }
 
   let s: PortalSession | null = null;
   try {

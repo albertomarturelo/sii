@@ -34,8 +34,10 @@ Python `sii-cli`, adapted to TypeScript.
   login task mints. (ported sii-py ADR-019)
 - **Domain tasks reach SII through `withSession`, never a bespoke restore.** The
   `auth/session.ts` primitive restores the cookies-only session into a live
-  `PortalSession`, resolves the operating/body RUT (override > pointer > self),
-  hands both to the callback, and always closes the session — raising
+  `PortalSession`, resolves the operating/body RUT (override > pointer > self — a
+  `--rut` override is validated against the operable set HERE, the single
+  enforcement point, via the same `resolveOperableTarget` the `operate` command
+  uses), hands both to the callback, and always closes the session — raising
   `NotAuthenticated` when there is none. It does NOT eagerly probe liveness (an
   expired jar surfaces as the facade's own typed error) and NEVER retries after a
   block. New read surfaces (rcv/f29/bte) wrap their facade call in it. (ADR-003 / ADR-005)
