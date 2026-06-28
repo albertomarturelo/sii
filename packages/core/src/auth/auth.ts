@@ -11,6 +11,9 @@ const SESSION_KEY = 'session';
 // Server-side logout endpoint; the close redirects OFF this path (sii-py, observed).
 const LOGOUT_URL = 'https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi';
 const DEFAULT_LOGIN_TIMEOUT_MS = 180_000;
+// Console login submits machine-fast (no human typing in the browser) and fails
+// fast on a rejected Clave, so it needs a far smaller budget than the headed flow.
+const CONSOLE_LOGIN_TIMEOUT_MS = 60_000;
 // The Mi-SII landing serves this inline JS object with the contribuyente snapshot.
 const DATOS_EXPR = "typeof DatosCntrNow !== 'undefined' ? DatosCntrNow : null";
 
@@ -198,7 +201,7 @@ export async function consoleLogin(
       rut: credentials.rut,
       clave: credentials.clave,
       destination: HOSTS.miSii,
-      timeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
+      timeoutMs: CONSOLE_LOGIN_TIMEOUT_MS,
     });
     return await finalizeFreshSession(runtime, session, 'console_login', start);
   } catch (err) {

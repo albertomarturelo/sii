@@ -17,6 +17,33 @@ import type {
   PortalSession,
 } from '../../seams/index.js';
 
+/** Extract SII's verbatim login-error message from the failed-login page (rendered
+ *  on zeusr.sii.cl at /cgi_AUT2000/CAutInicio.cgi). Observed 2026-06-28: the page
+ *  shows "<causa>" then "El código de este mensaje es <código>" — the line BEFORE
+ *  the código line is the human cause (e.g. "La Clave Tributaria ingresada no es
+ *  correcta…"). Pass it through unchanged (CONVENTIONS); fall back to a clear,
+ *  no-retry message if the page shape changed. */
+// Evaluated IN the page (string expr, like the rest of this adapter — keeps the
+// core off the DOM lib). Returns "<causa> (<código>)" or '' if the shape changed.
+const ERROR_EXPR = `(() => {
+  const lines = ((document.body && document.body.innerText) || '')
+    .split('\\n').map((l) => l.trim()).filter(Boolean);
+  const i = lines.findIndex((l) => /El c[oó]digo de este mensaje/i.test(l));
+  return i > 0 ? lines[i - 1] + ' (' + lines[i] + ')' : '';
+})()`;
+
+async function readLoginError(page: Page): Promise<string> {
+  const fallback =
+    'El SII rechazó el login (Clave incorrecta o cuenta bloqueada). NO reintentes a ciegas: ' +
+    'varios intentos fallidos bloquean la cuenta. Verifica tu Clave o usa `sii auth login`.';
+  try {
+    const message = (await page.evaluate(ERROR_EXPR)) as string;
+    return message || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** A session owns its browser; close() tears the whole instance down. */
 class PlaywrightPortalSession implements PortalSession {
   constructor(
@@ -85,19 +112,26 @@ export class PlaywrightPortalDriver implements PortalDriver {
       await page.goto(loginUrl(options.destination), { waitUntil: 'domcontentloaded' });
       await page.fill('#rutcntr', options.rut);
       await page.fill('#clave', options.clave);
-      await page.click('#bt_ingresar');
-      // Success = redirect OFF the login host (URL-based detection). A wrong Clave /
-      // locked account keeps us ON zeusr.sii.cl, so this times out → LoginFailedError.
-      await page.waitForURL((url) => url.hostname !== LOGIN_HOST, {
-        timeout: options.timeoutMs,
-      });
+      // The submit POSTs to /cgi_AUT2000/CAutInicio.cgi (observed 2026-06-28). BOTH
+      // outcomes are a navigation that settles into a document: success redirects OFF
+      // the login host (→ Mi-SII); a rejected Clave / locked account stays ON
+      // zeusr.sii.cl and RENDERS the error page there. Wait for the settled document
+      // and decide by host — so a failure fails in seconds, never hanging to timeout.
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: options.timeoutMs }),
+        page.click('#bt_ingresar'),
+      ]);
+      if (new URL(page.url()).hostname === LOGIN_HOST) {
+        // Rejected — surface SII's verbatim message (CONVENTIONS); do NOT retry.
+        throw new LoginFailedError(await readLoginError(page));
+      }
       return new PlaywrightPortalSession(browser, context, page);
-    } catch {
+    } catch (err) {
       await browser.close();
+      if (err instanceof LoginFailedError) throw err; // already carries SII's message
       throw new LoginFailedError(
-        'Login con Clave por consola fallido (Clave inválida, cuenta bloqueada, o el ' +
-          'formulario del SII cambió). NO reintentes; verifica tu Clave o usa ' +
-          '`sii auth login` (navegador).',
+        'Login con Clave por consola no completado (el formulario del SII no respondió ' +
+          'o cambió). NO reintentes; usa `sii auth login` (navegador).',
       );
     }
   }

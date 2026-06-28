@@ -159,15 +159,28 @@ only — never the Clave): `Por favor, ingrese rut y clave.`, `Debe ingresar el
 rut completo`, `El RUT ingresado no es valido`, `Dígito Verificador erróneo`,
 `Debe ingresar la clave nueva`. Pass these through verbatim (CONVENTIONS).
 
-### NOT YET observed (deliberately) — account-lock safety
+### Server-side failure response (observed 2026-06-28, one controlled attempt)
 
-The **server-side** failure response (wrong Clave / locked account) is the page
-returned by the POST to `CAutInicio.cgi`. It was **not** captured: a deliberate
-wrong-Clave submit counts toward SII's lockout and is forbidden (ADR-004 "never
-retry after a block"). Capture it **opportunistically** only (e.g. a genuine
-mistype), never by design. Until then, the re-mint failure contract is: a
-credential re-mint makes **exactly one** attempt; if it lands back on
-`zeusr.sii.cl`, treat as failed, do NOT retry, drop the stored credential, and
-require an explicit `auth login`. Distinguishing "Clave incorrecta" (drop
-credential) from "cuenta bloqueada" (surface verbatim, stop) needs the
-server-response observation above.
+A wrong Clave POSTs to `CAutInicio.cgi` and the response **stays on the login
+host** — it does NOT leave `zeusr.sii.cl`:
+
+- Landed URL: `https://zeusr.sii.cl/cgi_AUT2000/CAutInicio.cgi` (host `zeusr.sii.cl`).
+- The error is rendered as **page body text** (NOT in `#alert_placeholder`, NOT a
+  JS `alert()` dialog, NOT an `[class*=error]` node), followed by an `Aceptar`
+  button. Observed message (wrong Clave):
+  > La Clave Tributaria ingresada no es correcta, verifique que su teclado no está
+  > con opción "mayúsculas" e inténtelo nuevamente.
+  > El código de este mensaje es `01.01.203.500.720.20`
+
+This is the **fast-fail signal**: after the submit navigation settles, if the host
+is still `zeusr.sii.cl` the login was rejected. (Waiting only for the host to
+*change* — the original bug — hangs until timeout, since a failure never leaves
+the host.) The verbatim cause is the body line BEFORE `El código de este mensaje
+es …`; `adapters/node/portal.ts#readLoginError` extracts and surfaces it
+(CONVENTIONS), with a no-retry fallback if the shape changes.
+
+**Account-lock safety (ADR-004):** each wrong-Clave submit counts toward SII's
+lockout, so `credentialLogin` makes **exactly one** attempt and NEVER retries.
+Still NOT observed (deliberately — triggering it risks a real lockout): the
+**locked-account** page, distinct from this wrong-Clave page. Capture it
+opportunistically only; until then both map to "stop, surface verbatim".
