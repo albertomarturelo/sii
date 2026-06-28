@@ -9,7 +9,7 @@
 import { chromium } from 'playwright';
 import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playwright';
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
-import { LoginFailedError } from '../../errors/index.js';
+import { LoginFailedError, SessionExpiredError } from '../../errors/index.js';
 import { parseSiiLoginError } from '../../auth/login-error.js';
 import type {
   CredentialLoginOptions,
@@ -69,7 +69,24 @@ class PlaywrightPortalSession implements PortalSession {
       ...(options.headers ? { headers: options.headers } : {}),
       ...(options.body !== undefined ? { data: JSON.stringify(options.body) } : {}),
     });
-    return response.json();
+    try {
+      return await response.json();
+    } catch {
+      // A non-JSON body from an authenticated SDI POST means the dead session was
+      // bounced to SII's login wall (HTML), not a real data response. Detect it the
+      // same URL-based way the rest of the auth flow does (landing on LOGIN_HOST) —
+      // with an HTML content-type fallback for a same-host login wall — and raise an
+      // ACTIONABLE SessionExpiredError instead of leaking a parse error. No extra
+      // round-trip: this first SDI POST IS the liveness test (ADR-009 URL detection).
+      const contentType = (response.headers()['content-type'] ?? '').toLowerCase();
+      const bouncedToLogin = new URL(response.url()).hostname === LOGIN_HOST;
+      if (bouncedToLogin || contentType.includes('text/html')) {
+        throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+      }
+      throw new Error(
+        `Respuesta no-JSON de SII (HTTP ${response.status()}, ${contentType || 'sin content-type'}).`,
+      );
+    }
   }
 
   async cookie(url: string, name: string): Promise<string | null> {

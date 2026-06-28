@@ -14,13 +14,16 @@ export class Periodo {
     readonly month: number,
   ) {}
 
-  /** Parse + validate. Accepts `YYYYMM`, `YYYY-MM`, `YYYY/MM`, `YYYY.MM`. */
+  /** Parse + validate. Accepts `YYYYMM`, and `YYYY-MM` / `YYYY/MM` / `YYYY.MM` with a
+   *  one- OR two-digit month (`2026-5` and `2026-05` both → May 2026). */
   static parse(input: string): Periodo {
-    const cleaned = input.replace(/[-/.\s]/g, '');
-    if (!/^\d{6}$/.test(cleaned)) {
-      throw new ValidationError(`Período inválido: "${input}" (esperado YYYYMM).`);
+    const trimmed = input.trim();
+    const sep = /^(\d{4})[-/.](\d{1,2})$/.exec(trimmed);
+    if (sep) return Periodo.of(Number(sep[1]), Number(sep[2]));
+    if (/^\d{6}$/.test(trimmed)) {
+      return Periodo.of(Number(trimmed.slice(0, 4)), Number(trimmed.slice(4)));
     }
-    return Periodo.of(Number(cleaned.slice(0, 4)), Number(cleaned.slice(4)));
+    throw new ValidationError(`Período inválido: "${input}" (esperado YYYYMM o YYYY-MM).`);
   }
 
   /** Build from numeric year + month, validating both. */

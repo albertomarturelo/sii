@@ -12,6 +12,12 @@ describe('Periodo', () => {
     }
   });
 
+  it('accepts a one-digit month when a separator is present', () => {
+    for (const input of ['2026-5', '2026/5', '2026.5']) {
+      expect(Periodo.parse(input).canonical).toBe('202605');
+    }
+  });
+
   it('zero-pads a single-digit month in both forms', () => {
     const p = Periodo.of(2026, 1);
     expect(p.canonical).toBe('202601');
@@ -19,7 +25,8 @@ describe('Periodo', () => {
   });
 
   it('rejects a malformed period (wrong length / non-numeric)', () => {
-    for (const bad of ['2026', '20260', '2026013', 'abc', '2026-6', '']) {
+    // `20265` has no separator → must be 6 digits; bare year, 7 digits, letters → invalid.
+    for (const bad of ['2026', '20265', '2026013', 'abc', '20-2606', '']) {
       expect(() => Periodo.parse(bad)).toThrow(ValidationError);
     }
   });

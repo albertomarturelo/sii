@@ -38,9 +38,12 @@ Python `sii-cli`, adapted to TypeScript.
   `--rut` override is validated against the operable set HERE, the single
   enforcement point, via the same `resolveOperableTarget` the `operate` command
   uses), hands both to the callback, and always closes the session — raising
-  `NotAuthenticated` when there is none. It does NOT eagerly probe liveness (an
-  expired jar surfaces as the facade's own typed error) and NEVER retries after a
-  block. New read surfaces (rcv/f29/bte) wrap their facade call in it. (ADR-003 / ADR-005)
+  `NotAuthenticated` when there is none. It does NOT eagerly probe liveness — the
+  first SDI POST IS the liveness test: the `requestJson` seam detects the login-wall
+  response (a dead jar bounced to HTML / `LOGIN_HOST`) and raises `SessionExpiredError`
+  (actionable "re-login"), so facades must let `NotAuthenticated` propagate instead of
+  wrapping it as their domain error. NEVER retries after a block. New read surfaces
+  (rcv/f29/bte) wrap their facade call in it. (ADR-003 / ADR-005)
 - **Identity is single-account + operate-centric.** One live session at a time;
   switch accounts by logout→login. Within a session, a persona's `operate`
   pointer chooses which RUT it acts as (self by default, or a represented

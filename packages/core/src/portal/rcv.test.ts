@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { FakePortalSession } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
 import { Periodo } from '../periodo/index.js';
-import { RcvError } from '../errors/index.js';
+import { RcvError, SessionExpiredError } from '../errors/index.js';
 import { fetchRcvResumen, fetchRcvDetalle } from './rcv.js';
 
 // Synthetic data only (no real PII, no SII): operating 20.000.042-0, emisor 78.362.507-5.
@@ -133,12 +133,23 @@ describe('RCV facade (fake session, synthetic envelopes, no SII)', () => {
     });
   });
 
-  it('getDetalle: a non-JSON response (expired session / network) becomes RcvError', async () => {
+  it('a generic non-JSON / network failure becomes RcvError', async () => {
     const s = session(() => {
-      throw new Error('text/html redirect');
+      throw new Error('socket hang up');
     });
     await expect(
       fetchRcvDetalle(s, { rut: RUT, periodo: PERIODO, side: 'VENTA', codigoTipoDoc: '33' }),
     ).rejects.toBeInstanceOf(RcvError);
+  });
+
+  it('an expired session (seam SessionExpiredError) propagates verbatim — NOT wrapped', async () => {
+    // The seam classifies the login-wall response as SessionExpiredError; the facade
+    // must let it through so the user gets the actionable "re-login" message.
+    const s = session(() => {
+      throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+    });
+    await expect(
+      fetchRcvResumen(s, { rut: RUT, periodo: PERIODO, side: 'COMPRA' }),
+    ).rejects.toBeInstanceOf(SessionExpiredError);
   });
 });

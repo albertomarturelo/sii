@@ -16,7 +16,7 @@
 // under `data[]` carry usrEmpRut/usrEmpDv/usrEmpRutDv, razonSocONombreEmp (came
 // null), usrPrivilegios. Error envelope: respEstado.codRespuesta != 0.
 import { HOSTS } from '../config/index.js';
-import { RepresentacionError } from '../errors/index.js';
+import { NotAuthenticatedError, RepresentacionError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import type { JsonRequest, PortalSession } from '../seams/index.js';
 
@@ -173,10 +173,11 @@ export async function fetchEmpresasAutorizadas(
   let raw: unknown;
   try {
     raw = await session.requestJson(EMPRESAS_URL, request);
-  } catch {
-    // requestJson rejects on a non-JSON body (e.g. an expired-session HTML
-    // redirect) or a network error — surface the typed error (ADR-004), not a
-    // raw Playwright/SyntaxError, so a direct caller gets a consistent contract.
+  } catch (e) {
+    // An expired/dead session (the seam detects the login wall) is an actionable
+    // NotAuthenticated — let it through. Any other non-JSON / network failure becomes
+    // a typed RepresentacionError (ADR-004), not a raw Playwright/SyntaxError.
+    if (e instanceof NotAuthenticatedError) throw e;
     throw new RepresentacionError('Respuesta inesperada de SII (no es JSON).');
   }
   return parseResponse(raw, authRutCanonical);
