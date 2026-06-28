@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playwright';
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
+import { parseSiiLoginError } from '../../auth/login-error.js';
 import type {
   CredentialLoginOptions,
   InteractiveLoginOptions,
@@ -23,22 +24,17 @@ import type {
  *  the código line is the human cause (e.g. "La Clave Tributaria ingresada no es
  *  correcta…"). Pass it through unchanged (CONVENTIONS); fall back to a clear,
  *  no-retry message if the page shape changed. */
-// Evaluated IN the page (string expr, like the rest of this adapter — keeps the
-// core off the DOM lib). Returns "<causa> (<código>)" or '' if the shape changed.
-const ERROR_EXPR = `(() => {
-  const lines = ((document.body && document.body.innerText) || '')
-    .split('\\n').map((l) => l.trim()).filter(Boolean);
-  const i = lines.findIndex((l) => /El c[oó]digo de este mensaje/i.test(l));
-  return i > 0 ? lines[i - 1] + ' (' + lines[i] + ')' : '';
-})()`;
-
 async function readLoginError(page: Page): Promise<string> {
   const fallback =
     'El SII rechazó el login (Clave incorrecta o cuenta bloqueada). NO reintentes a ciegas: ' +
     'varios intentos fallidos bloquean la cuenta. Verifica tu Clave o usa `sii auth login`.';
   try {
-    const message = (await page.evaluate(ERROR_EXPR)) as string;
-    return message || fallback;
+    // Pull the rendered body text and parse in Node (testable; keeps the DOM out
+    // of core). The string expr returns a string, so the boundary cast is safe.
+    const body = (await page.evaluate(
+      '(document.body && document.body.innerText) || ""',
+    )) as string;
+    return parseSiiLoginError(body) ?? fallback;
   } catch {
     return fallback;
   }
