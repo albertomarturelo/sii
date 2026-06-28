@@ -6,6 +6,7 @@ import {
   LoginFailedError,
   Rut,
   authStatus,
+  listOperable,
   login,
   logout,
   operate,
@@ -116,7 +117,27 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .description('Selecciona el RUT bajo el que operas (tú mismo o una empresa representada).')
     .argument('[rut]', 'RUT de la empresa a representar (del conjunto operable).')
     .option('--self', 'Vuelve a operar como tú mismo.')
-    .action(async (rutArg: string | undefined, opts: { self?: boolean }) => {
+    .option('--list', 'Lista los RUT operables (tú mismo + empresas representadas).')
+    .action(async (rutArg: string | undefined, opts: { self?: boolean; list?: boolean }) => {
+      if (opts.list) {
+        const result = await listOperable(runtime);
+        if (!result) {
+          out('No hay sesión activa. Ejecuta `sii auth login`.');
+          return;
+        }
+        for (const e of result.operable) {
+          const marks = [
+            e.isSelf ? 'tú mismo' : null,
+            e.rut === result.operatingRut ? 'operando ahora' : null,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          // razón social falls back to the RUT when SII returned no name — don't repeat it.
+          const name = e.razonSocial && e.razonSocial !== e.rut ? ` ${e.razonSocial}` : '';
+          out(`${fmt(e.rut)}${name}${marks ? ` (${marks})` : ''}`);
+        }
+        return;
+      }
       if (opts.self) {
         const result = await operateSelf(runtime);
         out(describeOperating(result.context.selfRut, true, null));

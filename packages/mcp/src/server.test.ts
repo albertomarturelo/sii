@@ -65,6 +65,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri).sort()).toEqual([
       'sii://config',
+      'sii://operable',
       'sii://operating',
       'sii://session',
     ]);
@@ -90,6 +91,8 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     );
     const session = await client.readResource({ uri: 'sii://session' });
     expect(resourceText(session)).toContain('11111111-1');
+    const operable = await client.readResource({ uri: 'sii://operable' });
+    expect(resourceText(operable)).toContain('11111111-1'); // self in the operable set
   });
 
   it('operate reports the context and selects self', async () => {

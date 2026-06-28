@@ -13,9 +13,9 @@ export type {
   AuthLogoutResult,
   AuthStatusLocal,
 } from './tasks/auth.js';
-export { operate, operateSelf, operatingStatus } from './tasks/operate.js';
-export type { OperateResult } from './tasks/operate.js';
-export type { OperatingContext } from './identity/index.js';
+export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';
+export type { OperateResult, OperableList } from './tasks/operate.js';
+export type { OperatingContext, OperableEntry } from './identity/index.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
 export { createNodeRuntime } from './runtime.js';

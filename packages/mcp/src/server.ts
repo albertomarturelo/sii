@@ -9,6 +9,7 @@ import {
   HOSTS,
   Rut,
   authStatus,
+  listOperable,
   login,
   operate,
   operateSelf,
@@ -70,6 +71,18 @@ export function buildServer(runtime: Runtime): McpServer {
       mimeType: 'application/json',
     },
     async (uri) => jsonResource(uri, await operatingStatus(runtime)),
+  );
+
+  server.registerResource(
+    'operable',
+    'sii://operable',
+    {
+      title: 'Conjunto operable',
+      description:
+        'RUT que la cuenta puede operar (tú mismo + empresas representadas). null si no hay sesión.',
+      mimeType: 'application/json',
+    },
+    async (uri) => jsonResource(uri, await listOperable(runtime)),
   );
 
   server.registerResource(

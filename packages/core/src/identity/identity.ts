@@ -62,7 +62,7 @@ export async function setOperatingRut(store: KeyValueStore, target: string): Pro
   const match = state.operable.find((e) => e.rut === parsed.canonical);
   if (!match) {
     throw new ValidationError(
-      `RUT ${parsed.formatted} no está en el conjunto operable. Revisa los RUT autorizados con \`sii accounts operable\`.`,
+      `RUT ${parsed.formatted} no está en el conjunto operable. Revisa los RUT autorizados con \`sii operate --list\`.`,
     );
   }
   const next: OperateState = { ...state, operatingRut: parsed.canonical };
