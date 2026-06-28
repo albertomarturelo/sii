@@ -18,13 +18,18 @@ Last updated: 2026-06-28
 - [x] **RCV read surface — the domain-read template (#17).** First full domain vertical:
   `portal/rcv.ts` (facade: `getResumen` + `getDetalle{Compra,Venta}`) → `tasks/rcv.ts`
   (`rcvSummary`/`rcvList`, `withSession`-wrapped, body-RUT, one audit receipt) → CLI
-  `sii rcv summary|list` + MCP `rcv_summary`/`rcv_list`. Wire contract PORTED from the
-  Python `sii-cli` (cited; `docs/sii-contract/rcv.md`) — not yet live-revalidated from
-  TS. Established three reusables the other modules inherit: the **`periodo`** primitive
-  (YYYYMM), the **zod-at-the-boundary + alias-tolerant** wire-parsing convention (ADR-011),
-  and the **per-module surface-registration pattern** (`commands/<mod>.ts` +
-  `tools/<mod>.ts` register fns → append-only barrels, so parallel worktrees don't
-  conflict). zod added to `@sii/core`. 22 new tests vs fakes (no SII), 106/106 green.
+  `sii rcv summary|list` + MCP `rcv_summary`/`rcv_list`. **Live-validated 2026-06-28**
+  (persona session): resumen+detalle aliases match real COMPRA data; two live fixes —
+  an expired session now raises `SessionExpiredError` ("re-login") instead of a
+  misleading "no es JSON" (the `requestJson` seam detects the login wall), and
+  `codRespuesta=3` is "sin movimientos" (empty), not a rejection. **`--rut` reached a
+  represented empresa's RCV** (code 0 + a row) → RCV is body-RUT, confirming ADR-005
+  (partial answer to spike #15). Established three reusables the other modules inherit:
+  the **`periodo`** primitive (YYYYMM, accepts `2026-5`), the **zod-at-the-boundary +
+  alias-tolerant** wire-parsing convention (ADR-011), and the **per-module
+  surface-registration pattern** (`commands/<mod>.ts` + `tools/<mod>.ts` register fns →
+  append-only barrels, so parallel worktrees don't conflict). zod added to `@sii/core`.
+  25 new tests vs fakes (no SII), 109/109 green.
 - [x] **`withSession` session-acquisition primitive (#14).** Factored the
   restore-session lifecycle out of login/`statusRefresh` into `auth/session.ts`:
   `withSession(runtime, fn, {rut?})` restores the cookies-only session into a live
@@ -133,11 +138,16 @@ Last updated: 2026-06-28
 
 ## Open Decisions / Questions
 
-1. **Operate reach (representación) spike (#15)** — does a persona's `operate` reach
-   the session-keyed surfaces (F29/F22/BHE), or only RCV? Decides the ADR-005 reach
-   contract. Run before wiring those domain modules; does NOT gate RCV (body-RUT). Now
-   testable live — the operable set resolves real represented empresas.
-2. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
+1. **Operate reach (representación) spike (#15)** — **RCV CONFIRMED body-RUT live
+   2026-06-28**: a persona representante-legal's `--rut` reached a represented empresa's
+   RCV (code 0 + a row). Still OPEN for the session-keyed surfaces (F29/F22/BHE) — run
+   before wiring #18/#19/#20. Decides the rest of the ADR-005 reach contract.
+2. **CLI header doesn't reflect a per-call `--rut`** — `operating as:` (preAction hook)
+   shows the sticky operate POINTER, so `sii rcv summary … --rut <empresa>` prints
+   "tú mismo" while the result line shows the empresa RUT. Minor ADR-005 "always
+   visible" wart; the result is correct. Follow-up (small): make the header aware of
+   the per-call override, or have domain commands print their effective RUT.
+3. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
    (ADR-008). _(`zod` resolved — adopted in ADR-011 for MCP input schemas.)_
 
 ## Known Issues
