@@ -91,7 +91,23 @@ Python `sii-cli`, adapted to TypeScript.
   conflict-free across parallel module worktrees (ADR-007). `rcv` sets the pattern.
 - **Curated + raw for rich payloads.** When SII returns 30+ fields per row,
   expose a curated typed shape (~10–15 fields) plus a `raw` carrying the full
-  payload for tax-special edge cases.
+  payload for tax-special edge cases. **Exception: drop `raw` when the
+  non-curated data is PII, not tax detail.** F22's uncurated fields are pure
+  identity/bank PII (RUT, dirección, email, número de cuenta) — every tax código
+  IS curated — so F22 exposes NO `raw` at all, keeping that PII off every surface
+  / the LLM / the audit log. (ADR-004)
+- **Body-RUT vs session-keyed surfaces (ADR-005).** A *body-RUT* surface (RCV)
+  carries the operating RUT in the request body, so `operate`/`--rut` reaches a
+  represented empresa — the task resolves the operating RUT. A *session-keyed*
+  surface (F22; F29/BHE expected) authorizes by the session PRINCIPAL: it ignores
+  the operate pointer, takes NO `--rut`, and always reads self; the empresa's data
+  is reached by logging in AS the empresa (logout→login). Confirm reach live before
+  wiring each session-keyed surface (F22 confirmed 2026-06-27). `rcv` is the body-RUT
+  template, `f22` the session-keyed one.
+- **Pace multi-call fan-outs via `Clock.sleep`.** A task that fires N POSTs (a
+  multi-period/-year loop, a folio walk) sleeps `1000/rateLimitRps` ms between
+  them through the `Clock` seam (the fake resolves instantly, so tests don't wait)
+  — never hammer SII; never retry after a block. (ADR-004)
 - **Pass SII's Spanish error messages through unchanged.** The user knows the
   domain; opaque translations waste their time. A scraper that can't find its
   selector raises a "scraper broken" error — never retry silently.

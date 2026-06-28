@@ -83,13 +83,13 @@ hexagonal ceremony (ADR-003).
 | Module | Purpose | Status |
 | --- | --- | --- |
 | `rut` | RUT parse / canonicalise / Mod-11 DV (in-house) | Done |
-| `periodo` | Tax-period primitive: YYYYMM parse / canonical / formatted (in-house, mirrors `rut`). Shared by the period-keyed read surfaces (rcv/f29) | Done |
+| `periodo` | Tax-time primitives: `Periodo` (YYYYMM, monthly — rcv/f29) + `Anio` (YYYY, año tributario — f22/renta), in-house, mirror `rut` | Done |
 | `config` | Prod hostname constants + rate limits (single source of truth) | Done |
-| `seams` | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` interfaces + Node defaults. `PortalSession` includes `requestJson`/`cookie` — the authenticated SPA-JSON-facade primitive (www4 SDI endpoints) | Done |
+| `seams` | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` (now + `sleep`, the pacing primitive) interfaces + Node defaults. `PortalSession` includes `requestJson`/`cookie` — the authenticated SPA-JSON-facade primitive (www4 SDI endpoints) | Done |
 | `auth` | Session lifecycle: browser cookies-only login, logout, status; only login mints. `withSession` is the consume-path — domain tasks acquire a live `PortalSession` (+ resolved operating RUT) through it; it never mints, raises `NotAuthenticated` when none | login/logout/status + `withSession` done; rest planned |
 | `identity` | Operate-centric model: operating RUT, operable set | Planned |
-| `portal/*` | Portal surfaces as typed facades over `PortalSession.requestJson`. Envelope parsed with zod (ADR-011), per-row curated projection alias-tolerant + `raw` (ADR-004). `representacion` + `rcv` (getResumen / getDetalle) landed; f29, f22, bte, dte-public next | representación + rcv done; rest planned |
-| `tasks/*` | High-level operations the surfaces call. Domain reads wrap a facade in `withSession` + one audit receipt (auth, operate, rcv done; profile, f29, f22, bte, iva, renta planned) | auth/operate/rcv done; rest planned |
+| `portal/*` | Portal surfaces as typed facades over `PortalSession.requestJson`. Envelope parsed with zod (ADR-011), per-row curated projection alias-tolerant + `raw` (ADR-004) — except F22, which drops raw (its non-curated data is pure PII). `representacion` + `rcv` (body-RUT) + `f22` (session-keyed, consultaestadof22ui) landed; f29, bte, dte-public next | representación + rcv + f22 done; rest planned |
+| `tasks/*` | High-level operations the surfaces call. Domain reads wrap a facade in `withSession` + one audit receipt (auth, operate, rcv, f22 done; profile, f29, bte, iva, renta planned) | auth/operate/rcv/f22 done; rest planned |
 | `audit` | Append-only JSONL receipt (secret keys dropped) | Planned |
 | `dte` | In-house DTE XML + signing + SOAP | Future |
 
