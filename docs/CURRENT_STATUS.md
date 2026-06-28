@@ -8,6 +8,12 @@ Last updated: 2026-06-28
 
 ## Recently Completed
 
+- [x] **MCP `auth_logout` tool (#11).** Added `auth_logout` to `@sii/mcp` — a thin
+  call into the existing `logout` task (best-effort server-side close + local cookie
+  wipe), no input args. Logout carries no secret, so ADR-006 doesn't bar it from MCP;
+  switching accounts stays logout→login (ADR-005). Mirrors the CLI logout messages.
+  4 added/extended tests via the in-memory MCP client against fakes (no SII), 80/80
+  green. Flipped the ROADMAP logout row + MCP-structure note off "(CLI-only)".
 - [x] **Operable fetch on login (ADR-005).** `getDcvEmpresasAutorizadas` is now
   wired into login: a persona's operable set is fetched from SII (the empresas it
   can operate), replacing the `[self]` placeholder; empresa accounts skip it.
@@ -25,9 +31,9 @@ Last updated: 2026-06-28
   dangling operate-rejection hint to point at `sii operate --list`. (PR #10, merged.)
 - [x] **MCP stdio surface (ADR-011 — zod adopted).** `@sii/mcp` server built over
   `@sii/core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
-  delegates to the browser flow, ADR-006), `auth_status` (`refresh`), `operate`
-  (`rut`/`self`); Resources `sii://session`, `sii://operating`, `sii://operable`,
-  `sii://config`.
+  delegates to the browser flow, ADR-006), `auth_logout` (no args, #11),
+  `auth_status` (`refresh`), `operate` (`rut`/`self`); Resources `sii://session`,
+  `sii://operating`, `sii://operable`, `sii://config`.
   `buildServer(runtime)` is injectable; `main` serves over stdio (STDOUT = JSON-RPC,
   errors to STDERR). zod v4 validates tool inputs (the SDK derives the protocol JSON
   Schema). 5 tests via an in-memory MCP client against fakes (no SII); the built
@@ -115,15 +121,12 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **MCP logout** — add an `auth_logout` tool to `@sii/mcp` (logout is `(CLI-only)`
-   in the ROADMAP today, but it takes no secret so ADR-006 doesn't bar it — a thin
-   call into the existing `logout` task). Flip the ROADMAP note; single-concern PR.
-2. **Confirm MCP live in Claude Desktop** — the config now points at the TS binary;
+1. **Confirm MCP live in Claude Desktop** — the config now points at the TS binary;
    confirm the `sii` tools/resources appear and `auth_login` drives the browser flow.
-3. **`operate <alias>`** — alias targets now that the operable set has real empresas.
-4. **Operate-reach spike** (ADR-005) — does `operate` reach F29/F22/BHE or only RCV?
+2. **`operate <alias>`** — alias targets now that the operable set has real empresas.
+3. **Operate-reach spike** (ADR-005) — does `operate` reach F29/F22/BHE or only RCV?
    Run before wiring those domain modules.
-5. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
+4. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
    against the now-stable seams + task contract (ADR-007) — they reuse
    `PortalSession.requestJson`.
 
