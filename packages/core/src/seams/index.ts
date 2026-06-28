@@ -56,10 +56,25 @@ export interface InteractiveLoginOptions {
   readonly timeoutMs: number;
 }
 
+export interface CredentialLoginOptions {
+  /** Full RUT to type into the login form (`<body>-<DV>`); the page JS splits it. */
+  readonly rut: string;
+  /** The Clave Tributaria — used ONCE to fill the form, never persisted (ADR-010). */
+  readonly clave: string;
+  /** Post-login destination passed to the login URL. */
+  readonly destination: string;
+  /** Give up if we haven't landed off LOGIN_HOST within this budget (ms). */
+  readonly timeoutMs: number;
+}
+
 export interface PortalDriver {
   /** Open a HEADED browser at the login URL; resolve with a session once the user
    *  lands off LOGIN_HOST. Rejects (LoginFailedError) on timeout / window close. */
   interactiveLogin(options: InteractiveLoginOptions): Promise<PortalSession>;
+  /** HEADLESS console login (ADR-010): fill the real SII form with RUT + Clave and
+   *  submit, resolving a session once landed off LOGIN_HOST. The Clave is used here
+   *  and never stored (cookies-only result). CLI-only — never wired into MCP. */
+  credentialLogin(options: CredentialLoginOptions): Promise<PortalSession>;
   /** Restore a (headless) session from persisted cookies for reads / liveness. */
   restore(storageState: unknown): Promise<PortalSession>;
 }

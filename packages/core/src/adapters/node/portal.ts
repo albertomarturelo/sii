@@ -10,7 +10,35 @@ import { chromium } from 'playwright';
 import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playwright';
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
-import type { InteractiveLoginOptions, PortalDriver, PortalSession } from '../../seams/index.js';
+import { parseSiiLoginError } from '../../auth/login-error.js';
+import type {
+  CredentialLoginOptions,
+  InteractiveLoginOptions,
+  PortalDriver,
+  PortalSession,
+} from '../../seams/index.js';
+
+/** Extract SII's verbatim login-error message from the failed-login page (rendered
+ *  on zeusr.sii.cl at /cgi_AUT2000/CAutInicio.cgi). Observed 2026-06-28: the page
+ *  shows "<causa>" then "El código de este mensaje es <código>" — the line BEFORE
+ *  the código line is the human cause (e.g. "La Clave Tributaria ingresada no es
+ *  correcta…"). Pass it through unchanged (CONVENTIONS); fall back to a clear,
+ *  no-retry message if the page shape changed. */
+async function readLoginError(page: Page): Promise<string> {
+  const fallback =
+    'El SII rechazó el login (Clave incorrecta o cuenta bloqueada). NO reintentes a ciegas: ' +
+    'varios intentos fallidos bloquean la cuenta. Verifica tu Clave o usa `sii auth login`.';
+  try {
+    // Pull the rendered body text and parse in Node (testable; keeps the DOM out
+    // of core). The string expr returns a string, so the boundary cast is safe.
+    const body = (await page.evaluate(
+      '(document.body && document.body.innerText) || ""',
+    )) as string;
+    return parseSiiLoginError(body) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /** A session owns its browser; close() tears the whole instance down. */
 class PlaywrightPortalSession implements PortalSession {
@@ -62,6 +90,44 @@ export class PlaywrightPortalDriver implements PortalDriver {
       await browser.close();
       throw new LoginFailedError(
         'Login no completado (tiempo agotado o ventana cerrada). Reintenta `sii auth login`.',
+      );
+    }
+  }
+
+  async credentialLogin(options: CredentialLoginOptions): Promise<PortalSession> {
+    // HEADLESS (ADR-010): the user typed the Clave into the TERMINAL; we fill SII's
+    // real login form and let its own JS derive the hidden rut/dv + referencia and
+    // POST. We never hand-build the POST. The Clave is used only here — only cookies
+    // are persisted by the caller. ONE attempt, never retried (account-lock safety,
+    // ADR-004). Selectors observed 2026-06-28 (docs/sii-contract/auth-login.md):
+    //   #rutcntr (full RUT, text) · #clave (password) · #bt_ingresar (submit).
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const context = await browser.newContext();
+      const page = await context.newPage();
+      await page.goto(loginUrl(options.destination), { waitUntil: 'domcontentloaded' });
+      await page.fill('#rutcntr', options.rut);
+      await page.fill('#clave', options.clave);
+      // The submit POSTs to /cgi_AUT2000/CAutInicio.cgi (observed 2026-06-28). BOTH
+      // outcomes are a navigation that settles into a document: success redirects OFF
+      // the login host (→ Mi-SII); a rejected Clave / locked account stays ON
+      // zeusr.sii.cl and RENDERS the error page there. Wait for the settled document
+      // and decide by host — so a failure fails in seconds, never hanging to timeout.
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: options.timeoutMs }),
+        page.click('#bt_ingresar'),
+      ]);
+      if (new URL(page.url()).hostname === LOGIN_HOST) {
+        // Rejected — surface SII's verbatim message (CONVENTIONS); do NOT retry.
+        throw new LoginFailedError(await readLoginError(page));
+      }
+      return new PlaywrightPortalSession(browser, context, page);
+    } catch (err) {
+      await browser.close();
+      if (err instanceof LoginFailedError) throw err; // already carries SII's message
+      throw new LoginFailedError(
+        'Login con Clave por consola no completado (el formulario del SII no respondió ' +
+          'o cambió). NO reintentes; usa `sii auth login` (navegador).',
       );
     }
   }

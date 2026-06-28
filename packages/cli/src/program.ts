@@ -3,6 +3,7 @@
 // is injected so tests drive the whole tree against fakes (no SII touched).
 import { Command } from 'commander';
 import {
+  LoginFailedError,
   Rut,
   authStatus,
   login,
@@ -13,8 +14,12 @@ import {
   statusRefresh,
   type Runtime,
 } from '@sii/core';
+// CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
+// can't wire it (ADR-006 / ADR-010).
+import { consoleLogin } from '@sii/core/cli';
 import { out } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
+import { nodePrompters, type Prompters } from './prompt.js';
 
 const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
 
@@ -23,7 +28,7 @@ function describeOperating(rut: string, isSelf: boolean, razonSocial: string | n
   return `Operando como ${fmt(rut)}${razonSocial ? ` (${razonSocial})` : ''}.`;
 }
 
-export function buildProgram(runtime: Runtime): Command {
+export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompters): Command {
   const program = new Command();
   program
     .name('sii')
@@ -37,8 +42,31 @@ export function buildProgram(runtime: Runtime): Command {
 
   auth
     .command('login')
-    .description('Inicia sesión con Clave Tributaria (abre el navegador en la página del SII).')
-    .action(async () => {
+    .description(
+      'Inicia sesión con Clave Tributaria (navegador por defecto; --console por terminal).',
+    )
+    .option(
+      '--console',
+      'Introduce RUT y Clave por la terminal (sin navegador); guarda solo cookies.',
+    )
+    .option('--rut <rut>', 'RUT para el login por consola (si se omite, se pregunta).')
+    .action(async (opts: { console?: boolean; rut?: string }) => {
+      if (opts.console) {
+        // Validate the RUT (Mod-11) LOCALLY before any attempt — a malformed RUT must
+        // never become a wasted login that counts toward account lockout (ADR-004).
+        const rutInput = opts.rut ?? (await prompters.line('RUT: '));
+        const rut = Rut.parse(rutInput).canonical;
+        // The Clave is ALWAYS prompted (hidden) — never a flag/arg (ADR-010).
+        const clave = await prompters.hidden('Clave: ');
+        if (!clave) throw new LoginFailedError('Clave vacía. No se intentó iniciar sesión.');
+        const result = await consoleLogin(runtime, { rut, clave });
+        out(
+          result.reason === 'already_authenticated'
+            ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+            : `Sesión iniciada como ${fmt(result.rut)}.`,
+        );
+        return;
+      }
       const result = await login(runtime);
       out(
         result.reason === 'already_authenticated'

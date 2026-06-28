@@ -4,14 +4,27 @@ Last updated: 2026-06-28
 
 ## In Progress
 
-- **Real-SII auth login validation (issue #5).** All auth surfaces are merged to
-  `main` and run as a real binary, but nothing has touched live SII yet. The next
-  unit of work is the first headed `sii auth login` against `zeusr.sii.cl` —
-  confirm cookies-only persistence + `auth status --refresh`, and capture the wire
-  contract in `docs/sii-contract/auth-login.md`. Start with `/issue:start 5`.
+- _(nothing actively in progress — issue #5 closed; pick the next priority below)._
 
 ## Recently Completed
 
+- [x] **Console login `sii auth login --console` (ADR-010)** — a CLI-only input
+  method peer to the browser login. Prompts RUT + Clave (hidden, never a flag),
+  validates the RUT (Mod-11) locally first, then headless form-fills SII's real
+  login form (`#rutcntr`/`#clave`/`#bt_ingresar`, observed) and persists the SAME
+  cookies-only session. The Clave is used once and NEVER stored (no keyring); it
+  never reaches MCP or the audit log. One attempt, no retry (account-lock safety).
+  New seam `PortalDriver.credentialLogin` + fake; `consoleLogin` core/task; 8 new
+  tests (55/55). Not yet exercised against live SII (a session was already warm).
+- [x] **Real-SII auth login validated (issue #5)** — first live contact with SII.
+  Headed `sii auth login` against `zeusr.sii.cl`: user typed the Clave, landed on
+  Mi-SII (`misiir.sii.cl`, off the login host → URL detection holds), identity read
+  from `DatosCntrNow`. Cookies-only session at `~/.sii/session.json` (0600,
+  `{rut,cookies,savedAt}`, no plaintext secret). `auth status` (local) +
+  `--refresh` (live portal readback) + `logout` (server close best-effort + local
+  wipe) all confirmed. Wire contract captured in `docs/sii-contract/auth-login.md`
+  (PII-free; ~45 `DatosCntrNow` fields, types only). No defects surfaced — no
+  follow-up `fix` issue needed. The Playwright `PortalDriver` is now live-proven.
 - [x] **Remote wired** — `origin` → `AltumStack/sii` (private, was empty).
 - [x] **ADR-007** (modular core layout + worktree-parallel boundaries) +
   **ADR-008** (commander CLI, browser-cookies-only-first, keyring/zod deferred).
@@ -71,23 +84,17 @@ Last updated: 2026-06-28
 
 ## Known Issues
 
-- **No real-SII login has been run yet (tracked: issue #5).** The CLI runs and the
-  Playwright driver is wired + offline-smoke-validated, but no `sii auth login` has
-  gone against the live `zeusr.sii.cl` page. That headed end-to-end run is next.
 - pnpm 10 blocked esbuild's postinstall build script (warning only) — vitest
   bundles its own esbuild, tests run fine. (Same for `playwright`'s install
   script; the Chromium binary is fetched explicitly via `playwright install`.)
 
 ## Next Priorities
 
-1. **Real-SII login validation (issue #5)** — run `sii auth login` against
-   `zeusr.sii.cl`: headed browser, user types the Clave, confirm cookies-only
-   persistence + `auth status --refresh` readback. First live contact with SII.
-2. **MCP surface** — `auth_login` (no password arg) / `auth_status` / `operate`,
+1. **MCP surface** — `auth_login` (no password arg) / `auth_status` / `operate`,
    plus Resources (`sii://session`, `sii://operating`); validate it connects from
    Claude Code (`.mcp.json`) and Claude Desktop (`claude_desktop_config.json`).
-3. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets.
-4. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
+2. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets.
+3. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
    against the now-stable seams + task contract (ADR-007).
 
 See `docs/ROADMAP.md` for the full surface checklist.

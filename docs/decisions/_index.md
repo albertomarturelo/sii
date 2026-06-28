@@ -14,3 +14,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 007 | [Modular core layout + worktree-parallel boundaries](007-modular-core-layout.md) | Accepted | 2026-06-27 |
 | 008 | [Runtime library choices — commander CLI, browser-first auth](008-runtime-library-choices.md) | Accepted | 2026-06-27 |
 | 009 | [NodeNext module resolution for Node-runnable surface builds](009-nodenext-module-resolution.md) | Accepted | 2026-06-27 |
+| 010 | [CLI console login — headless form-fill to a cookies-only session](010-cli-console-login.md) | Accepted | 2026-06-28 |

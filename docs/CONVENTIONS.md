@@ -63,6 +63,11 @@ Python `sii-cli`, adapted to TypeScript.
   selector raises a "scraper broken" error — never retry silently.
 - **Never retry after a SII rate-limit / block.** It is server-side and timed;
   surface the message verbatim and stop.
+- **Validate a RUT locally (Mod-11) BEFORE any login attempt.** A malformed RUT
+  must never become a wasted submit — repeated failed logins lock the account.
+  The CLI parses + Mod-11-checks the RUT before prompting/sending the Clave; a
+  login (browser or `--console`) makes exactly ONE attempt, never auto-retried.
+  (ADR-004 / ADR-010)
 
 ## Security, secrets & PII
 
@@ -70,6 +75,13 @@ Python `sii-cli`, adapted to TypeScript.
   either the user typing into SII's real page (browser, cookies-only) or a value
   in the OS keyring behind the `SecretStore` seam. No MCP tool accepts a
   password argument. (ADR-006)
+- **Secrets are captured via a hidden terminal prompt — never a flag/env/arg.**
+  The CLI `--console` login prompts the Clave with echo muted; it never accepts
+  the Clave as a CLI flag, env var, or argument (no shell-history / argv /
+  process-list leak). It is held in memory for one attempt, then discarded; only
+  cookies persist. A task that takes a Clave (`consoleLogin`) is exported from the
+  CLI-only `@sii/core/cli` subpath, NOT the main barrel, so the MCP server cannot
+  wire it. (ADR-006 / ADR-010)
 - **Never commit** `*.pfx`, `*.p12`, `.env`, or anything under `.sii/`. Sessions
   are cookies-only; `.gitignore` blocks them — re-verify before any `git add`.
 - **Audit every state-touching op** via the `AuditSink` port: `{ts, action, rut,
