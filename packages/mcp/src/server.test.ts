@@ -48,7 +48,14 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     const client = await connect(makeRuntime());
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
-    expect(names).toEqual(['auth_login', 'auth_logout', 'auth_status', 'operate']);
+    expect(names).toEqual([
+      'auth_login',
+      'auth_logout',
+      'auth_status',
+      'operate',
+      'rcv_list',
+      'rcv_summary',
+    ]);
 
     // ADR-006: no tool INPUT FIELD accepts a password (descriptions may mention
     // "Clave" — that's fine; we inspect the input-schema property names only).
@@ -170,5 +177,48 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     const res = await client.callTool({ name: 'operate', arguments: { rut: '12345670-K' } });
     expect(isError(res)).toBe(true);
     expect(toolText(res).length).toBeGreaterThan(0); // SII/domain message passed through
+  });
+
+  it('rcv_summary returns the curated resumen as JSON (body-RUT, read-only)', async () => {
+    const env = {
+      respEstado: { codRespuesta: 0 },
+      totDocRes: 2,
+      data: [
+        {
+          rsmnTipoDocInteger: 33,
+          dcvNombreTipoDoc: 'Factura',
+          rsmnTotDoc: 2,
+          rsmnMntTotal: 119000,
+        },
+      ],
+    };
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          requestJson: () => env,
+          cookies: { TOKEN: 't' },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+
+    const res = await client.callTool({ name: 'rcv_summary', arguments: { periodo: '2026-06' } });
+    const parsed = JSON.parse(toolText(res)) as {
+      side: string;
+      periodo: string;
+      rows: { codigoTipoDoc: string }[];
+    };
+    expect(parsed).toMatchObject({ side: 'COMPRA', periodo: '2026-06' });
+    expect(parsed.rows[0]?.codigoTipoDoc).toBe('33');
+    // rcv_summary is read-only.
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'rcv_summary')?.annotations?.readOnlyHint).toBe(true);
   });
 });
