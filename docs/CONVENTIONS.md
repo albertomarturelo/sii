@@ -71,9 +71,21 @@ Python `sii-cli`, adapted to TypeScript.
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The
   `www4.sii.cl` SDI endpoints (RCV, representación, …) are reached via the seam's
   authenticated JSON POST (the session cookies ride along), never a bespoke HTTP
-  client. Cite the endpoint + observation date; parse the `data[]` rows
-  alias-tolerantly (observed name first); curated + `raw`; surface the
-  `respEstado` error envelope verbatim. (ADR-003 / ADR-004)
+  client. Cite the endpoint + observation date; surface the `respEstado` error
+  envelope verbatim; curated + `raw`. (ADR-003 / ADR-004)
+- **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
+  Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
+  `.loose()` so unobserved fields survive into `raw`). Project each row into the
+  curated shape with an **alias-tolerant** lookup (an ordered tuple per logical
+  field, OBSERVED NAME FIRST; extend with a `// observed …` citation when SII serves
+  a new key). Empty `data[]` is a legitimate "no rows", never an error. zod stays at
+  the boundary only — curated domain types are plain TypeScript. `representacion.ts`
+  predates this (hand-rolled, pre-zod) and may be migrated; `rcv.ts` is the template.
+- **Domain read surfaces own a per-module file + a register fn (no barrel churn).**
+  Each module ships `cli/src/commands/<mod>.ts` (`register<Mod>(program, runtime)`)
+  and `mcp/src/tools/<mod>.ts` (`register<Mod>Tools(server, runtime)`); `program.ts`
+  / `server.ts` call it from ONE append-only line. This keeps the shared command tree
+  conflict-free across parallel module worktrees (ADR-007). `rcv` sets the pattern.
 - **Curated + raw for rich payloads.** When SII returns 30+ fields per row,
   expose a curated typed shape (~10–15 fields) plus a `raw` carrying the full
   payload for tax-special edge cases.
