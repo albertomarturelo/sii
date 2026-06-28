@@ -135,6 +135,19 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     ).toContain('Operando como tú mismo: 11.111.111-1.');
   });
 
+  it('operate list=true lists the operable set (self/current markers)', async () => {
+    const client = await connect(makeRuntime());
+    // No session → actionable hint, no throw.
+    expect(
+      toolText(await client.callTool({ name: 'operate', arguments: { list: true } })),
+    ).toContain('No hay sesión activa. Usa la tool auth_login.');
+    await client.callTool({ name: 'auth_login', arguments: {} });
+    const listed = toolText(await client.callTool({ name: 'operate', arguments: { list: true } }));
+    expect(listed).toContain('11.111.111-1');
+    expect(listed).toContain('tú mismo');
+    expect(listed).toContain('operando ahora');
+  });
+
   it('auth_status refresh=true reads the identity from the portal', async () => {
     const client = await connect(makeRuntime());
     await client.callTool({ name: 'auth_login', arguments: {} });
