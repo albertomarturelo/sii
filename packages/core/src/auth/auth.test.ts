@@ -8,7 +8,8 @@ import {
 import type { Runtime } from '../seams/index.js';
 import { HOSTS } from '../config/index.js';
 import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
-import { consoleLogin, localStatus, login, logout, readSession, statusRefresh } from './auth.js';
+import { consoleLogin, localStatus, login, logout, statusRefresh } from './auth.js';
+import { readSession } from './session.js';
 import { readOperateState } from '../identity/index.js';
 
 function personaDatos(): unknown {
