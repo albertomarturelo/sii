@@ -6,6 +6,7 @@ import {
   LoginFailedError,
   Rut,
   authStatus,
+  formatOperableEntry,
   listOperable,
   login,
   logout,
@@ -125,17 +126,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
           out('No hay sesión activa. Ejecuta `sii auth login`.');
           return;
         }
-        for (const e of result.operable) {
-          const marks = [
-            e.isSelf ? 'tú mismo' : null,
-            e.rut === result.operatingRut ? 'operando ahora' : null,
-          ]
-            .filter(Boolean)
-            .join(', ');
-          // razón social falls back to the RUT when SII returned no name — don't repeat it.
-          const name = e.razonSocial && e.razonSocial !== e.rut ? ` ${e.razonSocial}` : '';
-          out(`${fmt(e.rut)}${name}${marks ? ` (${marks})` : ''}`);
-        }
+        for (const e of result.operable) out(formatOperableEntry(e, result.operatingRut));
         return;
       }
       if (opts.self) {

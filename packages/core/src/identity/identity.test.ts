@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { InMemoryKeyValueStore } from '../adapters/fake/index.js';
 import {
   clearOperatingRut,
+  formatOperableEntry,
   initOperateState,
   operatingContext,
   readOperateState,
@@ -67,5 +68,31 @@ describe('identity / operate', () => {
     const ctx = operatingContext(await clearOperatingRut(store));
     expect(ctx.isSelf).toBe(true);
     expect(ctx.operatingRut).toBe(PERSONA);
+  });
+
+  it('formatOperableEntry renders rut + name + self/current markers (shared by CLI + MCP)', () => {
+    const self: OperableEntry = { rut: '20000042-0', razonSocial: 'Juan Pérez', isSelf: true };
+    const empresa: OperableEntry = {
+      rut: '78362507-5',
+      razonSocial: 'Mi Empresa SpA',
+      isSelf: false,
+    };
+    // Self, currently operating: both markers.
+    expect(formatOperableEntry(self, '20000042-0')).toBe(
+      '20.000.042-0 Juan Pérez (tú mismo, operando ahora)',
+    );
+    // Empresa, not current: name, no markers.
+    expect(formatOperableEntry(empresa, '20000042-0')).toBe('78.362.507-5 Mi Empresa SpA');
+    // Empresa currently operating: the "operando ahora" marker only.
+    expect(formatOperableEntry(empresa, '78362507-5')).toBe(
+      '78.362.507-5 Mi Empresa SpA (operando ahora)',
+    );
+    // Razón social == rut (SII returned no name) → omit it, don't repeat the RUT.
+    expect(
+      formatOperableEntry(
+        { rut: '78362507-5', razonSocial: '78362507-5', isSelf: false },
+        '20000042-0',
+      ),
+    ).toBe('78.362.507-5');
   });
 });

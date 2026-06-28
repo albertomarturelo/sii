@@ -9,6 +9,7 @@ import {
   HOSTS,
   Rut,
   authStatus,
+  formatOperableEntry,
   listOperable,
   login,
   logout,
@@ -183,19 +184,7 @@ export function buildServer(runtime: Runtime): McpServer {
         if (list) {
           const result = await listOperable(runtime);
           if (!result) return 'No hay sesión activa. Usa la tool auth_login.';
-          return result.operable
-            .map((e) => {
-              const marks = [
-                e.isSelf ? 'tú mismo' : null,
-                e.rut === result.operatingRut ? 'operando ahora' : null,
-              ]
-                .filter(Boolean)
-                .join(', ');
-              // razón social falls back to the RUT when SII returned no name — don't repeat it.
-              const name = e.razonSocial && e.razonSocial !== e.rut ? ` ${e.razonSocial}` : '';
-              return `${fmt(e.rut)}${name}${marks ? ` (${marks})` : ''}`;
-            })
-            .join('\n');
+          return result.operable.map((e) => formatOperableEntry(e, result.operatingRut)).join('\n');
         }
         if (self) {
           const r = await operateSelf(runtime);
