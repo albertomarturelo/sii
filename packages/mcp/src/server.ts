@@ -20,27 +20,15 @@ import {
   type OperatingContext,
   type Runtime,
 } from '@sii/core';
+import { toolText } from './tool-helpers.js';
+// Domain read surfaces — each module owns a tools/<mod>.ts register fn (append-only).
+import { registerRcvTools } from './tools/rcv.js';
 
 const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
 
 function describeOperating(ctx: OperatingContext): string {
   if (ctx.isSelf) return `Operando como tú mismo: ${fmt(ctx.operatingRut)}.`;
   return `Operando como ${fmt(ctx.operatingRut)}${ctx.razonSocial ? ` (${ctx.razonSocial})` : ''}.`;
-}
-
-const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-/** Run a task and wrap its text as a tool result; domain errors come back as an
- *  error result carrying SII's Spanish message verbatim (CONVENTIONS). */
-async function toolText(fn: () => Promise<string>): Promise<{
-  content: { type: 'text'; text: string }[];
-  isError?: boolean;
-}> {
-  try {
-    return { content: [{ type: 'text', text: await fn() }] };
-  } catch (e) {
-    return { content: [{ type: 'text', text: messageOf(e) }], isError: true };
-  }
 }
 
 const jsonResource = (uri: URL, value: unknown) => ({
@@ -195,6 +183,9 @@ export function buildServer(runtime: Runtime): McpServer {
         return ctx ? describeOperating(ctx) : 'No hay sesión activa. Usa la tool auth_login.';
       }),
   );
+
+  // --- domain read surfaces (one register call per module — append-only) ---
+  registerRcvTools(server, runtime);
 
   return server;
 }

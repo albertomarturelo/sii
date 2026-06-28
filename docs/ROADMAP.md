@@ -56,11 +56,11 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 
 | Status | CLI | MCP | Spec |
 |---|---|---|---|
-| 📋 | `sii rcv summary` / `list` / `match` | `rcv_*` | RCV aggregates, row detail, folio reconciliation. Body-RUT (operate reaches it). |
-| 📋 | `sii f29 draft` / `status` | `f29_*` | Read the IVA propuesta + the presented F29. Session-keyed (login as the empresa). |
-| 📋 | `sii f22 status` | `f22_status` | Read the presented annual Renta. Session-keyed; reach confirmed in the operate spike. |
-| 📋 | `sii bte list` | `bte_list` | Read BHE recibidas/emitidas. Session-keyed. |
-| 📋 | `sii dte authorized` | `dte_authorized` | Public consulta of authorized DTE types (no login). |
+| 🚧 | `sii rcv summary` / `list` (`match` 📋) | `rcv_summary` / `rcv_list` | **Built + tested (#17)** — the domain-read template: `getResumen` aggregates + `getDetalle` rows, `withSession` + body-RUT (`--rut`/operate), curated+`raw`. Wire contract ported (cited), **not yet live-revalidated from TS**. `match` (folio reconciliation) deferred. |
+| 📋 | `sii f29 draft` / `status` (#18) | `f29_*` | Read the IVA propuesta + the presented F29. Session-keyed (login as the empresa); blocked on spike #15 + RCV template. |
+| 📋 | `sii f22 status` (#19) | `f22_status` | Read the presented annual Renta. Session-keyed; reach confirmed in the operate spike #15. |
+| 📋 | `sii bte list` (#20) | `bte_list` | Read BHE recibidas/emitidas. Session-keyed; blocked on spike #15 + RCV template. |
+| 📋 | `sii dte authorized` (#21) | `dte_authorized` | Public consulta of authorized DTE types (no login); reuses the RCV registration pattern only (no `withSession`/spike). |
 | 📋 | `sii iva` / `sii renta` | `iva` / `renta` | Composite contador summaries derived from the surfaces above. |
 
 ## Write surfaces (each needs its own ADR for legal weight)
@@ -81,9 +81,11 @@ client (no SII), and binary-smoke-validated (`initialize` handshake):
   `sii://operable`, `sii://config`. NOT tools — the model reads them to orient.
 - **Tools** (actions): ✅ `auth_login` (no password — delegates to the browser
   flow), `auth_logout` (no args — best-effort server close + local wipe),
-  `auth_status` (`refresh`), `operate` (`rut`/`self`), annotated `readOnlyHint`.
-  Each is a thin call into a `@sii/core` task; future writes get `destructiveHint`.
-  `auth_logout` is MCP-eligible because it carries no secret (ADR-006).
+  `auth_status` (`refresh`), `operate` (`rut`/`self`); read surfaces
+  `rcv_summary` / `rcv_list` (`periodo`/`venta`/`rut`, `readOnlyHint`). Each is a
+  thin call into a `@sii/core` task; future writes get `destructiveHint`.
+  `auth_logout` is MCP-eligible because it carries no secret (ADR-006). New modules
+  register their tools via `tools/<mod>.ts` (`register<Mod>Tools`) — append-only.
 - **Prompts** (workflow templates): 📋 "revisar IVA del mes", "preparar renta",
   "conciliar folio" — deferred until the read surfaces they orchestrate land.
 

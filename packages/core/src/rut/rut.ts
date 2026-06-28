@@ -52,12 +52,12 @@ export class Rut {
     }
   }
 
-  /** Machine-stable form: `<body>-<DV>` (e.g. `78362507-5`). */
+  /** Machine-stable form: `<body>-<DV>` (e.g. `77777777-7`). */
   get canonical(): string {
     return `${this.body}-${this.dv}`;
   }
 
-  /** Human form with thousands separators (e.g. `78.362.507-5`). */
+  /** Human form with thousands separators (e.g. `77.777.777-7`). */
   get formatted(): string {
     const dotted = String(this.body).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     return `${dotted}-${this.dv}`;

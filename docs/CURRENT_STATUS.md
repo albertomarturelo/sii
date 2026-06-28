@@ -14,7 +14,22 @@ Last updated: 2026-06-28
   operate". Added `list=true` to the `operate` tool (equivalent to CLI `operate
   --list`): returns the operable set with self/current markers, no-session → an
   actionable `auth_login` hint. Thin call into the existing `listOperable` task
-  (ADR-003); the resource stays. 1 new MCP test.
+  (ADR-003); the resource stays. `formatOperableEntry` shared by CLI + MCP. 2 new tests.
+- [x] **RCV read surface — the domain-read template (#17).** First full domain vertical:
+  `portal/rcv.ts` (facade: `getResumen` + `getDetalle{Compra,Venta}`) → `tasks/rcv.ts`
+  (`rcvSummary`/`rcvList`, `withSession`-wrapped, body-RUT, one audit receipt) → CLI
+  `sii rcv summary|list` + MCP `rcv_summary`/`rcv_list`. **Live-validated 2026-06-28**
+  (persona session): resumen+detalle aliases match real COMPRA data; two live fixes —
+  an expired session now raises `SessionExpiredError` ("re-login") instead of a
+  misleading "no es JSON" (the `requestJson` seam detects the login wall), and
+  `codRespuesta=3` is "sin movimientos" (empty), not a rejection. **`--rut` reached a
+  represented empresa's RCV** (code 0 + a row) → RCV is body-RUT, confirming ADR-005
+  (partial answer to spike #15). Established three reusables the other modules inherit:
+  the **`periodo`** primitive (YYYYMM, accepts `2026-5`), the **zod-at-the-boundary +
+  alias-tolerant** wire-parsing convention (ADR-011), and the **per-module
+  surface-registration pattern** (`commands/<mod>.ts` + `tools/<mod>.ts` register fns →
+  append-only barrels, so parallel worktrees don't conflict). zod added to `@sii/core`.
+  25 new tests vs fakes (no SII), 109/109 green.
 - [x] **`withSession` session-acquisition primitive (#14).** Factored the
   restore-session lifecycle out of login/`statusRefresh` into `auth/session.ts`:
   `withSession(runtime, fn, {rut?})` restores the cookies-only session into a live
@@ -123,11 +138,16 @@ Last updated: 2026-06-28
 
 ## Open Decisions / Questions
 
-1. **Operate reach (representación) spike (#15)** — does a persona's `operate` reach
-   the session-keyed surfaces (F29/F22/BHE), or only RCV? Decides the ADR-005 reach
-   contract. Run before wiring those domain modules; does NOT gate RCV (body-RUT). Now
-   testable live — the operable set resolves real represented empresas.
-2. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
+1. **Operate reach (representación) spike (#15)** — **RCV CONFIRMED body-RUT live
+   2026-06-28**: a persona representante-legal's `--rut` reached a represented empresa's
+   RCV (code 0 + a row). Still OPEN for the session-keyed surfaces (F29/F22/BHE) — run
+   before wiring #18/#19/#20. Decides the rest of the ADR-005 reach contract.
+2. **CLI header doesn't reflect a per-call `--rut`** — `operating as:` (preAction hook)
+   shows the sticky operate POINTER, so `sii rcv summary … --rut <empresa>` prints
+   "tú mismo" while the result line shows the empresa RUT. Minor ADR-005 "always
+   visible" wart; the result is correct. Follow-up (small): make the header aware of
+   the per-call override, or have domain commands print their effective RUT.
+3. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
    (ADR-008). _(`zod` resolved — adopted in ADR-011 for MCP input schemas.)_
 
 ## Known Issues
@@ -138,15 +158,16 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **RCV — first domain read surface** — now unblocked: wrap `getDcv*` facades in
-   `withSession` (#14) + `PortalSession.requestJson`. Body-RUT, so the operate spike
-   doesn't gate it. The template the rest (f29/f22/bte) follow.
-2. **Operate-reach spike (#15)** (ADR-005) — does `operate` reach F29/F22/BHE or only
-   RCV? Run before wiring those (not RCV). Now testable live.
-3. **Confirm MCP live in Claude Desktop** — the config points at the TS binary; confirm
+1. **Live-revalidate RCV** — re-observe `getResumen`/`getDetalle` against a real session
+   from the TS port (operator-assisted): confirm endpoints/fields, refresh the dates in
+   `sii-contract/rcv.md`, note new aliases. (The contract is ported, not yet re-observed.)
+2. **Fan out the module worktrees** against the RCV template (registration pattern +
+   `periodo` + zod-wire convention now stable): **DTE #21** can go immediately (public,
+   no spike); **F29 #18 / F22 #19 / BTE #20** after the spike. (ADR-007)
+3. **Operate-reach spike (#15)** (ADR-005) — does `operate` reach F29/F22/BHE or only
+   RCV? Gates #18/#19/#20 (not RCV/DTE). Now testable live.
+4. **Confirm MCP live in Claude Desktop** — the config points at the TS binary; confirm
    the `sii` tools/resources appear and `auth_login` drives the browser flow.
-4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
-5. **Then fan out** f29 → f22 → bte → dte via worktrees against the now-stable seams +
-   task contract (ADR-007), reusing `withSession` + `PortalSession.requestJson`.
+5. **`operate <alias>`** — alias targets now that the operable set has real empresas.
 
 See `docs/ROADMAP.md` for the full surface checklist.

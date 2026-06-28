@@ -33,11 +33,13 @@ These are intended choices; versions are pinned when first installed.
   `@sii/core` never imports it.
 - **Secret storage** — TBD via ADR (candidate: `keytar` / `@napi-rs/keyring`
   for the OS keychain). The default `SecretStore` adapter.
-- **`zod`** `^4` — **adopted (ADR-011)**. Boundary validation: MCP tool input
-  schemas (the SDK's `registerTool` takes a zod shape and emits the protocol JSON
-  Schema) and, later, SII wire-payload parsing in `@sii/core`. Pinned to v4 to
-  match the SDK's peer (`@modelcontextprotocol/sdk@1.29` → `zod@4.4.3`); version
-  pinned exactly on first install.
+- **`zod`** `^4.4.3` — **adopted (ADR-011)**. Boundary validation. Direct dependency
+  of **both** `@sii/mcp` (MCP tool input schemas — the SDK's `registerTool` takes a zod
+  shape and emits the protocol JSON Schema) **and `@sii/core`** (SII wire-payload
+  parsing: the SDI envelope is validated with zod, then rows are projected
+  alias-tolerantly — landed with the RCV read surface, #17). Pinned to v4 to match the
+  SDK's peer (`@modelcontextprotocol/sdk@1.29` → `zod@4.4.3`); same major in both
+  packages, bumped in lockstep with the SDK.
 
 ## Dev tooling
 

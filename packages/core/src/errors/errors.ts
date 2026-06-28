@@ -33,3 +33,7 @@ export class ValidationError extends SiiError {}
 /** SII rejected a portal/SDI facade request (error envelope or unparseable
  *  response). Carries SII's message verbatim — never translated (ADR-004). */
 export class RepresentacionError extends SiiError {}
+
+/** SII rejected an RCV (Registro de Compras y Ventas) facade request, or the
+ *  response was not parseable. SII's message verbatim — never translated (ADR-004). */
+export class RcvError extends SiiError {}

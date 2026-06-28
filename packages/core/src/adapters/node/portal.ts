@@ -11,6 +11,7 @@ import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playw
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginError } from '../../auth/login-error.js';
+import { nonJsonResponseError } from './response.js';
 import type {
   CredentialLoginOptions,
   InteractiveLoginOptions,
@@ -69,7 +70,19 @@ class PlaywrightPortalSession implements PortalSession {
       ...(options.headers ? { headers: options.headers } : {}),
       ...(options.body !== undefined ? { data: JSON.stringify(options.body) } : {}),
     });
-    return response.json();
+    try {
+      return await response.json();
+    } catch {
+      // A non-JSON body from an authenticated SDI POST means the dead session was
+      // bounced to SII's login wall — surface an actionable SessionExpiredError, not a
+      // parse error. No extra round-trip: this first SDI POST IS the liveness test.
+      // Classification is a pure helper so it is unit-tested (nonJsonResponseError).
+      throw nonJsonResponseError(
+        response.url(),
+        response.headers()['content-type'] ?? '',
+        response.status(),
+      );
+    }
   }
 
   async cookie(url: string, name: string): Promise<string | null> {

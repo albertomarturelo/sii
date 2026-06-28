@@ -17,6 +17,8 @@ export { operate, operateSelf, operatingStatus, listOperable } from './tasks/ope
 export type { OperateResult, OperableList } from './tasks/operate.js';
 export { formatOperableEntry } from './identity/index.js';
 export type { OperatingContext, OperableEntry } from './identity/index.js';
+export { rcvSummary, rcvList } from './tasks/rcv.js';
+export type { RcvResumen, RcvResumenRow, RcvDetalle, RcvDetalleDoc, RcvSide } from './tasks/rcv.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
 export { createNodeRuntime } from './runtime.js';
@@ -35,6 +37,7 @@ export type {
 
 // --- shared primitives ---
 export { Rut } from './rut/index.js';
+export { Periodo } from './periodo/index.js';
 export { HOSTS, LOGIN_HOST } from './config/index.js';
 export * from './errors/index.js';
 

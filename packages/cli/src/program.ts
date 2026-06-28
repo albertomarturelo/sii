@@ -22,6 +22,8 @@ import { consoleLogin } from '@sii/core/cli';
 import { out } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
+// Domain read surfaces — each module owns a commands/<mod>.ts register fn (append-only).
+import { registerRcv } from './commands/rcv.js';
 
 const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
 
@@ -148,6 +150,9 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
       }
       out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
     });
+
+  // --- domain read surfaces (one register call per module — append-only) ---
+  registerRcv(program, runtime);
 
   return program;
 }
