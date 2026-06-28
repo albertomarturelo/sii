@@ -46,10 +46,10 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 
 | Status | CLI | MCP | Spec |
 |---|---|---|---|
-| 🚧 | `sii auth login` (browser) / `--console` | `auth_login` (no password arg) | **CLI real-SII validated (#5)**; MCP pending. Headed cookies-only login; user types Clave into SII; lands on Mi-SII, persists `~/.sii/session.json` (0600, no secret). **`--console`** (ADR-010): RUT + hidden Clave in the terminal → headless form-fill → same cookies-only session, Clave never stored. CLI-only. |
-| 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | **CLI real-SII validated (#5)**; MCP pending. Local read (who am I, operating-as); `--refresh` reads `DatosCntrNow` live. |
+| 🚧 | `sii auth login` (browser) / `--console` | `auth_login` (no password arg) | **CLI real-SII validated (#5)**; **MCP tool built + tested** (no password arg; delegates to the browser flow). **`--console`** (ADR-010): RUT + hidden Clave in the terminal → headless form-fill → same cookies-only session, Clave never stored. CLI-only. Headed login persists `~/.sii/session.json` (0600, no secret). |
+| 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | **CLI real-SII validated (#5)**; **MCP tool + resource built + tested**. Local read (who am I, operating-as); `refresh=true` reads `DatosCntrNow` live. |
 | ✅ | `sii auth logout` | (CLI-only) | **Real-SII validated (#5)**: server-side close (best-effort, redirect off `autTermino.cgi`) + local wipe. Switching accounts = logout→login. |
-| 🚧 | `sii operate <rut\|alias>` / `--self` | `operate` / Resource `sii://operating` | CLI built + tested (alias TBD with operable fetch); MCP pending. Validated against the operable set; always visible. |
+| 🚧 | `sii operate <rut\|alias>` / `--self` | `operate` / Resource `sii://operating` | CLI built + tested; **MCP tool + resource built + tested** (alias TBD with operable fetch). Validated against the operable set; always visible. |
 | 📋 | `sii profile` | `profile` | Full contributor snapshot INCLUDING PII (opt-in name; states exposure). |
 
 ## Read surfaces
@@ -73,15 +73,19 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 ## MCP-specific structure (best practices — ADR-003)
 
 The MCP server is the surface that lands the project in Claude Code and Claude
-Desktop, so structure it to the spec:
+Desktop, so structure it to the spec. The stdio server is built
+(`@sii/mcp`, `buildServer(runtime)` + stdio `main`), tested with an in-memory
+client (no SII), and binary-smoke-validated (`initialize` handshake):
 
-- **Resources** (read-only context): `sii://session`, `sii://operating`,
-  `sii://operable`, `sii://config`. NOT tools — the model reads them to orient.
-- **Tools** (actions): one per operation, annotated `readOnlyHint` today; future
-  writes `destructiveHint`. Mirrors the CLI by default. No tool ever takes a
-  password.
-- **Prompts** (workflow templates): "revisar IVA del mes", "preparar renta",
-  "conciliar folio".
+- **Resources** (read-only context): ✅ `sii://session`, `sii://operating`,
+  `sii://config`. 📋 `sii://operable` (lands with the operable fetch). NOT
+  tools — the model reads them to orient.
+- **Tools** (actions): ✅ `auth_login` (no password — delegates to the browser
+  flow), `auth_status` (`refresh`), `operate` (`rut`/`self`), annotated
+  `readOnlyHint`. Each is a thin call into a `@sii/core` task; future writes get
+  `destructiveHint`. `auth logout` stays CLI-only (not an MCP tool).
+- **Prompts** (workflow templates): 📋 "revisar IVA del mes", "preparar renta",
+  "conciliar folio" — deferred until the read surfaces they orchestrate land.
 
 ## How to keep this current
 

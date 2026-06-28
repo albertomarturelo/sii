@@ -8,6 +8,16 @@ Last updated: 2026-06-28
 
 ## Recently Completed
 
+- [x] **MCP stdio surface (ADR-011 — zod adopted).** `@sii/mcp` server built over
+  `@sii/core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
+  delegates to the browser flow, ADR-006), `auth_status` (`refresh`), `operate`
+  (`rut`/`self`); Resources `sii://session`, `sii://operating`, `sii://config`.
+  `buildServer(runtime)` is injectable; `main` serves over stdio (STDOUT = JSON-RPC,
+  errors to STDERR). zod v4 validates tool inputs (the SDK derives the protocol JSON
+  Schema). 5 tests via an in-memory MCP client against fakes (no SII); the built
+  binary passes the `initialize` handshake. `consoleLogin` stays unreachable (it's
+  in the CLI-only `@sii/core/cli` subpath). Pending: live connect from Claude Code
+  (`.mcp.json`) / Claude Desktop (`claude_desktop_config.json`).
 - [x] **Console login `sii auth login --console` (ADR-010)** — a CLI-only input
   method peer to the browser login. Prompts RUT + Clave (hidden, never a flag),
   validates the RUT (Mod-11) locally first, then headless form-fills SII's real
@@ -80,7 +90,7 @@ Last updated: 2026-06-28
    wiring `getDcvEmpresasAutorizadas` (a portal POST) to populate real represented
    empresas is the next identity increment.
 3. **Keyring lib** (`@napi-rs/keyring`) — only when the credential login path lands
-   (ADR-008). **`zod`** — only when the first MCP input schema lands.
+   (ADR-008). _(`zod` resolved — adopted in ADR-011 for MCP input schemas.)_
 
 ## Known Issues
 
@@ -90,10 +100,11 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **MCP surface** — `auth_login` (no password arg) / `auth_status` / `operate`,
-   plus Resources (`sii://session`, `sii://operating`); validate it connects from
-   Claude Code (`.mcp.json`) and Claude Desktop (`claude_desktop_config.json`).
-2. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets.
+1. **Validate the MCP server live** — register `@sii/mcp` in Claude Code
+   (`.mcp.json`) and Claude Desktop (`claude_desktop_config.json`); confirm the
+   tools/resources show up and `auth_login` drives the browser flow end-to-end.
+2. **Operable fetch** on login (`getDcvEmpresasAutorizadas`) → real operate targets
+   (also fills the `sii://operable` resource).
 3. **Then fan out** the domain modules (rcv → f29 → f22 → bte → dte) via worktrees
    against the now-stable seams + task contract (ADR-007).
 
