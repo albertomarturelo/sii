@@ -11,6 +11,9 @@ export class SystemClock implements Clock {
   now(): Date {
     return new Date();
   }
+  sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 }
 
 /** fs-backed JSON store: ~/.sii/<key>.json, dir 0700 / files 0600, atomic write. */

@@ -5,6 +5,9 @@
 
 export interface Clock {
   now(): Date;
+  /** Pause for `ms` (the pacing primitive for multi-call fan-outs — rate-limit
+   *  convention, ADR-004). Fakes resolve instantly so tests don't wait. */
+  sleep(ms: number): Promise<void>;
 }
 
 /** One audit receipt line. The audit module stamps `ts` and drops secret keys. */

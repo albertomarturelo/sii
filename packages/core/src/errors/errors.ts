@@ -37,3 +37,7 @@ export class RepresentacionError extends SiiError {}
 /** SII rejected an RCV (Registro de Compras y Ventas) facade request, or the
  *  response was not parseable. SII's message verbatim — never translated (ADR-004). */
 export class RcvError extends SiiError {}
+
+/** SII rejected an F22 (Declaración Anual de Renta) facade request, or the response
+ *  was not parseable. SII's message verbatim — never translated (ADR-004). */
+export class F22Error extends SiiError {}
