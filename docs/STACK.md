@@ -10,8 +10,9 @@
 - **Node.js** `>=20` (LTS) — the runtime for both surfaces (CLI + MCP).
   `@sii/core` is a Node library; external dependencies sit behind injectable
   seams for testability (ADR-003).
-- **pnpm** `9.x` workspaces — the monorepo package manager. TypeScript project
-  references (`tsc -b`) wire `@sii/core` into each surface. (ADR-002)
+- **pnpm** `10.x` workspaces (pinned `pnpm@10.33.2` via `packageManager`, the
+  single source of truth read by CI) — the monorepo package manager. TypeScript
+  project references (`tsc -b`) wire `@sii/core` into each surface. (ADR-002)
 - macOS `aarch64` dev machine; portable to Linux. No Windows-specific bits.
 
 ## Infrastructure libraries (general-purpose, NOT SII-specific — ADR-004)

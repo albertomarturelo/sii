@@ -1,18 +1,14 @@
 # Current Project Status
 
-Last updated: 2026-06-27
+Last updated: 2026-06-28
 
 ## In Progress
 
-- **Auth + identity base — core logic, Playwright driver, AND the CLI surface
-  landed; runnable binary, real-SII validation + MCP next.** `@sii/core` exposes
-  `login` / `logout` / `authStatus` / `statusRefresh` / `operate` / `operateSelf`
-  (unit-tested against the fake driver). The Node Playwright `PortalDriver` is
-  wired into `createNodeRuntime`. The `@sii/cli` (commander) surface is built and
-  runs as a real Node binary: `sii auth login|status [--refresh]|logout`,
-  `sii operate <rut>|--self`, with the always-visible `operating as:` STDERR
-  header and the documented exit-code mapping. What's left: a real-SII `auth login`
-  end-to-end run (headed browser against `zeusr.sii.cl`), then the MCP surface.
+- **Real-SII auth login validation (issue #5).** All auth surfaces are merged to
+  `main` and run as a real binary, but nothing has touched live SII yet. The next
+  unit of work is the first headed `sii auth login` against `zeusr.sii.cl` —
+  confirm cookies-only persistence + `auth status --refresh`, and capture the wire
+  contract in `docs/sii-contract/auth-login.md`. Start with `/issue:start 5`.
 
 ## Recently Completed
 
@@ -53,7 +49,12 @@ Last updated: 2026-06-27
   as a real binary; 8 CLI tests drive the whole tree against fakes (no SII).
 - [x] **GitHub process bootstrap** — issue templates (bug / feature / work-unit)
   plus a PR template (adapted from sii-py to pnpm/vitest/TS); `/issue:*` and
-  `/review-pr` slash commands pointed at `AltumStack/sii`.
+  `/review-pr` slash commands pointed at `AltumStack/sii`; type + scope labels.
+- [x] **GitHub Flow established** — PRs **#3** (process, closes #1) + **#4** (auth
+  surfaces, closes #2) reviewed via `/review-pr`, findings fixed, squash-merged to
+  `main`. Fixed a pre-existing CI bug: `pnpm/action-setup` pinned `version: 9`
+  while `packageManager` is `pnpm@10.33.2` (failed before any step); CI now reads
+  the version from `packageManager`. Both checks green on merge.
 - [x] **Toolchain green** — pnpm install (+ `playwright`, `commander`, Chromium
   binary); `tsc -b` (strict) ✓, eslint ✓, prettier ✓, **39/39 vitest tests** ✓.
 
@@ -70,18 +71,18 @@ Last updated: 2026-06-27
 
 ## Known Issues
 
-- **No real-SII login has been run yet.** The CLI runs and the Playwright driver
-  is wired + offline-smoke-validated, but no `sii auth login` has gone against the
-  live `zeusr.sii.cl` page. That headed end-to-end run is the next validation.
+- **No real-SII login has been run yet (tracked: issue #5).** The CLI runs and the
+  Playwright driver is wired + offline-smoke-validated, but no `sii auth login` has
+  gone against the live `zeusr.sii.cl` page. That headed end-to-end run is next.
 - pnpm 10 blocked esbuild's postinstall build script (warning only) — vitest
   bundles its own esbuild, tests run fine. (Same for `playwright`'s install
   script; the Chromium binary is fetched explicitly via `playwright install`.)
 
 ## Next Priorities
 
-1. **Real-SII login validation** — run `sii auth login` against `zeusr.sii.cl`:
-   headed browser, user types the Clave, confirm cookies-only persistence +
-   `auth status --refresh` readback. First live contact with SII.
+1. **Real-SII login validation (issue #5)** — run `sii auth login` against
+   `zeusr.sii.cl`: headed browser, user types the Clave, confirm cookies-only
+   persistence + `auth status --refresh` readback. First live contact with SII.
 2. **MCP surface** — `auth_login` (no password arg) / `auth_status` / `operate`,
    plus Resources (`sii://session`, `sii://operating`); validate it connects from
    Claude Code (`.mcp.json`) and Claude Desktop (`claude_desktop_config.json`).
