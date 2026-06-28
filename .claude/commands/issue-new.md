@@ -3,13 +3,10 @@
      Token budget for the full flow: ~1,500–3,000.
 
      The completeness of this issue determines how cheaply the NEXT
-     session starts. Be thorough HERE so you can be cheap THERE.
+     session starts. Be thorough HERE so you can be cheap THERE. -->
 
-     NOTE: set the GitHub repo below once the remote exists; until then
-     this repo has no remote and issues are tracked locally / on paper. -->
-
-Guide the user through creating a new GitHub issue on `OWNER/REPO`
-(REPLACE with the real slug) using the fixed 6-section body template.
+Guide the user through creating a new GitHub issue on `AltumStack/sii`
+using the fixed 6-section body template.
 Ask, in order, and confirm each answer before moving on:
 
 1. **Type.** `feature` | `fix` | `chore` | `docs` | `spike`
@@ -67,10 +64,10 @@ section order or names — `/issue:start` parses by section header):
 <step 9>
 ```
 
-Then run (once the repo exists):
+Then run:
 
 ```bash
-gh issue create --repo OWNER/REPO \
+gh issue create --repo AltumStack/sii \
   --title "<step 2>" --body "<body above>" \
   --label "<step 1>,<step 10 scopes>"
 ```

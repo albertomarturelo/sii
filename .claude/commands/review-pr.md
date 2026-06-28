@@ -3,18 +3,18 @@
      linked issue AC) WITHOUT scanning full files. Token budget: ≤6,000.
      English-only output.
 
-     NOTE: replace OWNER/REPO with the real slug once the remote exists. -->
+     Repo slug: AltumStack/sii. -->
 
 The user passes a PR number. If not provided, infer from the current
-branch (`gh pr status --repo OWNER/REPO --json number --jq '.currentBranch.number'`).
+branch (`gh pr status --repo AltumStack/sii --json number --jq '.currentBranch.number'`).
 If still none, ask.
 
 ## 1. Fetch PR metadata + diff (do FIRST)
 
 ```bash
-gh pr view <n> --repo OWNER/REPO \
+gh pr view <n> --repo AltumStack/sii \
   --json baseRefName,headRefName,title,body,labels,commits,closingIssuesReferences
-gh pr diff <n> --repo OWNER/REPO
+gh pr diff <n> --repo AltumStack/sii
 git log <base>..<head> --pretty=format:%s
 ```
 

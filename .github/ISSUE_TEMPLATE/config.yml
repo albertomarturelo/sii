@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability (private)
+    url: https://github.com/AltumStack/sii/security/advisories/new
+    about: Report security issues privately. Do NOT open a public issue.
