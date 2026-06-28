@@ -5,7 +5,7 @@ import { Periodo } from '../periodo/index.js';
 import { RcvError, SessionExpiredError } from '../errors/index.js';
 import { fetchRcvResumen, fetchRcvDetalle } from './rcv.js';
 
-// Synthetic data only (no real PII, no SII): operating 20.000.042-0, emisor 78.362.507-5.
+// Synthetic data only (no real PII, no SII): operating 20.000.042-0, emisor 77.777.777-7.
 const RUT = Rut.parse('20000042-0');
 const PERIODO = Periodo.parse('2026-06');
 
@@ -95,8 +95,8 @@ describe('RCV facade (fake session, synthetic envelopes, no SII)', () => {
       data: [
         {
           detNroDoc: 42,
-          detRutDoc: 78362507,
-          detDvDoc: '5',
+          detRutDoc: 77777777,
+          detDvDoc: '7',
           detRznSoc: 'Proveedor SpA',
           detFchDoc: '15/06/2026',
           detFecRecepcion: '16/06/2026 10:30:00',
@@ -122,7 +122,7 @@ describe('RCV facade (fake session, synthetic envelopes, no SII)', () => {
     const d = res.docs[0]!;
     expect(d).toMatchObject({
       folio: 42,
-      rutEmisor: '78362507-5',
+      rutEmisor: '77777777-7',
       razonSocial: 'Proveedor SpA',
       fechaEmision: '2026-06-15',
       fechaRecepcion: '2026-06-16 10:30:00',

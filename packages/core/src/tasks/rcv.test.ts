@@ -11,9 +11,9 @@ import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import { rcvSummary, rcvList } from './rcv.js';
 
-// Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 78.362.507-5.
+// Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
-const EMPRESA = '78362507-5';
+const EMPRESA = '77777777-7';
 
 const RESUMEN_ENV = {
   respEstado: { codRespuesta: 0 },
@@ -24,7 +24,7 @@ const RESUMEN_ENV = {
 };
 const DETALLE_ENV = {
   respEstado: { codRespuesta: 0 },
-  data: [{ detNroDoc: 7, detRutDoc: 78362507, detDvDoc: '5', detMntTotal: 59500 }],
+  data: [{ detNroDoc: 7, detRutDoc: 77777777, detDvDoc: '7', detMntTotal: 59500 }],
 };
 
 function makeRuntime(requestJson: (url: string) => unknown): Runtime {
@@ -99,7 +99,7 @@ describe('rcv tasks (fakes, no SII)', () => {
 
     const res = await rcvList(rt, { periodo: '2026-06', side: 'COMPRA', codigoTipoDoc: '33' });
     expect(res.codigoTipoDoc).toBe('33');
-    expect(res.docs[0]).toMatchObject({ folio: 7, rutEmisor: '78362507-5', montoTotal: 59500 });
+    expect(res.docs[0]).toMatchObject({ folio: 7, rutEmisor: '77777777-7', montoTotal: 59500 });
     expect(entries(rt).at(-1)).toMatchObject({
       action: 'rcv_detalle',
       result: 'ok',

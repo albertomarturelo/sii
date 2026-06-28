@@ -34,13 +34,11 @@ interface RcvDetalleArgs extends RcvResumenArgs {
 // exactOptionalPropertyTypes: only set `rut` when actually overriding.
 const sessionOpts = (rut?: string): { rut?: string } => (rut !== undefined ? { rut } : {});
 
-function audit(
-  runtime: Runtime,
-  action: string,
-  result: string,
-  extra: Record<string, unknown>,
-): void {
-  recordAudit(runtime, { action, result, ...extra } as AuditEntry);
+// `extra` is `Partial<AuditEntry>` so the typed optional fields (durationMs, rutAuth)
+// stay typed and arbitrary keys (periodo, side, …) ride the entry's index signature —
+// no cast needed.
+function audit(runtime: Runtime, action: string, result: string, extra: Partial<AuditEntry>): void {
+  recordAudit(runtime, { action, result, ...extra });
 }
 
 export async function rcvSummary(runtime: Runtime, args: RcvResumenArgs): Promise<RcvResumen> {

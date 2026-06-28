@@ -11,9 +11,9 @@ import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { withSession, writeSession } from './session.js';
 
-// Synthetic, Mod-11-valid RUTs (CONVENTIONS): persona 20.000.042-0, empresa 78.362.507-5.
+// Synthetic, Mod-11-valid RUTs (CONVENTIONS): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
-const EMPRESA = '78362507-5';
+const EMPRESA = '77777777-7';
 
 /** A driver that hands out — and remembers — the sessions it restores, so a test
  *  can assert each one was closed. */

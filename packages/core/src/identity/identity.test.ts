@@ -12,7 +12,7 @@ import {
 import { ValidationError } from '../errors/index.js';
 
 const PERSONA = '20000042-0';
-const EMPRESA = '78362507-5';
+const EMPRESA = '77777777-7';
 const OTRA = '12345670-K';
 
 const personaOperable: OperableEntry[] = [
@@ -40,7 +40,7 @@ describe('identity / operate', () => {
 
   it('switches to a represented empresa in the operable set (any format)', async () => {
     const store = await personaStore();
-    const state = await setOperatingRut(store, '78.362.507-5');
+    const state = await setOperatingRut(store, '77.777.777-7');
     const ctx = operatingContext(state);
     expect(ctx.operatingRut).toBe(EMPRESA);
     expect(ctx.isSelf).toBe(false);
@@ -73,7 +73,7 @@ describe('identity / operate', () => {
   it('formatOperableEntry renders rut + name + self/current markers (shared by CLI + MCP)', () => {
     const self: OperableEntry = { rut: '20000042-0', razonSocial: 'Juan Pérez', isSelf: true };
     const empresa: OperableEntry = {
-      rut: '78362507-5',
+      rut: '77777777-7',
       razonSocial: 'Mi Empresa SpA',
       isSelf: false,
     };
@@ -82,17 +82,17 @@ describe('identity / operate', () => {
       '20.000.042-0 Juan Pérez (tú mismo, operando ahora)',
     );
     // Empresa, not current: name, no markers.
-    expect(formatOperableEntry(empresa, '20000042-0')).toBe('78.362.507-5 Mi Empresa SpA');
+    expect(formatOperableEntry(empresa, '20000042-0')).toBe('77.777.777-7 Mi Empresa SpA');
     // Empresa currently operating: the "operando ahora" marker only.
-    expect(formatOperableEntry(empresa, '78362507-5')).toBe(
-      '78.362.507-5 Mi Empresa SpA (operando ahora)',
+    expect(formatOperableEntry(empresa, '77777777-7')).toBe(
+      '77.777.777-7 Mi Empresa SpA (operando ahora)',
     );
     // Razón social == rut (SII returned no name) → omit it, don't repeat the RUT.
     expect(
       formatOperableEntry(
-        { rut: '78362507-5', razonSocial: '78362507-5', isSelf: false },
+        { rut: '77777777-7', razonSocial: '77777777-7', isSelf: false },
         '20000042-0',
       ),
-    ).toBe('78.362.507-5');
+    ).toBe('77.777.777-7');
   });
 });
