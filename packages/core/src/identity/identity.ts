@@ -106,3 +106,18 @@ export function operatingContext(state: OperateState): OperatingContext {
     razonSocial: entry?.razonSocial ?? null,
   };
 }
+
+/** Render one operable entry as a single display line (shared by CLI `operate --list`
+ *  and the MCP `operate list=true` tool, so the format stays in one place):
+ *  `<rut>[ <razón social>][ (tú mismo, operando ahora)]`. Razón social falls back to
+ *  the RUT when SII returned no name — omit it then so the RUT isn't repeated. */
+export function formatOperableEntry(entry: OperableEntry, operatingRut: string): string {
+  const marks = [
+    entry.isSelf ? 'tú mismo' : null,
+    entry.rut === operatingRut ? 'operando ahora' : null,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  const name = entry.razonSocial && entry.razonSocial !== entry.rut ? ` ${entry.razonSocial}` : '';
+  return `${Rut.parse(entry.rut).formatted}${name}${marks ? ` (${marks})` : ''}`;
+}

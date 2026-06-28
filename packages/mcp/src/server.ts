@@ -9,6 +9,7 @@ import {
   HOSTS,
   Rut,
   authStatus,
+  formatOperableEntry,
   listOperable,
   login,
   logout,
@@ -169,12 +170,22 @@ export function buildServer(runtime: Runtime): McpServer {
       title: 'Operar como',
       description:
         'Selecciona el RUT bajo el que operas: una empresa representada (rut) o tú mismo (self=true). ' +
+        'list=true LISTA los RUT que puedes operar (tú mismo + empresas representadas). ' +
         'Validado contra el conjunto operable. Sin argumentos, reporta el contexto actual.',
-      inputSchema: { rut: z.string().optional(), self: z.boolean().optional() },
+      inputSchema: {
+        rut: z.string().optional(),
+        self: z.boolean().optional(),
+        list: z.boolean().optional(),
+      },
       annotations: { readOnlyHint: false },
     },
-    ({ rut, self }) =>
+    ({ rut, self, list }) =>
       toolText(async () => {
+        if (list) {
+          const result = await listOperable(runtime);
+          if (!result) return 'No hay sesión activa. Usa la tool auth_login.';
+          return result.operable.map((e) => formatOperableEntry(e, result.operatingRut)).join('\n');
+        }
         if (self) {
           const r = await operateSelf(runtime);
           return `Operando como tú mismo: ${fmt(r.context.selfRut)}.`;

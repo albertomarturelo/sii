@@ -15,6 +15,7 @@ export type {
 } from './tasks/auth.js';
 export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';
 export type { OperateResult, OperableList } from './tasks/operate.js';
+export { formatOperableEntry } from './identity/index.js';
 export type { OperatingContext, OperableEntry } from './identity/index.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
