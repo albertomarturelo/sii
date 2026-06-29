@@ -4,7 +4,7 @@
 // documented exit codes; their Spanish messages pass through unchanged.
 import { createNodeRuntime } from '@sii/core';
 import { buildProgram } from './program.js';
-import { err, exitCodeFor, messageOf } from './io.js';
+import { err, exitCodeFor, isHumanMode, messageOf } from './io.js';
 
 async function main(): Promise<void> {
   const runtime = createNodeRuntime();
@@ -12,6 +12,9 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  err(messageOf(error));
+  const message = messageOf(error);
+  // Errors go to STDERR (STDOUT stays clean for piping). JSON mode (the default) wraps the
+  // verbatim SII message in a `{ error }` object so a consumer can parse failures too.
+  err(isHumanMode() ? message : JSON.stringify({ error: message }));
   process.exitCode = exitCodeFor(error);
 });

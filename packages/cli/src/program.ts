@@ -19,7 +19,7 @@ import {
 // CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
 // can't wire it (ADR-006 / ADR-010).
 import { consoleLogin } from '@sii/core/cli';
-import { out } from './io.js';
+import { emit, out, setOutputMode, withOutputFlags } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
 // Domain read surfaces — each module owns a commands/<mod>.ts register fn (append-only).
@@ -39,9 +39,18 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .name('sii')
     .description('CLI para automatizar trámites del SII (Chile).')
     .version('0.0.0');
+  // Output is JSON by default (the @sii/core data contract); `--human` for readable text.
+  // Declared on the root so `sii --human <cmd>` parses; `withOutputFlags` adds them to each
+  // leaf too so `sii <cmd> --human` parses as well.
+  withOutputFlags(program);
 
-  // Always-visible operating-as header (ADR-005), before every subcommand action.
-  program.hook('preAction', () => printOperatingHeader(runtime));
+  // Resolve the output mode from the flags, then (human mode only) print the always-visible
+  // operating-as header (ADR-005). In JSON mode the header is omitted — STDOUT is pure JSON
+  // and the operating RUT is already a field in every result.
+  program.hook('preAction', async (_thisCommand, actionCommand) => {
+    setOutputMode(actionCommand.optsWithGlobals().human ? 'human' : 'json');
+    await printOperatingHeader(runtime);
+  });
 
   const auth = program.command('auth').description('Autenticación y sesión.');
 
@@ -65,18 +74,22 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
         const clave = await prompters.hidden('Clave: ');
         if (!clave) throw new LoginFailedError('Clave vacía. No se intentó iniciar sesión.');
         const result = await consoleLogin(runtime, { rut, clave });
-        out(
-          result.reason === 'already_authenticated'
-            ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-            : `Sesión iniciada como ${fmt(result.rut)}.`,
+        emit(result, () =>
+          out(
+            result.reason === 'already_authenticated'
+              ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+              : `Sesión iniciada como ${fmt(result.rut)}.`,
+          ),
         );
         return;
       }
       const result = await login(runtime);
-      out(
-        result.reason === 'already_authenticated'
-          ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-          : `Sesión iniciada como ${fmt(result.rut)}.`,
+      emit(result, () =>
+        out(
+          result.reason === 'already_authenticated'
+            ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+            : `Sesión iniciada como ${fmt(result.rut)}.`,
+        ),
       );
     });
 
@@ -87,21 +100,24 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .action(async (opts: { refresh?: boolean }) => {
       if (opts.refresh) {
         const id = await statusRefresh(runtime);
-        out(`RUT:    ${fmt(id.rut)}`);
-        out(`Nombre: ${id.nombre ?? '—'}`);
-        out(`Tipo:   ${id.accountType}`);
+        emit(id, () => {
+          out(`RUT:    ${fmt(id.rut)}`);
+          out(`Nombre: ${id.nombre ?? '—'}`);
+          out(`Tipo:   ${id.accountType}`);
+        });
         return;
       }
       const status = await authStatus(runtime);
-      if (!status.authenticated || !status.rut) {
-        out('No autenticado. Ejecuta `sii auth login`.');
-        return;
-      }
-      out(`Autenticado (sesión local) como ${fmt(status.rut)}.`);
-      const ctx = await operatingStatus(runtime);
-      if (ctx && !ctx.isSelf) {
-        out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
-      }
+      const ctx = status.authenticated && status.rut ? await operatingStatus(runtime) : null;
+      emit({ ...status, operating: ctx }, () => {
+        if (!status.authenticated || !status.rut) {
+          out('No autenticado. Ejecuta `sii auth login`.');
+          return;
+        }
+        out(`Autenticado (sesión local) como ${fmt(status.rut)}.`);
+        if (ctx && !ctx.isSelf)
+          out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
+      });
     });
 
   auth
@@ -109,11 +125,13 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .description('Cierra la sesión (servidor, mejor esfuerzo + limpieza local).')
     .action(async () => {
       const result = await logout(runtime);
-      if (!result.loggedOut) {
-        out('No había sesión activa.');
-        return;
-      }
-      out(result.serverClosed ? 'Sesión cerrada (servidor y local).' : 'Sesión cerrada (local).');
+      emit(result, () => {
+        if (!result.loggedOut) {
+          out('No había sesión activa.');
+          return;
+        }
+        out(result.serverClosed ? 'Sesión cerrada (servidor y local).' : 'Sesión cerrada (local).');
+      });
     });
 
   program
@@ -125,36 +143,52 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .action(async (rutArg: string | undefined, opts: { self?: boolean; list?: boolean }) => {
       if (opts.list) {
         const result = await listOperable(runtime);
-        if (!result) {
-          out('No hay sesión activa. Ejecuta `sii auth login`.');
-          return;
-        }
-        for (const e of result.operable) out(formatOperableEntry(e, result.operatingRut));
+        emit(result ?? { operable: null }, () => {
+          if (!result) {
+            out('No hay sesión activa. Ejecuta `sii auth login`.');
+            return;
+          }
+          for (const e of result.operable) out(formatOperableEntry(e, result.operatingRut));
+        });
         return;
       }
       if (opts.self) {
         const result = await operateSelf(runtime);
-        out(describeOperating(result.context.selfRut, true, null));
+        emit(result.context, () => out(describeOperating(result.context.selfRut, true, null)));
         return;
       }
       if (rutArg) {
         const result = await operate(runtime, rutArg);
         const { operatingRut, isSelf, razonSocial } = result.context;
-        out(describeOperating(operatingRut, isSelf, razonSocial));
+        emit(result.context, () => out(describeOperating(operatingRut, isSelf, razonSocial)));
         return;
       }
       // No argument: report the current operating context.
       const ctx = await operatingStatus(runtime);
-      if (!ctx) {
-        out('No hay sesión activa. Ejecuta `sii auth login`.');
-        return;
-      }
-      out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
+      emit(ctx ?? { operating: null }, () => {
+        if (!ctx) {
+          out('No hay sesión activa. Ejecuta `sii auth login`.');
+          return;
+        }
+        out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
+      });
     });
 
   // --- domain read surfaces (one register call per module — append-only) ---
   registerRcv(program, runtime);
   registerF22(program, runtime);
 
+  // Make `--json`/`--human` parse after a subcommand too (`sii f22 status --human`), by
+  // adding them to every leaf command — after the register fns have built their subtrees.
+  addOutputFlagsToLeaves(program);
   return program;
+}
+
+/** Add the global output flags to every leaf (action) command in the tree. */
+function addOutputFlagsToLeaves(cmd: Command): void {
+  if (cmd.commands.length === 0) {
+    withOutputFlags(cmd);
+    return;
+  }
+  for (const sub of cmd.commands) addOutputFlagsToLeaves(sub);
 }

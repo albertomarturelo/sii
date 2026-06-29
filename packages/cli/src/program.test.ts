@@ -62,12 +62,14 @@ async function capture(fn: () => Promise<void>): Promise<string> {
   return lines.join('');
 }
 
-/** Run the command tree with the default (real) prompters. */
+// Output is JSON by DEFAULT now; these helpers append `--human` so the human-rendering
+// assertions below stay focused on the text. The JSON default is covered by `runJson` +
+// the dedicated "JSON output (default)" describe block.
 async function run(runtime: Runtime, ...argv: string[]): Promise<string> {
   return capture(async () => {
     const program = buildProgram(runtime);
     program.exitOverride();
-    await program.parseAsync(['node', 'sii', ...argv]);
+    await program.parseAsync(['node', 'sii', ...argv, '--human']);
   });
 }
 
@@ -76,8 +78,18 @@ async function runWith(runtime: Runtime, prompters: Prompters, ...argv: string[]
   return capture(async () => {
     const program = buildProgram(runtime, prompters);
     program.exitOverride();
+    await program.parseAsync(['node', 'sii', ...argv, '--human']);
+  });
+}
+
+/** Run with the DEFAULT (JSON) output and parse it — the library/integration contract. */
+async function runJson(runtime: Runtime, ...argv: string[]): Promise<unknown> {
+  const text = await capture(async () => {
+    const program = buildProgram(runtime);
+    program.exitOverride();
     await program.parseAsync(['node', 'sii', ...argv]);
   });
+  return JSON.parse(text);
 }
 
 /** Fake prompters: hidden() returns the Clave; line() returns the RUT (if prompted). */
@@ -368,6 +380,34 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('B102');
     expect(out).toContain('http://www.sii.cl/B102.pdf');
     expect(out).toContain('1 observación(es).');
+  });
+
+  it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const json = (await runJson(rt, 'f22', 'status', '2025')) as {
+      rut: string;
+      anio: string;
+      folio: string | null;
+      codigos: { codigo: string; valor: number | null; glosa: string | null }[];
+      grupos?: unknown;
+    };
+    expect(json.rut).toBe('11111111-1'); // operating RUT identifies the declaration (a field, not PII leakage)
+    expect(json.anio).toBe('2025');
+    expect(json.codigos.map((c) => c.codigo)).toContain('305');
+    expect(json.grupos).toBeUndefined(); // no --full
+    // The PII código (3 = RUT-as-value) is dropped from the structured grid too.
+    expect(json.codigos.map((c) => c.codigo)).not.toContain('3');
+  });
+
+  it('JSON default: `f22 status <año> --full` carries `grupos` as structured data', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const json = (await runJson(rt, 'f22', 'status', '2025', '--full')) as {
+      grupos: { ingresos: { codigo: string }[]; resultado: { codigo: string }[] };
+    };
+    expect(json.grupos.ingresos.map((c) => c.codigo)).toContain('110');
+    expect(json.grupos.resultado.map((c) => c.codigo)).toContain('305');
   });
 });
 
