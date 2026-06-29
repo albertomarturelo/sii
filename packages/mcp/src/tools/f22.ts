@@ -50,10 +50,14 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
     {
       title: 'F22 formulario completo (Renta anual)',
       description:
-        'El formulario completo de la Declaración Anual de Renta (F22) de un año, agrupado en ' +
-        'ingresos / deducciones / retenciones·PPM·créditos / resultado (+ otros) en `grupos`, ' +
-        'sin PII de identidad/banco. Session-keyed: lee tu propia renta; para una empresa, ' +
-        'inicia sesión como ella.',
+        'El formulario completo de la Declaración Anual de Renta (F22) de un año, sin PII de ' +
+        'identidad/banco, agrupado en `grupos`: `ingresos`, `deducciones`, `creditos` ' +
+        '(grupo COMBINADO retenciones·PPM·créditos — p.ej. 162 es crédito/retención IUSC de ' +
+        'origen, 36/1905 son PPM), `calculo` (subtotales intermedios del IGC/IUSC: 157/158/304, ' +
+        'no son resultados finales), `resultado` (desenlaces finales: impuesto/devolución/giro) ' +
+        'y `otros` (red de seguridad: cualquier código tributario no-PII aún sin clasificar; ' +
+        'vacío = todos clasificados, nunca se oculta nada). La unión de los seis = la grilla ' +
+        'completa. Session-keyed: lee tu propia renta; para una empresa, inicia sesión como ella.',
       inputSchema: {
         anio: z.string(),
         folio: z.string().optional(),

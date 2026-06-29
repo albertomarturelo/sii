@@ -38,6 +38,7 @@ const RICH_GRID_ENV = {
     { codigo: '110', valor: '3000000', glosa: 'Rentas honorarios' }, // ingreso
     { codigo: '494', valor: '900000', glosa: 'Gastos presuntos' }, // deducción
     { codigo: '198', valor: '300000', glosa: 'Retenciones' }, // retención
+    { codigo: '158', valor: '380000', glosa: 'SUB TOTAL' }, // cálculo intermedio (#28: NOT resultado)
     { codigo: '305', valor: '-150000', glosa: 'RESULTADO LIQUIDACIÓN ANUAL' }, // resultado
     { codigo: '8865', valor: '1', glosa: 'Código Emisión' }, // non-PII unclassified → otros
     { codigo: '9920', valor: 'CALLE FALSA 123', glosa: 'Dirección Origen' }, // address PII → dropped
@@ -171,12 +172,20 @@ describe('f22 tasks (fakes, no SII)', () => {
 
     const res = await f22Status(rt, { anio: '2025', full: true });
     // Same grid as a non-full read (PII dropped); --full ADDS the grouping. Nothing tax-relevant hidden.
-    expect(res.codigos.map((c) => c.codigo).sort()).toEqual(['110', '198', '305', '494', '8865']);
+    expect(res.codigos.map((c) => c.codigo).sort()).toEqual([
+      '110',
+      '158',
+      '198',
+      '305',
+      '494',
+      '8865',
+    ]);
     expect(res.grupos).toBeDefined();
     expect(res.grupos?.ingresos.map((c) => c.codigo)).toEqual(['110']);
     expect(res.grupos?.deducciones.map((c) => c.codigo)).toEqual(['494']);
     expect(res.grupos?.creditos.map((c) => c.codigo)).toEqual(['198']);
-    expect(res.grupos?.resultado.map((c) => c.codigo)).toEqual(['305']);
+    expect(res.grupos?.calculo.map((c) => c.codigo)).toEqual(['158']); // intermediate, split from resultado
+    expect(res.grupos?.resultado.map((c) => c.codigo)).toEqual(['305']); // only the final outcome
     expect(res.grupos?.otros.map((c) => c.codigo)).toEqual(['8865']); // non-PII, unmapped → still shown
     expect(JSON.stringify(res)).not.toContain('CALLE FALSA 123'); // address PII never surfaces
     expect(slept(rt)).toEqual([1000]); // one pace before the grid POST

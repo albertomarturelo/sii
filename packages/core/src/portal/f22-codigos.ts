@@ -21,12 +21,15 @@ export interface CodigoF22 {
 /** The full grid's non-PII códigos organized into the lines a contador reads (#27), each
  *  sign-preserving. Identity/bank PII is already dropped upstream; these groups ORGANIZE the
  *  rest, with `otros` catching any non-PII código not (yet) mapped — so nothing tax-relevant
- *  is hidden. The union of the five equals the flat grid. */
+ *  is hidden. The union of the SIX equals the flat grid. */
 export interface F22Grupos {
   readonly ingresos: readonly CodigoF22[]; // rentas / base imponible / honorarios
   readonly deducciones: readonly CodigoF22[]; // rebajas / gastos / pérdidas
-  readonly creditos: readonly CodigoF22[]; // retenciones · PPM · créditos
-  readonly resultado: readonly CodigoF22[]; // impuesto a pagar / devolución / giro
+  readonly creditos: readonly CodigoF22[]; // retenciones · PPM · créditos (combined by design)
+  // Intermediate IGC/IUSC computation steps (IGC según tabla → subtotal → débito fiscal) — NOT
+  // final outcomes, so split out of `resultado` (#28 review): a "subtotal" is not a result.
+  readonly calculo: readonly CodigoF22[];
+  readonly resultado: readonly CodigoF22[]; // FINAL outcomes: impuesto a pagar / devolución / giro
   readonly otros: readonly CodigoF22[]; // non-PII, not (yet) classified — still shown
 }
 
@@ -112,6 +115,14 @@ const CREDITOS_CODIGOS: ReadonlySet<string> = new Set([
   '849', // Pago Provisional (art 84) / Rebaja Crédito AFP
   '1905', // PPM de segunda categoría art 84 letra b)
 ]);
+// Intermediate IGC/IUSC computation steps — NOT final outcomes. Split out of `resultado`
+// (#28 review): a "SUB TOTAL" / "según tabla" / "débito fiscal" is a calc step, not a result.
+// Surfaced in its own `calculo` group (never hidden — they're real tax códigos).
+const CALCULO_CODIGOS: ReadonlySet<string> = new Set([
+  '157', // IGC o IUSC, según tabla
+  '158', // SUB TOTAL
+  '304', // IGC o IUSC, débito fiscal / tasa adicional
+]);
 const RESULTADO_CODIGOS: ReadonlySet<string> = new Set([
   '31', // IGC o IUSC, tasa adicional
   '39', // Reajuste art.72
@@ -124,29 +135,28 @@ const RESULTADO_CODIGOS: ReadonlySet<string> = new Set([
   '93', // Intereses y Multas Declaración Fuera de Plazo
   '94', // TOTAL A PAGAR (91+92+93)
   '98', // (codigosPie — total/giro)
-  '157', // IGC o IUSC, según tabla
-  '158', // SUB TOTAL
-  '304', // IGC o IUSC, débito fiscal / tasa adicional
   '305', // RESULTADO LIQUIDACIÓN ANUAL
   '795', // (codigosPie — total/giro)
 ]);
 
 /** Organize the (already PII-dropped) grid into the lines a contador reads:
- *  ingresos / deducciones / retenciones·PPM·créditos / resultado, with `otros` catching any
- *  non-PII código not yet mapped — so nothing tax-relevant is hidden. Order within a group
- *  preserves the wire order; the union of the five equals the input. */
+ *  ingresos / deducciones / retenciones·PPM·créditos / cálculo / resultado, with `otros`
+ *  catching any non-PII código not yet mapped — so nothing tax-relevant is hidden. Order
+ *  within a group preserves the wire order; the union of the SIX equals the input. */
 export function groupCodigos(codigos: readonly CodigoF22[]): F22Grupos {
   const ingresos: CodigoF22[] = [];
   const deducciones: CodigoF22[] = [];
   const creditos: CodigoF22[] = [];
+  const calculo: CodigoF22[] = [];
   const resultado: CodigoF22[] = [];
   const otros: CodigoF22[] = [];
   for (const c of codigos) {
     if (INGRESOS_CODIGOS.has(c.codigo)) ingresos.push(c);
     else if (DEDUCCIONES_CODIGOS.has(c.codigo)) deducciones.push(c);
     else if (CREDITOS_CODIGOS.has(c.codigo)) creditos.push(c);
+    else if (CALCULO_CODIGOS.has(c.codigo)) calculo.push(c);
     else if (RESULTADO_CODIGOS.has(c.codigo)) resultado.push(c);
     else otros.push(c); // non-PII, unmapped — still surfaced
   }
-  return { ingresos, deducciones, creditos, resultado, otros };
+  return { ingresos, deducciones, creditos, calculo, resultado, otros };
 }

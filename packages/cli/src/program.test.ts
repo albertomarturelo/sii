@@ -369,6 +369,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('494'); // gastos presuntos
     expect(out).toContain('Retenciones · PPM · Créditos:');
     expect(out).toContain('198'); // retenciones
+    expect(out).toContain('Cálculo (subtotales IGC/IUSC):'); // intermediate IGC steps, split from resultado
     expect(out).toContain('Resultado:');
     expect(out).toContain('305');
     expect(out).toContain('Otros:'); // non-PII unclassified still shown

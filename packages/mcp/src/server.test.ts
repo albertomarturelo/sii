@@ -295,6 +295,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
         { codigo: '110', valor: '3000000', glosa: 'Rentas honorarios' }, // ingreso
         { codigo: '494', valor: '900000', glosa: 'Gastos presuntos' }, // deducción
         { codigo: '198', valor: '300000', glosa: 'Retenciones' }, // retención
+        { codigo: '158', valor: '380000', glosa: 'SUB TOTAL' }, // cálculo intermedio (#28)
         { codigo: '305', valor: '-100', glosa: 'Resultado' }, // resultado
         { codigo: '8865', valor: '1', glosa: 'Código Emisión' }, // non-PII unclassified → otros
         { codigo: '9920', valor: 'PII-ADDR-XYZ', glosa: 'Dirección Origen' }, // PII → excluded
@@ -331,6 +332,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
         ingresos: { codigo: string }[];
         deducciones: { codigo: string }[];
         creditos: { codigo: string }[];
+        calculo: { codigo: string }[];
         resultado: { codigo: string }[];
         otros: { codigo: string }[];
       };
@@ -338,6 +340,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(parsed.grupos.ingresos.map((c) => c.codigo)).toEqual(['110']);
     expect(parsed.grupos.deducciones.map((c) => c.codigo)).toEqual(['494']);
     expect(parsed.grupos.creditos.map((c) => c.codigo)).toEqual(['198']);
+    expect(parsed.grupos.calculo.map((c) => c.codigo)).toEqual(['158']); // intermediate, not resultado
     expect(parsed.grupos.resultado.map((c) => c.codigo)).toEqual(['305']);
     expect(parsed.grupos.otros.map((c) => c.codigo)).toEqual(['8865']); // non-PII, unmapped → shown
     expect(toolText(res)).not.toContain('PII-ADDR-XYZ'); // address PII never surfaces
