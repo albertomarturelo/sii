@@ -9,6 +9,7 @@ import {
   f22Overview,
   f22Status,
   type CodigoF22,
+  type F22Grupos,
   type Runtime,
 } from '@sii/core';
 import { emit, out } from '../io.js';
@@ -20,6 +21,24 @@ const printCodigos = (codigos: readonly CodigoF22[]): void => {
   for (const c of codigos) out(`  ${c.codigo}  ${c.glosa ?? ''}  ${money(c.valor)}`);
 };
 
+/** The `formulario` view: the complete grid organized for a contador. Empty groups are still
+ *  labeled so the structure is predictable; `otros` (non-PII, unclassified) prints only when
+ *  it has rows. */
+const printGrupos = (g: F22Grupos): void => {
+  out('Ingresos:');
+  printCodigos(g.ingresos);
+  out('Deducciones:');
+  printCodigos(g.deducciones);
+  out('Retenciones · PPM · Créditos:');
+  printCodigos(g.creditos);
+  out('Resultado:');
+  printCodigos(g.resultado);
+  if (g.otros.length) {
+    out('Otros:');
+    printCodigos(g.otros);
+  }
+};
+
 export function registerF22(program: Command, runtime: Runtime): void {
   const f22 = program.command('f22').description('Declaración Anual de Renta (F22).');
 
@@ -29,69 +48,64 @@ export function registerF22(program: Command, runtime: Runtime): void {
     .argument('[año]', 'Año tributario (YYYY). Si se omite, muestra el resumen multi-año.')
     .option('--folio <n>', 'Folio específico de la declaración (por defecto: la vigente).')
     .option('--years <n>', 'Cuántos años incluir en el resumen (por defecto 5).')
-    .option(
-      '--full',
-      'Formulario completo agrupado (ingresos, deducciones, retenciones, resultado).',
-    )
-    .action(
-      async (
-        anioArg: string | undefined,
-        opts: { folio?: string; years?: string; full?: boolean },
-      ) => {
-        if (!anioArg) {
-          // `--folio`/`--full` select/expand one declaración within a year; both are
-          // meaningless for the multi-year overview — reject instead of silently dropping.
-          if (opts.folio || opts.full) {
-            throw new ValidationError('El --folio/--full requieren indicar el año (YYYY).');
+    .action(async (anioArg: string | undefined, opts: { folio?: string; years?: string }) => {
+      if (!anioArg) {
+        // `--folio` selects one declaración within a year — meaningless for the multi-year
+        // overview; reject instead of silently dropping it.
+        if (opts.folio) {
+          throw new ValidationError('El --folio requiere indicar el año (YYYY).');
+        }
+        const ov = await f22Overview(runtime, opts.years ? { years: Number(opts.years) } : {});
+        emit(ov, () => {
+          out(`F22 — ${fmtRut(ov.rut)} (estado por año)`);
+          for (const a of ov.anios) {
+            const decl = a.declaraciones.find((d) => d.vigente) ?? a.declaraciones[0];
+            const estado = a.tieneDeclaracion ? (decl?.estado ?? 'presentada') : 'Sin declaración';
+            out(`  ${a.anio}  ${estado}`);
           }
-          const ov = await f22Overview(runtime, opts.years ? { years: Number(opts.years) } : {});
-          emit(ov, () => {
-            out(`F22 — ${fmtRut(ov.rut)} (estado por año)`);
-            for (const a of ov.anios) {
-              const decl = a.declaraciones.find((d) => d.vigente) ?? a.declaraciones[0];
-              const estado = a.tieneDeclaracion
-                ? (decl?.estado ?? 'presentada')
-                : 'Sin declaración';
-              out(`  ${a.anio}  ${estado}`);
-            }
-          });
+        });
+        return;
+      }
+      const e = await f22Status(runtime, {
+        anio: anioArg,
+        ...(opts.folio ? { folio: opts.folio } : {}),
+      });
+      emit(e, () => {
+        out(`F22 ${e.anio} — ${fmtRut(e.rut)}`);
+        if (!e.tieneDeclaracion) {
+          out('Sin declaración para el año.');
           return;
         }
-        const e = await f22Status(runtime, {
-          anio: anioArg,
-          ...(opts.folio ? { folio: opts.folio } : {}),
-          ...(opts.full ? { full: true } : {}),
-        });
-        emit(e, () => {
-          out(`F22 ${e.anio} — ${fmtRut(e.rut)}`);
-          if (!e.tieneDeclaracion) {
-            out('Sin declaración para el año.');
-            return;
-          }
-          out(`Folio: ${e.folio ?? '—'}   Estado: ${e.estado ?? '—'}`);
-          if (e.grupos) {
-            // `--full`: the complete form (PII dropped) organized for a contador. Empty
-            // groups are still labeled so the structure is predictable; `otros` (non-PII,
-            // unclassified) only prints when it has rows.
-            out('Ingresos:');
-            printCodigos(e.grupos.ingresos);
-            out('Deducciones:');
-            printCodigos(e.grupos.deducciones);
-            out('Retenciones · PPM · Créditos:');
-            printCodigos(e.grupos.creditos);
-            out('Resultado:');
-            printCodigos(e.grupos.resultado);
-            if (e.grupos.otros.length) {
-              out('Otros:');
-              printCodigos(e.grupos.otros);
-            }
-          } else {
-            printCodigos(e.codigos);
-          }
-          out(`${e.codigos.length} código(s).`);
-        });
-      },
-    );
+        out(`Folio: ${e.folio ?? '—'}   Estado: ${e.estado ?? '—'}`);
+        printCodigos(e.codigos);
+        out(`${e.codigos.length} código(s).`);
+      });
+    });
+
+  f22
+    .command('formulario')
+    .description(
+      'Formulario completo de la F22 de un año, agrupado (ingresos, deducciones, retenciones·PPM·créditos, resultado).',
+    )
+    .argument('<año>', 'Año tributario (YYYY).')
+    .option('--folio <n>', 'Folio específico de la declaración (por defecto: la vigente).')
+    .action(async (anioArg: string, opts: { folio?: string }) => {
+      const e = await f22Status(runtime, {
+        anio: anioArg,
+        full: true,
+        ...(opts.folio ? { folio: opts.folio } : {}),
+      });
+      emit(e, () => {
+        out(`F22 ${e.anio} — ${fmtRut(e.rut)} (formulario)`);
+        if (!e.tieneDeclaracion) {
+          out('Sin declaración para el año.');
+          return;
+        }
+        out(`Folio: ${e.folio ?? '—'}   Estado: ${e.estado ?? '—'}`);
+        if (e.grupos) printGrupos(e.grupos);
+        out(`${e.codigos.length} código(s).`);
+      });
+    });
 
   f22
     .command('observaciones')

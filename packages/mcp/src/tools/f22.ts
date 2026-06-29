@@ -13,33 +13,49 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
       title: 'F22 estado (Renta anual)',
       description:
         'Estado de la Declaración Anual de Renta (F22). CON `anio` (YYYY): detalle del año ' +
-        '(folio/estado + grilla de códigos curada, sin PII de identidad/banco). Con `full:true`: ' +
-        'el formulario completo agrupado en ingresos / deducciones / retenciones·PPM·créditos / ' +
-        'resultado (+ otros). SIN `anio`: resumen multi-año del estado. Session-keyed: lee tu ' +
-        'propia renta; para una empresa, inicia sesión como ella.',
+        '(folio/estado + grilla de códigos curada, sin PII de identidad/banco). SIN `anio`: ' +
+        'resumen multi-año del estado. Para el formulario completo agrupado usa `f22_formulario`. ' +
+        'Session-keyed: lee tu propia renta; para una empresa, inicia sesión como ella.',
       inputSchema: {
         anio: z.string().optional(),
         folio: z.string().optional(),
         years: z.number().optional(),
-        full: z.boolean().optional(),
       },
       annotations: { readOnlyHint: true },
     },
-    ({ anio, folio, years, full }) =>
+    ({ anio, folio, years }) =>
       toolText(async () => {
         if (anio === undefined) {
-          // `folio`/`full` select/expand a declaración within a year; meaningless for the overview.
-          if (folio !== undefined || full !== undefined) {
-            throw new ValidationError('`folio`/`full` requieren indicar `anio` (YYYY).');
+          // `folio` selects a declaración within a year; meaningless for the overview.
+          if (folio !== undefined) {
+            throw new ValidationError('`folio` requiere indicar `anio` (YYYY).');
           }
           const ov = await f22Overview(runtime, years !== undefined ? { years } : {});
           return JSON.stringify(ov, null, 2);
         }
-        const e = await f22Status(runtime, {
-          anio,
-          ...(folio ? { folio } : {}),
-          ...(full ? { full: true } : {}),
-        });
+        const e = await f22Status(runtime, { anio, ...(folio ? { folio } : {}) });
+        return JSON.stringify(e, null, 2);
+      }),
+  );
+
+  server.registerTool(
+    'f22_formulario',
+    {
+      title: 'F22 formulario completo (Renta anual)',
+      description:
+        'El formulario completo de la Declaración Anual de Renta (F22) de un año, agrupado en ' +
+        'ingresos / deducciones / retenciones·PPM·créditos / resultado (+ otros) en `grupos`, ' +
+        'sin PII de identidad/banco. Session-keyed: lee tu propia renta; para una empresa, ' +
+        'inicia sesión como ella.',
+      inputSchema: {
+        anio: z.string(),
+        folio: z.string().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ anio, folio }) =>
+      toolText(async () => {
+        const e = await f22Status(runtime, { anio, full: true, ...(folio ? { folio } : {}) });
         return JSON.stringify(e, null, 2);
       }),
   );
