@@ -1,16 +1,34 @@
 # Current Project Status
 
-Last updated: 2026-06-28
+Last updated: 2026-06-29
 
 ## In Progress
 
-- **PR #25 (F22 #19) open, awaiting merge** — CI green; the session closed here. On the
-  next session: merge #25, then pick from Next Priorities (live-revalidate RCV+F22, or
-  F29 #18 reusing the f22 session-keyed task shape). Two read templates now exist:
-  **RCV** (body-RUT) and **F22** (session-keyed) — new modules copy the matching one.
+- **Open: PR #31** (this bookkeeping, docs-only) — merge it to finish #26's AC.
+- _(no feature in progress — F22 status (#25), docs/test-plans (#29), and F22 observaciones
+  (#26 / #30) are all merged.)_ **Next session: start #27 (`sii f22 status --full`)** —
+  observe the `f22Completo` wire live (the spike technique from #26), then curate into
+  ingresos / retenciones · PPM · créditos / resultado. Also queued: **#28 historial**
+  (`buscaEventos` + per-carta `buscaObservacion` already captured in the #26 spike). Two
+  read templates exist: **RCV** (body-RUT) and **F22** (session-keyed).
 
 ## Recently Completed
 
+- [x] **F22 observaciones read surface (#26).** Third F22 vertical: `portal/f22.ts`
+  `fetchF22Observaciones` (`situacionObservacion(periodo,rut,dv,folio)` →
+  `[{codigo,descripcion,url}]`) → `tasks/f22.ts` `f22Observaciones` (`withSession`,
+  session-keyed, paced, audited) → CLI `sii f22 observaciones <año> [--folio]` + MCP
+  `f22_observaciones`. **Phase-1 spike (live, own session, 2026-06-29)** located the SDI
+  endpoint first-hand via a headed-Playwright network capture (the Python `sii-cli` has no
+  equivalent), cited in `sii-contract/f22.md`. **Live-validated 2026-06-29** (CLI + MCP):
+  returned observación B102 with correct accents (the spike's mojibake was a
+  `response.text()` artifact). Rows are **non-PII** (observación code + glosa + SII ayuda
+  URL) — fully curated, no header-código exclusion, no `raw`. Envelope extended for the
+  top-level `errorMsg` channel; `--folio` fails fast when non-numeric. 8 new tests vs
+  fakes (no SII), 144/144 green.
+- [x] **Manual/live test-plans dir (#29).** `docs/test-plans/` (README + the F22 plan
+  covering CLI + MCP, incl. the validated observaciones cases) — the live counterpart to
+  the vitest suites. Plus the F22 follow-up ROADMAP rows (#26/#27/#28).
 - [x] **F22 read surface — annual Renta estado (#19).** Second domain vertical, the
   **session-keyed template**: `portal/f22.ts` (facade: `buscaDeclVgte` decls+estado →
   `f22Compacto` código grid, on the `consultaestadof22ui` SPA) → `tasks/f22.ts`
@@ -173,14 +191,17 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **Live-revalidate RCV + F22** — re-observe the ported contracts against a real session
-   from the TS port (operator-assisted): confirm endpoints/fields, refresh the dates in
-   `sii-contract/{rcv,f22}.md`. Both are ported, not yet re-observed from TS.
-2. **Remaining read modules** against the now-stable templates (registration + `periodo`/
-   `Anio` + zod-wire + body-RUT/session-keyed): **DTE #21** (public, no spike); **F29 #18**
-   (session-keyed like F22 — reuse the f22 task shape); **BTE #20** (session-keyed). (ADR-007)
-3. **Confirm MCP live in Claude Desktop** — the config points at the TS binary; confirm
-   the `sii` tools/resources appear and `auth_login` drives the browser flow.
+1. **F22 follow-ups (issues open):** **#28 historial** (`buscaEventos` + per-carta
+   `buscaObservacion` already captured in the #26 spike → likely no extra spike) and
+   **#27 `sii f22 status --full`** (the `f22Completo` grid → ingresos/retenciones/resultado;
+   needs the wire observed live).
+2. **Live-revalidate RCV + F22-status** — re-observe the ported contracts against a real
+   session (operator-assisted): confirm endpoints/fields, refresh the dates in
+   `sii-contract/{rcv,f22}.md`. (F22 observaciones is already live-validated; RCV + F22
+   status are not.)
+3. **Other read modules** against the stable templates (registration + `periodo`/`Anio` +
+   zod-wire + body-RUT/session-keyed): **DTE #21** (public, no spike); **F29 #18**
+   (session-keyed, reuse the f22 task shape); **BTE #20** (session-keyed). (ADR-007)
 4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
 
 See `docs/ROADMAP.md` for the full surface checklist.
