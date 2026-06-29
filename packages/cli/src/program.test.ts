@@ -448,7 +448,9 @@ describe('sii f22 command (fake runtime, no SII)', () => {
               : url.includes('buscaEventos')
                 ? {
                     data: null,
-                    errorMsg: 'For input string: "    006034"',
+                    // Synthetic stand-in for SII's real parse error (the space-padding — the
+                    // structural cause — is preserved; the digits are synthetic).
+                    errorMsg: 'For input string: "    000000"',
                     metaData: { errors: null },
                   }
                 : { metaData: {}, data: null },
@@ -460,7 +462,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('0 evento(s).');
     // Framed as SII-side, but the verbatim message is preserved (ADR-004).
     expect(out).toContain('⚠ folio 999: el SII no entregó su historial (error interno del SII:');
-    expect(out).toContain('For input string: "    006034"');
+    expect(out).toContain('For input string: "    000000"');
   });
 
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {

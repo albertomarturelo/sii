@@ -414,7 +414,9 @@ describe('f22 tasks (fakes, no SII)', () => {
               return folio === '67890'
                 ? {
                     data: null,
-                    errorMsg: 'For input string: "    006034"',
+                    // Synthetic stand-in for SII's real parse error (space-padding preserved,
+                    // digits synthetic).
+                    errorMsg: 'For input string: "    000000"',
                     metaData: { errors: null },
                   }
                 : {
@@ -443,7 +445,7 @@ describe('f22 tasks (fakes, no SII)', () => {
     expect(res.folios).toEqual(['12345', '67890']); // both attempted
     expect(res.eventos.map((e) => e.codigo)).toEqual(['2']); // the good folio's event survives
     expect(res.foliosConError).toEqual([
-      { folio: '67890', error: 'For input string: "    006034"' }, // verbatim, not hidden
+      { folio: '67890', error: 'For input string: "    000000"' }, // verbatim, not hidden
     ]);
     // A folio error is NOT a task failure — the receipt is still ok.
     expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_historial', result: 'ok' });

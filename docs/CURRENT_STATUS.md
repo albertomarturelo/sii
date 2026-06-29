@@ -29,7 +29,7 @@ Last updated: 2026-06-29 (PM — F22 historial shipped, #28 ✅ — F22 surface 
   end-to-end** through the CLI: AT 2025 → 3 eventos, AT 2024 → 5, AT 2023 → 8. **AT 2026
   finding (drove the resilience):** a rectificatoria year had TWO folios — the vigente returned
   its 2 eventos, the superseded returned an SII server-side parse error
-  (`"For input string: \"    006034\""`); the historial now shows the good folio's events +
+  (`"For input string: \"    <n>\""`); the historial now shows the good folio's events +
   flags the bad one (exit 0), instead of aborting. (Also resolved: `vgte` arrives `"1"`/`"0"`
   on some años, `"S"`/`"N"` on others.) Rows are **non-PII** (event code + glosa verbatim +
   carta refs) → fully curated, **no `raw`**, session-keyed (no `--rut`). 13 new tests vs fakes
