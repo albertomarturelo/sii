@@ -1,15 +1,19 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — F22 historial shipped, #28 ✅ — F22 surface complete)
+Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testing fixes shipped; F29 is next)
 
 ## In Progress
 
 - _(no feature in progress — F22 is now COMPLETE: status/overview (#19), formulario (#27/#37),
-  observaciones (#26), historial (#28) all merged + live-validated; CLI JSON-default (#35).)_
-  **Next session candidates:** **#18 F29** (session-keyed, reuse the f22 task shape);
-  **#21 DTE authorized** (public, no spike); **#20 BTE** (session-keyed). Two read templates
-  exist: **RCV** (body-RUT) and **F22** (session-keyed); the **JSON-default surface contract**
-  (ADR-012) is the norm for any new CLI verb (`emit(data, humanFn)`).
+  observaciones (#26), historial (#28) all merged + live-validated; CLI JSON-default (#35); the
+  post-merge MCP-testing grouping fixes (#41/PR #40) are merged too.)_
+  **NEXT TARGET (chosen): #18 F29** — session-keyed read surface, reuse the F22 task shape
+  (`withSession`, principal-only, paced, audited; JSON-default surface via `emit`). Expected
+  session-keyed like F22 — **confirm reach live** (one `--rut <empresa>` probe) before wiring
+  (spike #15 open for F29/BHE). Likely needs a Phase-1 spike for the IVA propuesta + presented-F29
+  SDI endpoints (no ported contract yet). Templates to copy: **F22** (session-keyed) for the task
+  shape, **RCV** (body-RUT) for the alias-tolerant wire parsing. Then **#21 DTE authorized**
+  (public, no spike) and **#20 BTE** (session-keyed).
 
 ## Recently Completed
 
@@ -242,16 +246,20 @@ Last updated: 2026-06-29 (PM — F22 historial shipped, #28 ✅ — F22 surface 
 
 ## Next Priorities
 
-1. **F22 surface is COMPLETE** — status/overview (#19), formulario (#27/#37), observaciones
-   (#26), historial (#28) all shipped + live-validated. _(Possible future: per-carta
-   `buscaObservacion` drill needs a non-null `idCarta`, absent on observed eventos — not
-   pursued.)_
+1. **#18 F29 — the next surface (chosen).** Read the IVA propuesta + the presented F29.
+   Session-keyed: reuse the F22 task shape (`withSession`, principal-only, paced, audited,
+   JSON-default `emit`). **Confirm reach live first** (spike #15: a `--rut <empresa>` probe —
+   expected session-keyed like F22). Likely a Phase-1 spike for the SDI endpoints (no ported
+   contract yet) → `sii-contract/f29.md`. Copy F22 (session-keyed task) + RCV (alias-tolerant
+   zod wire parsing). (ADR-005 / ADR-007)
 2. **Live-revalidate RCV** — re-observe the ported contract against a real session
    (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
-   (F22 status/formulario + observaciones are now live-validated; RCV is not.)
-3. **Other read modules** against the stable templates (registration + `periodo`/`Anio` +
-   zod-wire + body-RUT/session-keyed): **DTE #21** (public, no spike); **F29 #18**
-   (session-keyed, reuse the f22 task shape); **BTE #20** (session-keyed). (ADR-007)
+   (F22 status/formulario + observaciones + historial are live-validated; RCV is not.)
+3. **Then #21 DTE authorized** (public, no spike — reuses only the registration pattern) and
+   **#20 BTE** (session-keyed). (ADR-007)
 4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
+
+_(F22 surface is COMPLETE — status/overview #19, formulario #27/#37, observaciones #26,
+historial #28, grouping fixes #41 — all shipped + live-validated.)_
 
 See `docs/ROADMAP.md` for the full surface checklist.
