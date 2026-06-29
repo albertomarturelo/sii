@@ -4,10 +4,24 @@ Last updated: 2026-06-28
 
 ## In Progress
 
-- _(nothing actively in progress — issue #5 closed; pick the next priority below)._
+- **PR #25 (F22 #19) open, awaiting merge** — CI green; the session closed here. On the
+  next session: merge #25, then pick from Next Priorities (live-revalidate RCV+F22, or
+  F29 #18 reusing the f22 session-keyed task shape). Two read templates now exist:
+  **RCV** (body-RUT) and **F22** (session-keyed) — new modules copy the matching one.
 
 ## Recently Completed
 
+- [x] **F22 read surface — annual Renta estado (#19).** Second domain vertical, the
+  **session-keyed template**: `portal/f22.ts` (facade: `buscaDeclVgte` decls+estado →
+  `f22Compacto` código grid, on the `consultaestadof22ui` SPA) → `tasks/f22.ts`
+  (`f22Status` per-year detail + `f22Overview` multi-year, paced) → CLI `sii f22 status
+  [año]` + MCP `f22_status`. Wire contract PORTED from the Python `sii-cli` (cited;
+  `docs/sii-contract/f22.md`) — not yet live-revalidated from TS. **Session-keyed
+  (ADR-005)**: always the session principal, ignores the operate pointer, NO `--rut`
+  (empresa F22 needs its own session) — **answers spike #15 for F22** (body-RUT does NOT
+  reach it). **PII-safe**: header/identity/bank códigos excluded + F22 exposes NO `raw`.
+  New: `Anio` primitive (YYYY) and `Clock.sleep` (pacing seam, fake instant). 19 new
+  tests vs fakes (no SII, synthetic RUTs), 134/134 green.
 - [x] **MCP `operate list=true` (#23).** The operable set was only reachable as the
   `sii://operable` Resource, which MCP clients don't surface as a callable method —
   so testing in Claude Desktop there was no way to *invoke* "list the accounts I can
@@ -138,10 +152,11 @@ Last updated: 2026-06-28
 
 ## Open Decisions / Questions
 
-1. **Operate reach (representación) spike (#15)** — **RCV CONFIRMED body-RUT live
-   2026-06-28**: a persona representante-legal's `--rut` reached a represented empresa's
-   RCV (code 0 + a row). Still OPEN for the session-keyed surfaces (F29/F22/BHE) — run
-   before wiring #18/#19/#20. Decides the rest of the ADR-005 reach contract.
+1. **Operate reach (representación) spike (#15)** — **RCV = body-RUT** (live 2026-06-28:
+   `--rut` reached a represented empresa's RCV). **F22 = session-keyed** (Python live
+   2026-06-27: `--rut <empresa>` returned a clean negative; body-RUT does NOT reach it →
+   F22 reads the principal, no `--rut`). Still OPEN for **F29/BHE** (#18/#20) — expected
+   session-keyed like F22; confirm live before wiring.
 2. **CLI header doesn't reflect a per-call `--rut`** — `operating as:` (preAction hook)
    shows the sticky operate POINTER, so `sii rcv summary … --rut <empresa>` prints
    "tú mismo" while the result line shows the empresa RUT. Minor ADR-005 "always
@@ -158,16 +173,14 @@ Last updated: 2026-06-28
 
 ## Next Priorities
 
-1. **Live-revalidate RCV** — re-observe `getResumen`/`getDetalle` against a real session
+1. **Live-revalidate RCV + F22** — re-observe the ported contracts against a real session
    from the TS port (operator-assisted): confirm endpoints/fields, refresh the dates in
-   `sii-contract/rcv.md`, note new aliases. (The contract is ported, not yet re-observed.)
-2. **Fan out the module worktrees** against the RCV template (registration pattern +
-   `periodo` + zod-wire convention now stable): **DTE #21** can go immediately (public,
-   no spike); **F29 #18 / F22 #19 / BTE #20** after the spike. (ADR-007)
-3. **Operate-reach spike (#15)** (ADR-005) — does `operate` reach F29/F22/BHE or only
-   RCV? Gates #18/#19/#20 (not RCV/DTE). Now testable live.
-4. **Confirm MCP live in Claude Desktop** — the config points at the TS binary; confirm
+   `sii-contract/{rcv,f22}.md`. Both are ported, not yet re-observed from TS.
+2. **Remaining read modules** against the now-stable templates (registration + `periodo`/
+   `Anio` + zod-wire + body-RUT/session-keyed): **DTE #21** (public, no spike); **F29 #18**
+   (session-keyed like F22 — reuse the f22 task shape); **BTE #20** (session-keyed). (ADR-007)
+3. **Confirm MCP live in Claude Desktop** — the config points at the TS binary; confirm
    the `sii` tools/resources appear and `auth_login` drives the browser flow.
-5. **`operate <alias>`** — alias targets now that the operable set has real empresas.
+4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
 
 See `docs/ROADMAP.md` for the full surface checklist.

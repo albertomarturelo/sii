@@ -12,12 +12,19 @@ import type {
 } from '../../seams/index.js';
 
 export class FixedClock implements Clock {
+  /** Each `sleep(ms)` is recorded (not awaited) so a test can assert pacing without
+   *  actually waiting. */
+  readonly slept: number[] = [];
   constructor(private current: Date) {}
   now(): Date {
     return this.current;
   }
   set(d: Date): void {
     this.current = d;
+  }
+  sleep(ms: number): Promise<void> {
+    this.slept.push(ms);
+    return Promise.resolve();
   }
 }
 

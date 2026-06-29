@@ -24,6 +24,7 @@ import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
 // Domain read surfaces — each module owns a commands/<mod>.ts register fn (append-only).
 import { registerRcv } from './commands/rcv.js';
+import { registerF22 } from './commands/f22.js';
 
 const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
 
@@ -153,6 +154,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
 
   // --- domain read surfaces (one register call per module — append-only) ---
   registerRcv(program, runtime);
+  registerF22(program, runtime);
 
   return program;
 }

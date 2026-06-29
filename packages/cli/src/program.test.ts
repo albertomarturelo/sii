@@ -5,6 +5,7 @@ import {
   NotAuthenticatedError,
   RateLimitError,
   SessionExpiredError,
+  ValidationError,
   testing,
   type Runtime,
 } from '@sii/core';
@@ -241,6 +242,77 @@ describe('sii rcv command (fake runtime, no SII)', () => {
     const rt = makeRcvRuntime(() => RESUMEN_ENV); // no login
     await expect(run(rt, 'rcv', 'summary', '2026-06')).rejects.toBeInstanceOf(
       NotAuthenticatedError,
+    );
+  });
+});
+
+describe('sii f22 command (fake runtime, no SII)', () => {
+  const BUSCA = {
+    metaData: { errors: [] },
+    data: {
+      decls: [{ folio: '999', vgte: 'S', codConc: 'C1', fecIng: '15/04/2025' }],
+      glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+    },
+  };
+  const GRID = {
+    metaData: {},
+    data: [
+      { codigo: '305', valor: '-100', glosa: 'Resultado liquidación' },
+      { codigo: '3', valor: '11111111-1', glosa: 'RUT' }, // header PII → excluded
+    ],
+  };
+  function makeF22Runtime(): Runtime {
+    return {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaDeclVgte')
+              ? BUSCA
+              : url.includes('f22Compacto')
+                ? GRID
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+  }
+
+  it('f22 status <año> shows folio/estado + only the curated (non-PII) códigos', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'status', '2025');
+    expect(out).toContain('F22 2025');
+    expect(out).toContain('Estado: Vigente');
+    expect(out).toContain('305');
+    expect(out).toContain('1 código(s).'); // header código '3' (RUT) excluded
+    expect(out).not.toContain('RUT'); // the excluded código's glosa never prints
+  });
+
+  it('f22 status (no year) shows the multi-year estado overview', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'status', '--years', '3');
+    expect(out).toContain('estado por año');
+    expect(out).toContain('2026  Vigente');
+    expect(out).toContain('2024  Vigente');
+  });
+
+  it('f22 status requires a session (NotAuthenticated)', async () => {
+    await expect(run(makeF22Runtime(), 'f22', 'status', '2025')).rejects.toBeInstanceOf(
+      NotAuthenticatedError,
+    );
+  });
+
+  it('f22 status --folio without a year is rejected (folio requires año)', async () => {
+    // The overview path used to silently drop --folio; now it fails loudly.
+    await expect(run(makeF22Runtime(), 'f22', 'status', '--folio', '123')).rejects.toBeInstanceOf(
+      ValidationError,
     );
   });
 });

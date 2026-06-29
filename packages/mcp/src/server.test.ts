@@ -52,6 +52,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'auth_login',
       'auth_logout',
       'auth_status',
+      'f22_status',
       'operate',
       'rcv_list',
       'rcv_summary',
@@ -220,5 +221,60 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     // rcv_summary is read-only.
     const { tools } = await client.listTools();
     expect(tools.find((t) => t.name === 'rcv_summary')?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  it('f22_status returns the curated F22 estado as JSON (session-keyed, no PII códigos)', async () => {
+    const busca = {
+      metaData: { errors: [] },
+      data: {
+        decls: [{ folio: '999', vgte: 'S', codConc: 'C1', fecIng: '15/04/2025' }],
+        glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+      },
+    };
+    const grid = {
+      metaData: {},
+      data: [
+        { codigo: '305', valor: '-100', glosa: 'Resultado' },
+        { codigo: '3', valor: 'PII-MARKER-XYZ', glosa: 'RUT' }, // header PII → excluded
+      ],
+    };
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaDeclVgte')
+              ? busca
+              : url.includes('f22Compacto')
+                ? grid
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+
+    const res = await client.callTool({ name: 'f22_status', arguments: { anio: '2025' } });
+    const parsed = JSON.parse(toolText(res)) as {
+      anio: string;
+      estado: string;
+      codigos: { codigo: string }[];
+    };
+    expect(parsed).toMatchObject({ anio: '2025', estado: 'Vigente' });
+    expect(parsed.codigos.map((c) => c.codigo)).toEqual(['305']); // header código excluded
+    expect(toolText(res)).not.toContain('PII-MARKER-XYZ'); // the PII código value never surfaces
+  });
+
+  it('f22_status with folio but no anio is rejected (folio requires anio)', async () => {
+    const client = await connect(makeRuntime());
+    const res = await client.callTool({ name: 'f22_status', arguments: { folio: '123' } });
+    expect(isError(res)).toBe(true);
+    expect(toolText(res)).toContain('folio'); // verbatim validation message, not a silent drop
   });
 });

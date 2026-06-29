@@ -19,6 +19,14 @@ export { formatOperableEntry } from './identity/index.js';
 export type { OperatingContext, OperableEntry } from './identity/index.js';
 export { rcvSummary, rcvList } from './tasks/rcv.js';
 export type { RcvResumen, RcvResumenRow, RcvDetalle, RcvDetalleDoc, RcvSide } from './tasks/rcv.js';
+export { f22Status, f22Overview } from './tasks/f22.js';
+export type {
+  F22Estado,
+  F22Declaraciones,
+  F22Overview,
+  DeclaracionF22,
+  CodigoF22,
+} from './tasks/f22.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
 export { createNodeRuntime } from './runtime.js';
@@ -37,7 +45,7 @@ export type {
 
 // --- shared primitives ---
 export { Rut } from './rut/index.js';
-export { Periodo } from './periodo/index.js';
+export { Periodo, Anio } from './periodo/index.js';
 export { HOSTS, LOGIN_HOST } from './config/index.js';
 export * from './errors/index.js';
 
