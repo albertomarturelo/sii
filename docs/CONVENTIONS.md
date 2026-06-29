@@ -24,6 +24,14 @@ Python `sii-cli`, adapted to TypeScript.
 - **Surfaces call `@sii/core` tasks only.** CLI and MCP never reach past the
   task layer into a portal/DTE facade — that bypasses throttling, audit log, and
   credential handling. (ADR-003)
+- **The core is the data layer; surfaces present. JSON is the default output.**
+  `@sii/core` tasks return plain, JSON-serializable objects (no `Date`/`Map`/`Set`,
+  no human formatting) — that is the library/integration contract. The MCP surface
+  emits `JSON.stringify`; the CLI emits JSON by DEFAULT (`--human` for the readable
+  rendering, `--json` is the explicit default). A command computes its result object
+  ONCE and renders it through the shared `emit(data, humanFn)` — never bare `out()`
+  for a result. STDOUT carries only the result (JSON pipeable to `jq`); the
+  `operating as:` header + diagnostics go to STDERR and are human-mode-only. (ADR-012)
 - **External dependencies sit behind injectable seams.** `PortalDriver`,
   `SecretStore`, `SessionStore`, `AuditSink`, `Clock` are interfaces in
   `@sii/core` with Node default implementations; tests inject fakes so they

@@ -16,3 +16,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 009 | [NodeNext module resolution for Node-runnable surface builds](009-nodenext-module-resolution.md) | Accepted | 2026-06-27 |
 | 010 | [CLI console login — headless form-fill to a cookies-only session](010-cli-console-login.md) | Accepted | 2026-06-28 |
 | 011 | [Adopt zod for MCP tool input schemas (and wire-boundary validation)](011-zod-validation.md) | Accepted | 2026-06-28 |
+| 012 | [JSON is the default output; `@sii/core` is the JSON contract](012-json-default-output.md) | Accepted | 2026-06-29 |

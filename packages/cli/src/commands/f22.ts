@@ -11,7 +11,7 @@ import {
   type CodigoF22,
   type Runtime,
 } from '@sii/core';
-import { out } from '../io.js';
+import { emit, out } from '../io.js';
 
 const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
 const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;
@@ -29,7 +29,10 @@ export function registerF22(program: Command, runtime: Runtime): void {
     .argument('[año]', 'Año tributario (YYYY). Si se omite, muestra el resumen multi-año.')
     .option('--folio <n>', 'Folio específico de la declaración (por defecto: la vigente).')
     .option('--years <n>', 'Cuántos años incluir en el resumen (por defecto 5).')
-    .option('--full', 'Grilla completa agrupada (ingresos, créditos, resultado).')
+    .option(
+      '--full',
+      'Formulario completo agrupado (ingresos, deducciones, retenciones, resultado).',
+    )
     .action(
       async (
         anioArg: string | undefined,
@@ -42,12 +45,16 @@ export function registerF22(program: Command, runtime: Runtime): void {
             throw new ValidationError('El --folio/--full requieren indicar el año (YYYY).');
           }
           const ov = await f22Overview(runtime, opts.years ? { years: Number(opts.years) } : {});
-          out(`F22 — ${fmtRut(ov.rut)} (estado por año)`);
-          for (const a of ov.anios) {
-            const decl = a.declaraciones.find((d) => d.vigente) ?? a.declaraciones[0];
-            const estado = a.tieneDeclaracion ? (decl?.estado ?? 'presentada') : 'Sin declaración';
-            out(`  ${a.anio}  ${estado}`);
-          }
+          emit(ov, () => {
+            out(`F22 — ${fmtRut(ov.rut)} (estado por año)`);
+            for (const a of ov.anios) {
+              const decl = a.declaraciones.find((d) => d.vigente) ?? a.declaraciones[0];
+              const estado = a.tieneDeclaracion
+                ? (decl?.estado ?? 'presentada')
+                : 'Sin declaración';
+              out(`  ${a.anio}  ${estado}`);
+            }
+          });
           return;
         }
         const e = await f22Status(runtime, {
@@ -55,32 +62,34 @@ export function registerF22(program: Command, runtime: Runtime): void {
           ...(opts.folio ? { folio: opts.folio } : {}),
           ...(opts.full ? { full: true } : {}),
         });
-        out(`F22 ${e.anio} — ${fmtRut(e.rut)}`);
-        if (!e.tieneDeclaracion) {
-          out('Sin declaración para el año.');
-          return;
-        }
-        out(`Folio: ${e.folio ?? '—'}   Estado: ${e.estado ?? '—'}`);
-        if (e.grupos) {
-          // `--full`: the complete form (PII dropped) organized for a contador. Empty
-          // groups are still labeled so the structure is predictable; `otros` (non-PII,
-          // unclassified) only prints when it has rows.
-          out('Ingresos:');
-          printCodigos(e.grupos.ingresos);
-          out('Deducciones:');
-          printCodigos(e.grupos.deducciones);
-          out('Retenciones · PPM · Créditos:');
-          printCodigos(e.grupos.creditos);
-          out('Resultado:');
-          printCodigos(e.grupos.resultado);
-          if (e.grupos.otros.length) {
-            out('Otros:');
-            printCodigos(e.grupos.otros);
+        emit(e, () => {
+          out(`F22 ${e.anio} — ${fmtRut(e.rut)}`);
+          if (!e.tieneDeclaracion) {
+            out('Sin declaración para el año.');
+            return;
           }
-        } else {
-          printCodigos(e.codigos);
-        }
-        out(`${e.codigos.length} código(s).`);
+          out(`Folio: ${e.folio ?? '—'}   Estado: ${e.estado ?? '—'}`);
+          if (e.grupos) {
+            // `--full`: the complete form (PII dropped) organized for a contador. Empty
+            // groups are still labeled so the structure is predictable; `otros` (non-PII,
+            // unclassified) only prints when it has rows.
+            out('Ingresos:');
+            printCodigos(e.grupos.ingresos);
+            out('Deducciones:');
+            printCodigos(e.grupos.deducciones);
+            out('Retenciones · PPM · Créditos:');
+            printCodigos(e.grupos.creditos);
+            out('Resultado:');
+            printCodigos(e.grupos.resultado);
+            if (e.grupos.otros.length) {
+              out('Otros:');
+              printCodigos(e.grupos.otros);
+            }
+          } else {
+            printCodigos(e.codigos);
+          }
+          out(`${e.codigos.length} código(s).`);
+        });
       },
     );
 
@@ -94,19 +103,21 @@ export function registerF22(program: Command, runtime: Runtime): void {
         anio: anioArg,
         ...(opts.folio ? { folio: opts.folio } : {}),
       });
-      out(`F22 ${r.anio} — ${fmtRut(r.rut)} (observaciones)`);
-      if (!r.tieneDeclaracion) {
-        out('Sin declaración para el año.');
-        return;
-      }
-      if (r.observaciones.length === 0) {
-        out('Sin observaciones.');
-        return;
-      }
-      for (const o of r.observaciones) {
-        out(`  ${o.codigo}  ${o.descripcion ?? ''}`);
-        if (o.url) out(`        ${o.url}`);
-      }
-      out(`${r.observaciones.length} observación(es).`);
+      emit(r, () => {
+        out(`F22 ${r.anio} — ${fmtRut(r.rut)} (observaciones)`);
+        if (!r.tieneDeclaracion) {
+          out('Sin declaración para el año.');
+          return;
+        }
+        if (r.observaciones.length === 0) {
+          out('Sin observaciones.');
+          return;
+        }
+        for (const o of r.observaciones) {
+          out(`  ${o.codigo}  ${o.descripcion ?? ''}`);
+          if (o.url) out(`        ${o.url}`);
+        }
+        out(`${r.observaciones.length} observación(es).`);
+      });
     });
 }
