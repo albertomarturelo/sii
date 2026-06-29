@@ -1,19 +1,39 @@
 # Current Project Status
 
-Last updated: 2026-06-29
+Last updated: 2026-06-29 (PM — F22 formulario + CLI JSON-default session)
 
 ## In Progress
 
-- **Open: PR #31** (this bookkeeping, docs-only) — merge it to finish #26's AC.
-- _(no feature in progress — F22 status (#25), docs/test-plans (#29), and F22 observaciones
-  (#26 / #30) are all merged.)_ **Next session: start #27 (`sii f22 status --full`)** —
-  observe the `f22Completo` wire live (the spike technique from #26), then curate into
-  ingresos / retenciones · PPM · créditos / resultado. Also queued: **#28 historial**
-  (`buscaEventos` + per-carta `buscaObservacion` already captured in the #26 spike). Two
-  read templates exist: **RCV** (body-RUT) and **F22** (session-keyed).
+- _(no feature in progress — F22 `--full`/formulario (#27/#32, #36/#37) and CLI JSON-default
+  (#35) are merged.)_ **Next session candidates:** **#28 historial** (`buscaEventos` + per-carta
+  `buscaObservacion`, already captured in the #26 spike → likely no extra spike); **#18 F29**
+  (session-keyed, reuse the f22 task shape); **#21 DTE authorized** (public, no spike);
+  **#20 BTE** (session-keyed). Two read templates exist: **RCV** (body-RUT) and **F22**
+  (session-keyed); the **JSON-default surface contract** (ADR-012) is now the norm for any new
+  CLI verb (`emit(data, humanFn)`).
 
 ## Recently Completed
 
+- [x] **F22 complete form → `f22 formulario` verb (#27/#32 then #36/#37).** The complete
+  grouped F22 form: reads `f22Compacto` (the form the SII renders) + curates into the lines a
+  contador reads — **ingresos / deducciones / retenciones·PPM·créditos / resultado**, with a
+  visible `otros` catch-all (nothing tax-relevant hidden). Live-designed from a headed-Playwright
+  capture of the real "formulario completo" (AT 2023–2026): **`f22Completo` is noisier, not
+  richer** → NOT used. **PII posture is a DENYLIST of identity/bank códigos only** (authoritative
+  from `codigosFormato.codigosCabecera`); an allowlist was tried + REJECTED (it hid real
+  honorarios/retenciones/deducciones). **es-CL monto parsing** fixed (`"12.345.678"` → 12345678;
+  `Number()` mis-parsed it → income shown as "—"). Shipped first as `status --full` (#32) then
+  **split into its own verb `f22 formulario <año>` / MCP `f22_formulario` (#37)** — `status`
+  no longer overloaded. Taxonomy extracted to `portal/f22-codigos.ts`. CLI + MCP, both thin
+  calls into the same `f22Status({full})` task. 154/154 green; live-validated.
+- [x] **CLI JSON output by default — ADR-012 (#35).** The CLI emits each command's `@sii/core`
+  result object as pretty JSON on STDOUT by default (`--human` for text); the core is the
+  JSON-serializable library contract, the MCP already spoke JSON. Shared `emit(data, humanFn)`
+  helper; STDOUT pure (pipeable to `jq`), header/diagnostics on STDERR human-only; errors in JSON
+  mode are `{ "error": "<verbatim>" }`. CONVENTIONS records the output-contract rule.
+- [x] **Review hygiene.** Real montos + a real folio had slipped into tests/docs as
+  "synthetic" — caught in `/review-pr`, scrubbed to synthetic AND purged from branch history
+  (force-push). Reaffirmed: tests/docs use synthetic data only; CONVENTIONS' denylist rule.
 - [x] **F22 observaciones read surface (#26).** Third F22 vertical: `portal/f22.ts`
   `fetchF22Observaciones` (`situacionObservacion(periodo,rut,dv,folio)` →
   `[{codigo,descripcion,url}]`) → `tasks/f22.ts` `f22Observaciones` (`withSession`,
@@ -191,14 +211,12 @@ Last updated: 2026-06-29
 
 ## Next Priorities
 
-1. **F22 follow-ups (issues open):** **#28 historial** (`buscaEventos` + per-carta
-   `buscaObservacion` already captured in the #26 spike → likely no extra spike) and
-   **#27 `sii f22 status --full`** (the `f22Completo` grid → ingresos/retenciones/resultado;
-   needs the wire observed live).
-2. **Live-revalidate RCV + F22-status** — re-observe the ported contracts against a real
-   session (operator-assisted): confirm endpoints/fields, refresh the dates in
-   `sii-contract/{rcv,f22}.md`. (F22 observaciones is already live-validated; RCV + F22
-   status are not.)
+1. **F22 follow-up (issue open):** **#28 historial** (`buscaEventos` + per-carta
+   `buscaObservacion` already captured in the #26 spike → likely no extra spike). _(#27
+   `--full` is DONE — shipped as `f22 formulario`, #32/#37.)_
+2. **Live-revalidate RCV** — re-observe the ported contract against a real session
+   (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
+   (F22 status/formulario + observaciones are now live-validated; RCV is not.)
 3. **Other read modules** against the stable templates (registration + `periodo`/`Anio` +
    zod-wire + body-RUT/session-keyed): **DTE #21** (public, no spike); **F29 #18**
    (session-keyed, reuse the f22 task shape); **BTE #20** (session-keyed). (ADR-007)
