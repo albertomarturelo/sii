@@ -261,6 +261,18 @@ describe('sii f22 command (fake runtime, no SII)', () => {
       { codigo: '3', valor: '11111111-1', glosa: 'RUT' }, // header PII → excluded
     ],
   };
+  const OBS = {
+    data: [
+      {
+        codigo: 'B102',
+        descripcion: 'Control ganancia de capital',
+        url: 'http://www.sii.cl/B102.pdf',
+      },
+    ],
+    respCod: null,
+    errorMsg: null,
+    metaData: { errors: null },
+  };
   function makeF22Runtime(): Runtime {
     return {
       clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
@@ -277,7 +289,9 @@ describe('sii f22 command (fake runtime, no SII)', () => {
               ? BUSCA
               : url.includes('f22Compacto')
                 ? GRID
-                : { metaData: {}, data: null },
+                : url.includes('situacionObservacion')
+                  ? OBS
+                  : { metaData: {}, data: null },
         },
       }),
     };
@@ -314,6 +328,16 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     await expect(run(makeF22Runtime(), 'f22', 'status', '--folio', '123')).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+
+  it('f22 observaciones <año> lists the observación códigos + ayuda URLs', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'observaciones', '2025');
+    expect(out).toContain('observaciones');
+    expect(out).toContain('B102');
+    expect(out).toContain('http://www.sii.cl/B102.pdf');
+    expect(out).toContain('1 observación(es).');
   });
 });
 

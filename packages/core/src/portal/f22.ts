@@ -37,6 +37,15 @@ const BUSCA_DECL_NAMESPACE =
   'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/buscaDeclVgte';
 const F22_COMPACTO_NAMESPACE =
   'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/f22Compacto';
+// Observaciones (inconsistencias) of a folio — observed live 2026-06-29 (spike #26, own
+// session): data:{periodo,rut,dv,folio} → data:[{codigo,descripcion,url}]. Same SPA /
+// namespace family as the status facades. Rows are NOT PII (observación code + glosa +
+// SII ayuda URL). The sibling `buscaObservacion` (per carta — needs referencia/idCarta
+// from buscaEventos) is the historial detail, deferred to #28; situacionObservacion
+// gives the vigente observaciones from the folio alone.
+const SITUACION_OBS_URL = `${F22_BASE}/situacionObservacion`;
+const SITUACION_OBS_NAMESPACE =
+  'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/situacionObservacion';
 const CONVERSATION_COOKIE = 'TOKEN';
 
 // Per-surface headers — Referer is the F22-status SPA root (differs from RCV/F29).
@@ -103,12 +112,24 @@ export interface F22Estado extends F22Declaraciones {
   readonly codigos: readonly CodigoF22[]; // header/PII códigos excluded
 }
 
+/** One observación (inconsistencia) on a declaración. NOT PII — observación code + glosa
+ *  + the SII ayuda URL — so every field is curated (no header-código exclusion, no `raw`). */
+export interface ObservacionF22 {
+  readonly codigo: string; // observación code, e.g. "B102" / "G37"
+  readonly descripcion: string | null; // glosa verbatim (SII serves it inline)
+  readonly url: string | null; // SII ayuda PDF for correcting the observación
+}
+
 // --- Wire envelope (zod-at-the-boundary, ADR-011) --------------------------------
 // F22's error channel is `metaData.errors` (NOT RCV's respEstado). Keep `errors` and
 // `data` opaque (shapes differ per endpoint) and extract tolerantly below.
 const Envelope = z
   .object({
     metaData: z.object({ errors: z.unknown().nullish() }).loose().nullish(),
+    // situacionObservacion ALSO signals errors via a top-level `errorMsg`/`respCod`
+    // (observed 2026-06-29); buscaDeclVgte/f22Compacto leave them absent. Keep both.
+    errorMsg: z.unknown().nullish(),
+    respCod: z.unknown().nullish(),
     data: z.unknown(),
   })
   .loose();
@@ -129,6 +150,11 @@ const CODIGO_ALIASES = {
   codigo: ['codigo', 'cod'],
   valor: ['valor', 'monto'],
   glosa: ['glosa', 'descripcion'],
+} as const;
+const OBSERVACION_ALIASES = {
+  codigo: ['codigo', 'cod'],
+  descripcion: ['descripcion', 'glosa'],
+  url: ['url', 'link'],
 } as const;
 
 const aliasGet = (row: Record<string, unknown>, aliases: readonly string[]): unknown => {
@@ -200,6 +226,10 @@ async function postSdi(
     throw new F22Error('Respuesta inesperada de SII (no es un objeto JSON del F22).');
   const err = f22Error(parsed.data.metaData?.errors);
   if (err) throw new F22Error(err);
+  // situacionObservacion surfaces a business error via the top-level `errorMsg`
+  // (observed 2026-06-29); pass it verbatim (ADR-004).
+  const msg = asStr(parsed.data.errorMsg);
+  if (msg !== null && msg.trim() !== '') throw new F22Error(msg);
   return parsed.data;
 }
 
@@ -291,6 +321,36 @@ export async function fetchF22Grid(
       codigo,
       valor: asNumber(aliasGet(r, CODIGO_ALIASES.valor)),
       glosa: asStr(aliasGet(r, CODIGO_ALIASES.glosa)),
+    });
+  }
+  return out;
+}
+
+/** `situacionObservacion` — the observaciones (inconsistencias) for a folio. Rows carry
+ *  NO PII (observación code + glosa + ayuda URL), so all are curated and nothing is
+ *  excluded; empty `data` = sin observaciones (NOT an error). Observed 2026-06-29 (#26):
+ *  the request sends NUMERIC `periodo`/`folio`. */
+export async function fetchF22Observaciones(
+  session: PortalSession,
+  params: { rut: Rut; anio: Anio; folio: string },
+): Promise<ObservacionF22[]> {
+  const { rut, anio, folio } = params;
+  const env = await postSdi(session, SITUACION_OBS_URL, SITUACION_OBS_NAMESPACE, {
+    periodo: Number(anio.canonical),
+    ...rutDigits(rut),
+    folio: Number(folio),
+  });
+  const rows = env.data;
+  if (!Array.isArray(rows)) return [];
+  const out: ObservacionF22[] = [];
+  for (const r of rows) {
+    if (!isObj(r)) continue;
+    const codigo = asStr(aliasGet(r, OBSERVACION_ALIASES.codigo));
+    if (codigo === null) continue;
+    out.push({
+      codigo,
+      descripcion: asStr(aliasGet(r, OBSERVACION_ALIASES.descripcion)),
+      url: asStr(aliasGet(r, OBSERVACION_ALIASES.url)),
     });
   }
   return out;

@@ -9,11 +9,22 @@ import { recordAudit } from '../audit/index.js';
 import { Anio } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
-import { fetchF22Declaraciones, fetchF22Grid, pickVigenteFolio } from '../portal/f22.js';
-import type { F22Declaraciones, F22Estado } from '../portal/f22.js';
+import {
+  fetchF22Declaraciones,
+  fetchF22Grid,
+  fetchF22Observaciones,
+  pickVigenteFolio,
+} from '../portal/f22.js';
+import type { F22Declaraciones, F22Estado, ObservacionF22 } from '../portal/f22.js';
 import type { AuditEntry, Runtime } from '../seams/index.js';
 
-export type { DeclaracionF22, CodigoF22, F22Declaraciones, F22Estado } from '../portal/f22.js';
+export type {
+  DeclaracionF22,
+  CodigoF22,
+  ObservacionF22,
+  F22Declaraciones,
+  F22Estado,
+} from '../portal/f22.js';
 
 const DEFAULT_OVERVIEW_YEARS = 5;
 const MAX_OVERVIEW_YEARS = 10;
@@ -97,6 +108,53 @@ export async function f22Overview(
     return result;
   } catch (e) {
     audit(runtime, 'f22_overview', 'failed', { years });
+    throw e;
+  }
+}
+
+/** F22 observaciones (inconsistencias) for one año: resolve the folio (vigente, or
+ *  `--folio`) via `buscaDeclVgte`, then read its observaciones via `situacionObservacion`
+ *  (código + glosa + ayuda URL). Session principal (ADR-005), paced; empty/no-declaración
+ *  is a clean "sin observaciones", NOT an error. */
+export interface F22Observaciones {
+  readonly rut: string;
+  readonly anio: string;
+  readonly tieneDeclaracion: boolean;
+  readonly folio: string | null; // the folio the observaciones were read for
+  readonly observaciones: readonly ObservacionF22[];
+}
+
+export async function f22Observaciones(
+  runtime: Runtime,
+  args: { anio: string | number; folio?: string },
+): Promise<F22Observaciones> {
+  const anio = Anio.parse(args.anio); // fail fast on a bad year — no session opened
+  const start = runtime.clock.now().getTime();
+  try {
+    const result = await withSession(runtime, async (session, ctx) => {
+      const rut = Rut.parse(ctx.sessionRut); // session-keyed: ALWAYS the principal
+      const decls = await fetchF22Declaraciones(session, { rut, anio });
+      const folio = args.folio ?? pickVigenteFolio(decls.declaraciones);
+      const base = {
+        rut: rut.canonical,
+        anio: anio.canonical,
+        tieneDeclaracion: decls.tieneDeclaracion,
+      };
+      if (folio === null) {
+        return { ...base, folio: null, observaciones: [] };
+      }
+      await runtime.clock.sleep(pacingMs()); // pace the 2nd POST
+      const observaciones = await fetchF22Observaciones(session, { rut, anio, folio });
+      return { ...base, folio, observaciones };
+    });
+    audit(runtime, 'f22_observaciones', 'ok', {
+      rut: result.rut,
+      period: anio.canonical,
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return result;
+  } catch (e) {
+    audit(runtime, 'f22_observaciones', 'failed', { period: anio.canonical });
     throw e;
   }
 }

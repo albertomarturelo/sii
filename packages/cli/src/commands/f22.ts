@@ -2,7 +2,14 @@
 // (ADR-003). SESSION-KEYED (ADR-005): always reads the session principal — NO `--rut`;
 // a represented empresa's F22 is reached by logging in AS the empresa (logout→login).
 import type { Command } from 'commander';
-import { Rut, ValidationError, f22Overview, f22Status, type Runtime } from '@sii/core';
+import {
+  Rut,
+  ValidationError,
+  f22Observaciones,
+  f22Overview,
+  f22Status,
+  type Runtime,
+} from '@sii/core';
 import { out } from '../io.js';
 
 const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
@@ -47,5 +54,31 @@ export function registerF22(program: Command, runtime: Runtime): void {
         out(`  ${c.codigo}  ${c.glosa ?? ''}  ${money(c.valor)}`);
       }
       out(`${e.codigos.length} código(s).`);
+    });
+
+  f22
+    .command('observaciones')
+    .description('Observaciones (inconsistencias) de la F22 de un año tributario.')
+    .argument('<año>', 'Año tributario (YYYY).')
+    .option('--folio <n>', 'Folio específico de la declaración (por defecto: la vigente).')
+    .action(async (anioArg: string, opts: { folio?: string }) => {
+      const r = await f22Observaciones(runtime, {
+        anio: anioArg,
+        ...(opts.folio ? { folio: opts.folio } : {}),
+      });
+      out(`F22 ${r.anio} — ${fmtRut(r.rut)} (observaciones)`);
+      if (!r.tieneDeclaracion) {
+        out('Sin declaración para el año.');
+        return;
+      }
+      if (r.observaciones.length === 0) {
+        out('Sin observaciones.');
+        return;
+      }
+      for (const o of r.observaciones) {
+        out(`  ${o.codigo}  ${o.descripcion ?? ''}`);
+        if (o.url) out(`        ${o.url}`);
+      }
+      out(`${r.observaciones.length} observación(es).`);
     });
 }
