@@ -244,9 +244,16 @@ export async function f22Historial(
           throw e;
         }
       }
-      // Most-recent-first across every folio read (wire order is per-folio oldest-first).
-      eventos.sort((a, b) => eventoDateKey(b.fecha) - eventoDateKey(a.fecha));
-      return { ...base, folios, eventos, foliosConError };
+      // Most-recent-first across every folio read. SII serves each folio's events
+      // oldest-first (chronological), so within the SAME date the later-collected event is
+      // the more recent — tiebreak by wire position DESC. Without it, same-day events (e.g. a
+      // rectificatoria's "enviada" then "aceptada", both 28/06) would print envío→aceptación,
+      // the reverse of most-recent-first. Decorate-sort-undecorate keeps it deterministic.
+      const ordered = eventos
+        .map((e, i) => ({ e, i }))
+        .sort((a, b) => eventoDateKey(b.e.fecha) - eventoDateKey(a.e.fecha) || b.i - a.i)
+        .map((d) => d.e);
+      return { ...base, folios, eventos: ordered, foliosConError };
     });
     audit(runtime, 'f22_historial', 'ok', {
       rut: result.rut,

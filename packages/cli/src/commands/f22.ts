@@ -162,10 +162,13 @@ export function registerF22(program: Command, runtime: Runtime): void {
         } else {
           out(`${r.eventos.length} evento(s).`);
         }
-        // SII errored on a folio — surface it verbatim (ADR-004), never hide it. The good
-        // folios' events are above; this just flags what couldn't be read.
+        // SII errored on a folio — surface it, never hide it. Frame it as SII-side (it is:
+        // SII's own UI fails identically on these folios — see sii-contract/f22.md) while
+        // keeping its message verbatim (ADR-004); the JSON `error` stays the raw string.
         for (const fe of r.foliosConError) {
-          out(`  ⚠ folio ${fe.folio}: ${fe.error}`);
+          out(
+            `  ⚠ folio ${fe.folio}: el SII no entregó su historial (error interno del SII: ${fe.error})`,
+          );
         }
       });
     });

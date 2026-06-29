@@ -458,7 +458,9 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     await run(rt, 'auth', 'login');
     const out = await run(rt, 'f22', 'historial', '2025');
     expect(out).toContain('0 evento(s).');
-    expect(out).toContain('⚠ folio 999: For input string: "    006034"');
+    // Framed as SII-side, but the verbatim message is preserved (ADR-004).
+    expect(out).toContain('⚠ folio 999: el SII no entregó su historial (error interno del SII:');
+    expect(out).toContain('For input string: "    006034"');
   });
 
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {

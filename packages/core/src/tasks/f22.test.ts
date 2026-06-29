@@ -301,6 +301,44 @@ describe('f22 tasks (fakes, no SII)', () => {
     });
   });
 
+  it('f22Historial: same-date events come out most-recent-first (reverse wire), not envío→aceptación', async () => {
+    // Mirrors live AT 2026: a rectificatoria's two events share a date (28/06); the wire is
+    // oldest-first (enviada then aceptada). Most-recent-first must put "aceptada" first.
+    const SAME_DAY = {
+      data: [
+        {
+          folio: '12345',
+          codEvento: '44',
+          nombre: 'Declaración Rectificatoria.',
+          fechaEvento: '28/06/2026',
+          tipoEvento: '0',
+        },
+        {
+          folio: '12345',
+          codEvento: '505',
+          nombre: 'Rectificatoria Aceptada.',
+          fechaEvento: '28/06/2026',
+          tipoEvento: '1',
+        },
+      ],
+      respCod: 0,
+      errorMsg: null,
+      metaData: { errors: null },
+    };
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: (url) => (url.includes('buscaEventos') ? SAME_DAY : BUSCA_ENV),
+        },
+      }),
+    };
+    await seed(rt);
+    const res = await f22Historial(rt, { anio: '2026' });
+    expect(res.eventos.map((e) => e.codigo)).toEqual(['505', '44']); // aceptada (later) before enviada
+  });
+
   it('f22Historial reads EVERY folio of the año (rectificatorias) and merges events most-recent-first', async () => {
     // Two declaraciones (folios 12345 + 67890); buscaEventos returns a distinct event per folio.
     const TWO_DECLS = {
