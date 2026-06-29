@@ -5,6 +5,7 @@ import {
   NotAuthenticatedError,
   RateLimitError,
   SessionExpiredError,
+  ValidationError,
   testing,
   type Runtime,
 } from '@sii/core';
@@ -305,6 +306,13 @@ describe('sii f22 command (fake runtime, no SII)', () => {
   it('f22 status requires a session (NotAuthenticated)', async () => {
     await expect(run(makeF22Runtime(), 'f22', 'status', '2025')).rejects.toBeInstanceOf(
       NotAuthenticatedError,
+    );
+  });
+
+  it('f22 status --folio without a year is rejected (folio requires año)', async () => {
+    // The overview path used to silently drop --folio; now it fails loudly.
+    await expect(run(makeF22Runtime(), 'f22', 'status', '--folio', '123')).rejects.toBeInstanceOf(
+      ValidationError,
     );
   });
 });

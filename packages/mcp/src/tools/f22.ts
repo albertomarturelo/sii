@@ -3,7 +3,7 @@
 // — a represented empresa's F22 needs the empresa's own session. zod input (ADR-011).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { f22Overview, f22Status, type Runtime } from '@sii/core';
+import { f22Overview, f22Status, ValidationError, type Runtime } from '@sii/core';
 import { toolText } from '../tool-helpers.js';
 
 export function registerF22Tools(server: McpServer, runtime: Runtime): void {
@@ -25,6 +25,10 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
     ({ anio, folio, years }) =>
       toolText(async () => {
         if (anio === undefined) {
+          // `folio` selects a declaración within a year; meaningless for the overview.
+          if (folio !== undefined) {
+            throw new ValidationError('`folio` requiere indicar `anio` (YYYY).');
+          }
           const ov = await f22Overview(runtime, years !== undefined ? { years } : {});
           return JSON.stringify(ov, null, 2);
         }

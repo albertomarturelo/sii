@@ -2,7 +2,7 @@
 // (ADR-003). SESSION-KEYED (ADR-005): always reads the session principal — NO `--rut`;
 // a represented empresa's F22 is reached by logging in AS the empresa (logout→login).
 import type { Command } from 'commander';
-import { Rut, f22Overview, f22Status, type Runtime } from '@sii/core';
+import { Rut, ValidationError, f22Overview, f22Status, type Runtime } from '@sii/core';
 import { out } from '../io.js';
 
 const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
@@ -19,6 +19,11 @@ export function registerF22(program: Command, runtime: Runtime): void {
     .option('--years <n>', 'Cuántos años incluir en el resumen (por defecto 5).')
     .action(async (anioArg: string | undefined, opts: { folio?: string; years?: string }) => {
       if (!anioArg) {
+        // `--folio` selects one declaración within a year; it's meaningless for the
+        // multi-year overview — reject it instead of silently dropping it.
+        if (opts.folio) {
+          throw new ValidationError('El --folio requiere indicar el año (YYYY).');
+        }
         const ov = await f22Overview(runtime, opts.years ? { years: Number(opts.years) } : {});
         out(`F22 — ${fmtRut(ov.rut)} (estado por año)`);
         for (const a of ov.anios) {

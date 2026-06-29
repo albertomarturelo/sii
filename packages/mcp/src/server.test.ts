@@ -270,4 +270,11 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(parsed.codigos.map((c) => c.codigo)).toEqual(['305']); // header código excluded
     expect(toolText(res)).not.toContain('PII-MARKER-XYZ'); // the PII código value never surfaces
   });
+
+  it('f22_status with folio but no anio is rejected (folio requires anio)', async () => {
+    const client = await connect(makeRuntime());
+    const res = await client.callTool({ name: 'f22_status', arguments: { folio: '123' } });
+    expect(isError(res)).toBe(true);
+    expect(toolText(res)).toContain('folio'); // verbatim validation message, not a silent drop
+  });
 });
