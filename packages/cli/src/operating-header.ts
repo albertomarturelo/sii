@@ -3,9 +3,12 @@
 // STDOUT stays a clean machine-readable result. No-op when there's no session yet
 // (e.g. before `auth login`).
 import { Rut, operatingStatus, type Runtime } from '@sii/core';
-import { err } from './io.js';
+import { err, isHumanMode } from './io.js';
 
 export async function printOperatingHeader(runtime: Runtime): Promise<void> {
+  // JSON mode (the default) keeps output clean — the operating RUT is a field in the result
+  // anyway. The header is a human affordance (ADR-005), shown only with `--human`.
+  if (!isHumanMode()) return;
   const ctx = await operatingStatus(runtime);
   if (!ctx) return;
   const rut = Rut.parse(ctx.operatingRut).formatted;
