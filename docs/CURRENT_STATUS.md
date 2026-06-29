@@ -13,6 +13,17 @@ Last updated: 2026-06-29 (PM — F22 historial shipped, #28 ✅ — F22 surface 
 
 ## Recently Completed
 
+- [x] **F22 formulario grouping — post-merge MCP-testing fixes (PR #40).** Claude Desktop
+  testing of the F22 surface surfaced four findings; resolved: (BUG 2) `157`/`158`/`304` (IGC
+  intermediate steps — "según tabla" / "SUB TOTAL" / "débito fiscal") split out of `resultado`
+  into a new **`calculo`** group — a subtotal is not a result; `F22Grupos` now has six groups,
+  union still = flat grid (nothing hidden; omitting was rejected). (BUG 3) `162` kept in the
+  combined `creditos` (retenciones·PPM·créditos) group — SII's glosa IS "Crédito al IGC/IUSC" —
+  now documented. (BUG 4) `otros` kept (anti-allowlist safety net) + documented in the MCP
+  description. (BUG 1, `f22_historial` superseded folio in `foliosConError`) **not a bug** — SII
+  returns `data:null` + a server error for that folio (its own UI fails identically), so there
+  are no events to parse. CLI + MCP share `groupCodigos`, so the fix covers both. Live-validated
+  AT 2024; 168/168 green.
 - [x] **F22 historial read surface (#28) — F22 surface now COMPLETE.** Fourth F22 vertical:
   `portal/f22.ts` `fetchF22Historial` (`buscaEventos(periodo,rut,dv,folio)` → the per-folio
   event timeline: declaración recibida, devoluciones, giros de Tesorería, rectificatorias,
