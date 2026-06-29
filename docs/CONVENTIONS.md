@@ -96,6 +96,18 @@ Python `sii-cli`, adapted to TypeScript.
   identity/bank PII (RUT, dirección, email, número de cuenta) — every tax código
   IS curated — so F22 exposes NO `raw` at all, keeping that PII off every surface
   / the LLM / the audit log. (ADR-004)
+- **Curate PII-dense code grids by DENYLISTING the (bounded) PII, not allowlisting
+  the tax códigos.** When a grid interleaves tax códigos with identity/bank PII
+  (F22), drop ONLY the PII códigos and surface everything else. The PII set is small,
+  fixed, and authoritative (F22's `codigosFormato.codigosCabecera` = the form header
+  section, + the bank códigos) — so a denylist stays comprehensive. The tax códigos,
+  by contrast, are many and taxpayer-specific: an **allowlist of tax códigos was
+  tried for F22 `--full` (#27) and REJECTED** because it silently HID real
+  honorarios/retenciones/deducciones lines for taxpayers whose códigos weren't in the
+  hand map (AT 2023–2024) — the exact data the user needs. Surface unmapped non-PII
+  códigos in an `otros`/visible bucket, never drop them. Keep the PII denylist
+  complete by citing each código (`// observed …`); the RUT leaked under `9306`/`9920`
+  then `8809` before the set was completed. (ADR-004 / ADR-006)
 - **Body-RUT vs session-keyed surfaces (ADR-005).** A *body-RUT* surface (RCV)
   carries the operating RUT in the request body, so `operate`/`--rut` reaches a
   represented empresa — the task resolves the operating RUT. A *session-keyed*

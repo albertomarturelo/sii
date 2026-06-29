@@ -279,6 +279,68 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(toolText(res)).toContain('folio'); // verbatim validation message, not a silent drop
   });
 
+  it('f22_status { full: true } returns the complete form grouped (ingresos/deducciones/retenciones/resultado/otros, no PII)', async () => {
+    const busca = {
+      metaData: { errors: [] },
+      data: {
+        decls: [{ folio: '999', vgte: 'S', codConc: 'C1', fecIng: '15/04/2025' }],
+        glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+      },
+    };
+    const grid = {
+      metaData: {},
+      data: [
+        { codigo: '110', valor: '3000000', glosa: 'Rentas honorarios' }, // ingreso
+        { codigo: '494', valor: '900000', glosa: 'Gastos presuntos' }, // deducción
+        { codigo: '198', valor: '300000', glosa: 'Retenciones' }, // retención
+        { codigo: '305', valor: '-100', glosa: 'Resultado' }, // resultado
+        { codigo: '8865', valor: '1', glosa: 'Código Emisión' }, // non-PII unclassified → otros
+        { codigo: '9920', valor: 'PII-ADDR-XYZ', glosa: 'Dirección Origen' }, // PII → excluded
+      ],
+    };
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaDeclVgte')
+              ? busca
+              : url.includes('f22Compacto')
+                ? grid
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+
+    const res = await client.callTool({
+      name: 'f22_status',
+      arguments: { anio: '2025', full: true },
+    });
+    const parsed = JSON.parse(toolText(res)) as {
+      grupos: {
+        ingresos: { codigo: string }[];
+        deducciones: { codigo: string }[];
+        creditos: { codigo: string }[];
+        resultado: { codigo: string }[];
+        otros: { codigo: string }[];
+      };
+    };
+    expect(parsed.grupos.ingresos.map((c) => c.codigo)).toEqual(['110']);
+    expect(parsed.grupos.deducciones.map((c) => c.codigo)).toEqual(['494']);
+    expect(parsed.grupos.creditos.map((c) => c.codigo)).toEqual(['198']);
+    expect(parsed.grupos.resultado.map((c) => c.codigo)).toEqual(['305']);
+    expect(parsed.grupos.otros.map((c) => c.codigo)).toEqual(['8865']); // non-PII, unmapped → shown
+    expect(toolText(res)).not.toContain('PII-ADDR-XYZ'); // address PII never surfaces
+  });
+
   it('f22_observaciones returns the observación list as JSON (código + glosa + url)', async () => {
     const busca = {
       metaData: { errors: [] },

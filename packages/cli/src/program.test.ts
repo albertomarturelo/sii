@@ -254,11 +254,17 @@ describe('sii f22 command (fake runtime, no SII)', () => {
       glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
     },
   };
+  // f22Compacto grid (the source for both `status` and `status --full`): one código per group
+  // + a non-PII unclassified código (→ otros) + an identity PII código that must be dropped.
   const GRID = {
     metaData: {},
     data: [
-      { codigo: '305', valor: '-100', glosa: 'Resultado liquidación' },
-      { codigo: '3', valor: '11111111-1', glosa: 'RUT' }, // header PII → excluded
+      { codigo: '110', valor: '3000000', glosa: 'Rentas honorarios' }, // ingreso
+      { codigo: '494', valor: '900000', glosa: 'Gastos presuntos' }, // deducción
+      { codigo: '198', valor: '300000', glosa: 'Retenciones' }, // retención
+      { codigo: '305', valor: '-100', glosa: 'Resultado liquidación' }, // resultado
+      { codigo: '8865', valor: '1', glosa: 'Código Emisión' }, // non-PII unclassified → otros
+      { codigo: '3', valor: '11111111-1', glosa: 'RUT' }, // identity PII → excluded
     ],
   };
   const OBS = {
@@ -304,8 +310,8 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('F22 2025');
     expect(out).toContain('Estado: Vigente');
     expect(out).toContain('305');
-    expect(out).toContain('1 código(s).'); // header código '3' (RUT) excluded
-    expect(out).not.toContain('RUT'); // the excluded código's glosa never prints
+    expect(out).toContain('5 código(s).'); // 110/494/198/305/8865; header '3' (RUT) excluded
+    expect(out).not.toContain('11111111-1'); // the excluded PII código's value never prints
   });
 
   it('f22 status (no year) shows the multi-year estado overview', async () => {
@@ -315,6 +321,30 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('estado por año');
     expect(out).toContain('2026  Vigente');
     expect(out).toContain('2024  Vigente');
+  });
+
+  it('f22 status <año> --full prints the complete form grouped (ingresos/deducciones/retenciones/resultado/otros)', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'status', '2025', '--full');
+    expect(out).toContain('Ingresos:');
+    expect(out).toContain('110'); // honorarios
+    expect(out).toContain('Deducciones:');
+    expect(out).toContain('494'); // gastos presuntos
+    expect(out).toContain('Retenciones · PPM · Créditos:');
+    expect(out).toContain('198'); // retenciones
+    expect(out).toContain('Resultado:');
+    expect(out).toContain('305');
+    expect(out).toContain('Otros:'); // non-PII unclassified still shown
+    expect(out).toContain('8865');
+    expect(out).toContain('5 código(s).'); // 110/494/198/305/8865; header '3' (RUT) excluded
+    expect(out).not.toContain('11111111-1'); // PII value never prints
+  });
+
+  it('f22 status --full without a year is rejected (full requires año)', async () => {
+    await expect(run(makeF22Runtime(), 'f22', 'status', '--full')).rejects.toBeInstanceOf(
+      ValidationError,
+    );
   });
 
   it('f22 status requires a session (NotAuthenticated)', async () => {
