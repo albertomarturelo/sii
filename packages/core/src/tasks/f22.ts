@@ -8,6 +8,7 @@ import { withSession } from '../auth/index.js';
 import { recordAudit } from '../audit/index.js';
 import { Anio } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
+import { ValidationError } from '../errors/index.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
 import {
   fetchF22Declaraciones,
@@ -129,6 +130,12 @@ export async function f22Observaciones(
   args: { anio: string | number; folio?: string },
 ): Promise<F22Observaciones> {
   const anio = Anio.parse(args.anio); // fail fast on a bad year — no session opened
+  // `situacionObservacion` posts `folio` as a NUMBER (observed); reject a non-numeric
+  // `--folio` here so a malformed value fails fast instead of silently posting
+  // `folio:null` (Number("abc")=NaN → JSON null). Validate before opening a session.
+  if (args.folio !== undefined && !/^\d+$/.test(args.folio)) {
+    throw new ValidationError(`Folio inválido: "${args.folio}" (debe ser numérico).`);
+  }
   const start = runtime.clock.now().getTime();
   try {
     const result = await withSession(runtime, async (session, ctx) => {

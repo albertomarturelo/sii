@@ -6,7 +6,7 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { NotAuthenticatedError } from '../errors/index.js';
+import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import { f22Status, f22Overview, f22Observaciones } from './f22.js';
@@ -183,6 +183,17 @@ describe('f22 tasks (fakes, no SII)', () => {
     const res = await f22Observaciones(rt, { anio: '2025' });
     expect(res).toMatchObject({ tieneDeclaracion: false, folio: null });
     expect(res.observaciones).toEqual([]);
+    expect(slept(rt)).toEqual([]);
+  });
+
+  it('f22Observaciones: a non-numeric --folio fails fast (ValidationError, no session)', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    await expect(f22Observaciones(rt, { anio: '2025', folio: 'abc' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    // Thrown before withSession → no observaciones audit receipt, no POST/pace.
+    expect(entries(rt).some((e) => e.action === 'f22_observaciones')).toBe(false);
     expect(slept(rt)).toEqual([]);
   });
 });
