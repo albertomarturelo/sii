@@ -8,7 +8,7 @@ import { withSession } from '../auth/index.js';
 import { recordAudit } from '../audit/index.js';
 import { Anio } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
-import { ValidationError } from '../errors/index.js';
+import { F22Error, ValidationError } from '../errors/index.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
 import {
   eventoDateKey,
@@ -179,13 +179,22 @@ export async function f22Observaciones(
  *  recibida, devolución autorizada, giros, rectificatorias…). DEFAULT reads EVERY folio of
  *  the año (rectificatorias included — "todos sus folios"); `--folio` scopes to one. Events
  *  are aggregated across folios and sorted most-recent-first. Session principal (ADR-005),
- *  paced; no-declaración / empty is a clean "sin eventos", NOT an error. */
+ *  paced; no-declaración / empty is a clean "sin eventos", NOT an error.
+ *
+ *  PER-FOLIO RESILIENCE: SII's `buscaEventos` can fail on ONE folio while others succeed —
+ *  observed live (AT 2026): the vigente folio returned its events, a superseded folio
+ *  returned a server-side parse error (`"For input string: …"`). Since the default fans out
+ *  over every folio, one folio's `F22Error` MUST NOT bury the rest — it is captured verbatim
+ *  in `foliosConError` (ADR-004: surfaced, never hidden, never retried) while the good folios'
+ *  events still come back. A session-level failure (NotAuthenticated/SessionExpired) is NOT an
+ *  F22Error, so it still aborts the whole read. */
 export interface F22Historial {
   readonly rut: string;
   readonly anio: string;
   readonly tieneDeclaracion: boolean;
-  readonly folios: readonly string[]; // the folios whose events were read
-  readonly eventos: readonly EventoF22[]; // most-recent-first, across all folios read
+  readonly folios: readonly string[]; // every folio attempted (the año's declaraciones / the override)
+  readonly eventos: readonly EventoF22[]; // most-recent-first, across the folios that succeeded
+  readonly foliosConError: readonly { folio: string; error: string }[]; // verbatim SII error per failed folio
 }
 
 export async function f22Historial(
@@ -219,13 +228,25 @@ export async function f22Historial(
         tieneDeclaracion: decls.tieneDeclaracion,
       };
       const eventos: EventoF22[] = [];
+      const foliosConError: { folio: string; error: string }[] = [];
       for (const folio of folios) {
         await runtime.clock.sleep(pacingMs()); // pace each buscaEventos POST (ADR-004)
-        eventos.push(...(await fetchF22Historial(session, { rut, anio, folio })));
+        try {
+          eventos.push(...(await fetchF22Historial(session, { rut, anio, folio })));
+        } catch (e) {
+          // A single folio's SII error (F22Error) is recorded verbatim and skipped — it must
+          // not bury the other folios' events. A session-level failure is NOT an F22Error and
+          // propagates (aborting the whole read, as it should).
+          if (e instanceof F22Error) {
+            foliosConError.push({ folio, error: e.message });
+            continue;
+          }
+          throw e;
+        }
       }
       // Most-recent-first across every folio read (wire order is per-folio oldest-first).
       eventos.sort((a, b) => eventoDateKey(b.fecha) - eventoDateKey(a.fecha));
-      return { ...base, folios, eventos };
+      return { ...base, folios, eventos, foliosConError };
     });
     audit(runtime, 'f22_historial', 'ok', {
       rut: result.rut,

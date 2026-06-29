@@ -432,6 +432,35 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(json.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
   });
 
+  it('f22 historial surfaces a folio SII error verbatim (⚠) without burying it', async () => {
+    // buscaEventos errors on the (only) folio → no events, but the SII message is shown.
+    const rt: Runtime = {
+      ...makeF22Runtime(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaDeclVgte')
+              ? BUSCA
+              : url.includes('buscaEventos')
+                ? {
+                    data: null,
+                    errorMsg: 'For input string: "    006034"',
+                    metaData: { errors: null },
+                  }
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'historial', '2025');
+    expect(out).toContain('0 evento(s).');
+    expect(out).toContain('⚠ folio 999: For input string: "    006034"');
+  });
+
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {
     const rt = makeF22Runtime();
     await run(rt, 'auth', 'login');

@@ -291,6 +291,7 @@ describe('f22 tasks (fakes, no SII)', () => {
     // Wire is oldest-first (08/04 then 16/04); the task returns most-recent-first.
     expect(res.eventos.map((e) => e.codigo)).toEqual(['2', '48']);
     expect(res.eventos[0]).toMatchObject({ fecha: '16/04/2025', referencia: '000400' });
+    expect(res.foliosConError).toEqual([]); // happy path: no folio errored
     expect(slept(rt)).toEqual([1000]); // one pace before the single buscaEventos POST
     expect(entries(rt).at(-1)).toMatchObject({
       action: 'f22_historial',
@@ -346,6 +347,68 @@ describe('f22 tasks (fakes, no SII)', () => {
     expect(res.folios).toEqual(['12345', '67890']); // both folios read
     expect(res.eventos.map((e) => e.codigo)).toEqual(['B', 'A']); // 20/05 before 08/04
     expect(slept(rt)).toEqual([1000, 1000]); // one pace per buscaEventos POST
+  });
+
+  it('f22Historial is per-folio resilient: one folio errors → its SII msg recorded, the rest still return', async () => {
+    // Mirrors live AT 2026: vigente folio 12345 returns events; superseded folio 67890 hits an
+    // SII server-side parse error. The good folio's events must survive.
+    const TWO_DECLS = {
+      metaData: { errors: [] },
+      data: {
+        decls: [
+          { folio: '12345', vgte: 'S', codConc: 'C1', fecIng: '15/04/2025' },
+          { folio: '67890', vgte: 'N', codConc: 'C1', fecIng: '10/05/2025' },
+        ],
+        glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+      },
+    };
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: (url, options?: JsonRequest) => {
+            if (url.includes('buscaDeclVgte')) return TWO_DECLS;
+            if (url.includes('buscaEventos')) {
+              const folio = String(
+                (options?.body as { data?: { folio?: unknown } } | undefined)?.data?.folio ?? '',
+              );
+              return folio === '67890'
+                ? {
+                    data: null,
+                    errorMsg: 'For input string: "    006034"',
+                    metaData: { errors: null },
+                  }
+                : {
+                    data: [
+                      {
+                        folio: '12345',
+                        codEvento: '2',
+                        nombre: 'Devolución autorizada.',
+                        fechaEvento: '16/04/2025',
+                        tipoEvento: '0',
+                      },
+                    ],
+                    respCod: 0,
+                    errorMsg: null,
+                    metaData: { errors: null },
+                  };
+            }
+            return { metaData: {}, data: null };
+          },
+        },
+      }),
+    };
+    await seed(rt);
+
+    const res = await f22Historial(rt, { anio: '2025' });
+    expect(res.folios).toEqual(['12345', '67890']); // both attempted
+    expect(res.eventos.map((e) => e.codigo)).toEqual(['2']); // the good folio's event survives
+    expect(res.foliosConError).toEqual([
+      { folio: '67890', error: 'For input string: "    006034"' }, // verbatim, not hidden
+    ]);
+    // A folio error is NOT a task failure — the receipt is still ok.
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_historial', result: 'ok' });
   });
 
   it('f22Historial: no declaración → sin eventos, no buscaEventos POST', async () => {

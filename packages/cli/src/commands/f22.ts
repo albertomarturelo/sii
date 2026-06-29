@@ -150,18 +150,23 @@ export function registerF22(program: Command, runtime: Runtime): void {
       });
       emit(r, () => {
         out(`F22 ${r.anio} — ${fmtRut(r.rut)} (historial)`);
-        if (!r.tieneDeclaracion && r.eventos.length === 0) {
+        if (!r.tieneDeclaracion && r.eventos.length === 0 && r.foliosConError.length === 0) {
           out('Sin declaración para el año.');
-          return;
-        }
-        if (r.eventos.length === 0) {
-          out('Sin eventos.');
           return;
         }
         for (const e of r.eventos) {
           out(`  ${e.fecha ?? '—'}  ${e.glosa ?? e.codigo}`);
         }
-        out(`${r.eventos.length} evento(s).`);
+        if (r.eventos.length === 0 && r.foliosConError.length === 0) {
+          out('Sin eventos.');
+        } else {
+          out(`${r.eventos.length} evento(s).`);
+        }
+        // SII errored on a folio — surface it verbatim (ADR-004), never hide it. The good
+        // folios' events are above; this just flags what couldn't be read.
+        for (const fe of r.foliosConError) {
+          out(`  ⚠ folio ${fe.folio}: ${fe.error}`);
+        }
       });
     });
 }
