@@ -291,6 +291,27 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     errorMsg: null,
     metaData: { errors: null },
   };
+  const EVENTOS = {
+    data: [
+      {
+        folio: '999',
+        codEvento: '48',
+        nombre: 'Declaración recibida, solicita Devolución.',
+        fechaEvento: '08/04/2025',
+        tipoEvento: '0',
+      },
+      {
+        folio: '999',
+        codEvento: '2',
+        nombre: 'Su devolución solicitada fue autorizada.',
+        fechaEvento: '16/04/2025',
+        tipoEvento: '0',
+      },
+    ],
+    respCod: 0,
+    errorMsg: null,
+    metaData: { errors: null },
+  };
   function makeF22Runtime(): Runtime {
     return {
       clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
@@ -309,7 +330,9 @@ describe('sii f22 command (fake runtime, no SII)', () => {
                 ? GRID
                 : url.includes('situacionObservacion')
                   ? OBS
-                  : { metaData: {}, data: null },
+                  : url.includes('buscaEventos')
+                    ? EVENTOS
+                    : { metaData: {}, data: null },
         },
       }),
     };
@@ -384,6 +407,62 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('B102');
     expect(out).toContain('http://www.sii.cl/B102.pdf');
     expect(out).toContain('1 observación(es).');
+  });
+
+  it('f22 historial <año> lists the events most-recent-first with fecha + glosa', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'historial', '2025');
+    expect(out).toContain('(historial)');
+    expect(out).toContain('16/04/2025'); // most recent first
+    expect(out).toContain('Su devolución solicitada fue autorizada.');
+    expect(out).toContain('2 evento(s).');
+    // The 16/04 event must print before the 08/04 one.
+    expect(out.indexOf('16/04/2025')).toBeLessThan(out.indexOf('08/04/2025'));
+  });
+
+  it('JSON default: `f22 historial <año>` emits the events array verbatim', async () => {
+    const rt = makeF22Runtime();
+    await run(rt, 'auth', 'login');
+    const json = (await runJson(rt, 'f22', 'historial', '2025')) as {
+      folios: string[];
+      eventos: { codigo: string; fecha: string | null; glosa: string | null }[];
+    };
+    expect(json.folios).toEqual(['999']);
+    expect(json.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
+  });
+
+  it('f22 historial surfaces a folio SII error verbatim (⚠) without burying it', async () => {
+    // buscaEventos errors on the (only) folio → no events, but the SII message is shown.
+    const rt: Runtime = {
+      ...makeF22Runtime(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaDeclVgte')
+              ? BUSCA
+              : url.includes('buscaEventos')
+                ? {
+                    data: null,
+                    // Synthetic stand-in for SII's real parse error (the space-padding — the
+                    // structural cause — is preserved; the digits are synthetic).
+                    errorMsg: 'For input string: "    000000"',
+                    metaData: { errors: null },
+                  }
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f22', 'historial', '2025');
+    expect(out).toContain('0 evento(s).');
+    // Framed as SII-side, but the verbatim message is preserved (ADR-004).
+    expect(out).toContain('⚠ folio 999: el SII no entregó su historial (error interno del SII:');
+    expect(out).toContain('For input string: "    000000"');
   });
 
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {

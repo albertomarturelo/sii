@@ -5,6 +5,7 @@ import type { Command } from 'commander';
 import {
   Rut,
   ValidationError,
+  f22Historial,
   f22Observaciones,
   f22Overview,
   f22Status,
@@ -132,6 +133,43 @@ export function registerF22(program: Command, runtime: Runtime): void {
           if (o.url) out(`        ${o.url}`);
         }
         out(`${r.observaciones.length} observación(es).`);
+      });
+    });
+
+  f22
+    .command('historial')
+    .description(
+      'Historial de eventos de la F22 de un año (declaración recibida, devoluciones, giros, rectificatorias).',
+    )
+    .argument('<año>', 'Año tributario (YYYY).')
+    .option('--folio <n>', 'Folio específico (por defecto: todos los folios del año).')
+    .action(async (anioArg: string, opts: { folio?: string }) => {
+      const r = await f22Historial(runtime, {
+        anio: anioArg,
+        ...(opts.folio ? { folio: opts.folio } : {}),
+      });
+      emit(r, () => {
+        out(`F22 ${r.anio} — ${fmtRut(r.rut)} (historial)`);
+        if (!r.tieneDeclaracion && r.eventos.length === 0 && r.foliosConError.length === 0) {
+          out('Sin declaración para el año.');
+          return;
+        }
+        for (const e of r.eventos) {
+          out(`  ${e.fecha ?? '—'}  ${e.glosa ?? e.codigo}`);
+        }
+        if (r.eventos.length === 0 && r.foliosConError.length === 0) {
+          out('Sin eventos.');
+        } else {
+          out(`${r.eventos.length} evento(s).`);
+        }
+        // SII errored on a folio — surface it, never hide it. Frame it as SII-side (it is:
+        // SII's own UI fails identically on these folios — see sii-contract/f22.md) while
+        // keeping its message verbatim (ADR-004); the JSON `error` stays the raw string.
+        for (const fe of r.foliosConError) {
+          out(
+            `  ⚠ folio ${fe.folio}: el SII no entregó su historial (error interno del SII: ${fe.error})`,
+          );
+        }
       });
     });
 }

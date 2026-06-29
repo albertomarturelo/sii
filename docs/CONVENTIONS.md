@@ -133,6 +133,15 @@ Python `sii-cli`, adapted to TypeScript.
   selector raises a "scraper broken" error — never retry silently.
 - **Never retry after a SII rate-limit / block.** It is server-side and timed;
   surface the message verbatim and stop.
+- **In a multi-call fan-out, a per-item SII error stops the ITEM, not the batch.**
+  When a task fans out N POSTs (a multi-folio/-period/-year loop) and ONE item
+  returns a business/server error (e.g. F22 `historial`'s `buscaEventos` failing on
+  a superseded folio — SII's own UI fails identically), capture that item's SII
+  message VERBATIM in a per-item error list (F22's `foliosConError`) and continue
+  with the rest; never retry it. A SESSION-level error (`NotAuthenticated` /
+  `SessionExpired`) is NOT a per-item error and still aborts the whole fan-out. This
+  refines "surface verbatim and stop" for the batch case: stop the item, surface it,
+  keep the rest. (ADR-004)
 - **Validate a RUT locally (Mod-11) BEFORE any login attempt.** A malformed RUT
   must never become a wasted submit — repeated failed logins lock the account.
   The CLI parses + Mod-11-checks the RUT before prompting/sending the Clave; a

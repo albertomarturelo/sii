@@ -53,6 +53,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'auth_logout',
       'auth_status',
       'f22_formulario',
+      'f22_historial',
       'f22_observaciones',
       'f22_status',
       'operate',
@@ -391,5 +392,66 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     };
     expect(parsed).toMatchObject({ anio: '2025' });
     expect(parsed.observaciones.map((o) => o.codigo)).toEqual(['B102']);
+  });
+
+  it('f22_historial returns the event timeline as JSON (most-recent-first)', async () => {
+    const busca = {
+      metaData: { errors: [] },
+      data: {
+        decls: [{ folio: '999', vgte: 'S', codConc: 'C1', fecIng: '15/04/2025' }],
+        glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+      },
+    };
+    const eventos = {
+      data: [
+        {
+          folio: '999',
+          codEvento: '48',
+          nombre: 'Declaración recibida.',
+          fechaEvento: '08/04/2025',
+          tipoEvento: '0',
+        },
+        {
+          folio: '999',
+          codEvento: '2',
+          nombre: 'Devolución autorizada.',
+          fechaEvento: '16/04/2025',
+          tipoEvento: '0',
+        },
+      ],
+      respCod: 0,
+      errorMsg: null,
+      metaData: { errors: null },
+    };
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaDeclVgte')
+              ? busca
+              : url.includes('buscaEventos')
+                ? eventos
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+
+    const res = await client.callTool({ name: 'f22_historial', arguments: { anio: '2025' } });
+    const parsed = JSON.parse(toolText(res)) as {
+      anio: string;
+      folios: string[];
+      eventos: { codigo: string; fecha: string | null }[];
+    };
+    expect(parsed).toMatchObject({ anio: '2025', folios: ['999'] });
+    expect(parsed.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
   });
 });
