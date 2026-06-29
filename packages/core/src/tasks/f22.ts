@@ -14,6 +14,7 @@ import {
   fetchF22Declaraciones,
   fetchF22Grid,
   fetchF22Observaciones,
+  groupCodigos,
   pickVigenteFolio,
 } from '../portal/f22.js';
 import type { F22Declaraciones, F22Estado, ObservacionF22 } from '../portal/f22.js';
@@ -25,6 +26,7 @@ export type {
   ObservacionF22,
   F22Declaraciones,
   F22Estado,
+  F22Grupos,
 } from '../portal/f22.js';
 
 const DEFAULT_OVERVIEW_YEARS = 5;
@@ -44,11 +46,14 @@ export interface F22Overview {
   readonly anios: readonly F22Declaraciones[];
 }
 
-/** Full F22 readback for one año: the selected declaración's folio/estado + the
- *  curated código grid (header/PII códigos excluded). Session principal (ADR-005). */
+/** Full F22 readback for one año: the selected declaración's folio/estado + the curated
+ *  código grid (identity/bank PII excluded). Session principal (ADR-005). The grid is the
+ *  same `f22Compacto` either way; with `full` we ALSO attach the contador `grupos` split
+ *  (ingresos / deducciones / retenciones·PPM·créditos / resultado / otros, #27). Without
+ *  `full` there is no `grupos` — the default output is unchanged. */
 export async function f22Status(
   runtime: Runtime,
-  args: { anio: string | number; folio?: string },
+  args: { anio: string | number; folio?: string; full?: boolean },
 ): Promise<F22Estado> {
   const anio = Anio.parse(args.anio); // fail fast on a bad year — no session opened
   const start = runtime.clock.now().getTime();
@@ -63,7 +68,8 @@ export async function f22Status(
       await runtime.clock.sleep(pacingMs()); // pace the 2nd POST
       const codigos = await fetchF22Grid(session, { rut, anio, folio });
       const selected = decls.declaraciones.find((d) => d.folio === folio);
-      return { ...decls, folio, estado: selected?.estado ?? null, codigos };
+      const base = { ...decls, folio, estado: selected?.estado ?? null, codigos };
+      return args.full ? { ...base, grupos: groupCodigos(codigos) } : base;
     });
     audit(runtime, 'f22_estado', 'ok', {
       rut: estado.rut,

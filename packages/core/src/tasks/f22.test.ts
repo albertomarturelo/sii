@@ -29,6 +29,19 @@ const GRID_ENV = {
     { codigo: '3', valor: '20000042-0', glosa: 'RUT' }, // header PII → excluded
   ],
 };
+// A rich f22Compacto grid (the `--full` source) covering every group + a non-PII unclassified
+// código (→ otros) + identity/bank PII that must be dropped.
+const RICH_GRID_ENV = {
+  metaData: {},
+  data: [
+    { codigo: '110', valor: '3000000', glosa: 'Rentas honorarios' }, // ingreso
+    { codigo: '494', valor: '900000', glosa: 'Gastos presuntos' }, // deducción
+    { codigo: '198', valor: '300000', glosa: 'Retenciones' }, // retención
+    { codigo: '305', valor: '-150000', glosa: 'RESULTADO LIQUIDACIÓN ANUAL' }, // resultado
+    { codigo: '8865', valor: '1', glosa: 'Código Emisión' }, // non-PII unclassified → otros
+    { codigo: '9920', valor: 'CALLE FALSA 123', glosa: 'Dirección Origen' }, // address PII → dropped
+  ],
+};
 const OBS_ENV = {
   data: [
     {
@@ -107,6 +120,41 @@ describe('f22 tasks (fakes, no SII)', () => {
       rut: SELF,
       period: '2025',
     });
+  });
+
+  it('full=true groups the f22Compacto grid (ingresos/deducciones/retenciones/resultado/otros), drops PII, paces + audits', async () => {
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: (url) => (url.includes('buscaDeclVgte') ? BUSCA_ENV : RICH_GRID_ENV), // f22Compacto → rich grid
+        },
+      }),
+    };
+    await seed(rt);
+
+    const res = await f22Status(rt, { anio: '2025', full: true });
+    // Same grid as a non-full read (PII dropped); --full ADDS the grouping. Nothing tax-relevant hidden.
+    expect(res.codigos.map((c) => c.codigo).sort()).toEqual(['110', '198', '305', '494', '8865']);
+    expect(res.grupos).toBeDefined();
+    expect(res.grupos?.ingresos.map((c) => c.codigo)).toEqual(['110']);
+    expect(res.grupos?.deducciones.map((c) => c.codigo)).toEqual(['494']);
+    expect(res.grupos?.creditos.map((c) => c.codigo)).toEqual(['198']);
+    expect(res.grupos?.resultado.map((c) => c.codigo)).toEqual(['305']);
+    expect(res.grupos?.otros.map((c) => c.codigo)).toEqual(['8865']); // non-PII, unmapped → still shown
+    expect(JSON.stringify(res)).not.toContain('CALLE FALSA 123'); // address PII never surfaces
+    expect(slept(rt)).toEqual([1000]); // one pace before the grid POST
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_estado', result: 'ok', rut: SELF });
+  });
+
+  it('without full, the output is unchanged: flat grid, no grupos', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+
+    const res = await f22Status(rt, { anio: '2025' });
+    expect(res.codigos.map((c) => c.codigo)).toEqual(['305']); // header código '3' excluded
+    expect(res.grupos).toBeUndefined();
   });
 
   it('is session-keyed: ignores the operate pointer (queries SELF even when operating as an empresa)', async () => {

@@ -27,6 +27,13 @@ import { F22Error, NotAuthenticatedError } from '../errors/index.js';
 import type { Rut } from '../rut/index.js';
 import type { Anio } from '../periodo/index.js';
 import type { JsonRequest, PortalSession } from '../seams/index.js';
+// The código taxonomy (PII denylist + contador grouping) lives in its own domain module —
+// it changes when we observe a new código, not when the wire changes. Re-exported below so
+// the public surface (the barrel) is unchanged.
+import { isHeaderCodigo } from './f22-codigos.js';
+export { groupCodigos, isHeaderCodigo } from './f22-codigos.js';
+export type { CodigoF22, F22Grupos } from './f22-codigos.js';
+import type { CodigoF22, F22Grupos } from './f22-codigos.js';
 
 const F22_BASE = `${HOSTS.portalApi}/consultaestadof22ui/services/data/facadeService`;
 const BUSCA_DECL_URL = `${F22_BASE}/buscaDeclVgte`;
@@ -37,6 +44,12 @@ const BUSCA_DECL_NAMESPACE =
   'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/buscaDeclVgte';
 const F22_COMPACTO_NAMESPACE =
   'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/f22Compacto';
+// NOTE on `f22Completo`: a sibling endpoint exists, but live capture (spike #27, 2026-06-29)
+// showed it returns f22Compacto's códigos PLUS internal control códigos (3056/8891/8865…) and
+// extra PII (9306/9920) — i.e. NOISIER, not richer in tax content. The real "formulario
+// completo" the SII renders (and its PDF) is built from `f22Compacto` + `codigosFormato` (the
+// form skeleton). So `--full` reads `f22Compacto` (same source as the compact view) and adds
+// the contador grouping — it does NOT use f22Completo. (ADR-004: first-hand obs over the port.)
 // Observaciones (inconsistencias) of a folio — observed live 2026-06-29 (spike #26, own
 // session): data:{periodo,rut,dv,folio} → data:[{codigo,descripcion,url}]. Same SPA /
 // namespace family as the status facades. Rows are NOT PII (observación code + glosa +
@@ -56,29 +69,6 @@ const HEADERS: Record<string, string> = {
   Accept: 'application/json, text/plain, */*',
 };
 
-// HEADER / PII códigos in the f22Compacto grid — DROPPED from the curated grid (F22 has
-// no `raw`, so these never surface anywhere). Cited from spike #67 + live 2026-06-27:
-// 1/2/3/5/6/8/13/14/53/55 identity; 7/15/315/8811 folio/fechas/moneda; 301/306/780 bank.
-const HEADER_CODIGOS: ReadonlySet<string> = new Set([
-  '1',
-  '2',
-  '3',
-  '5',
-  '6',
-  '8',
-  '13',
-  '14',
-  '53',
-  '55',
-  '7',
-  '15',
-  '315',
-  '8811',
-  '301',
-  '306',
-  '780',
-]);
-
 // NOTE: F22 deliberately exposes NO `raw` (the usual curated+raw convention is for
 // tax edge-cases). The non-curated F22 data — decl `nombres`/`calle`/`comuna`/`cta`/
 // `bco` and the header códigos — is pure identity/bank PII, not tax detail (all tax
@@ -91,12 +81,6 @@ export interface DeclaracionF22 {
   readonly tipoImpugnado: string | null;
 }
 
-export interface CodigoF22 {
-  readonly codigo: string;
-  readonly valor: number | null; // int or fractional; sign preserved
-  readonly glosa: string | null; // official form label (SII serves it inline)
-}
-
 /** Step 1 — the año's declaraciones + estado (no código grid). The overview surface. */
 export interface F22Declaraciones {
   readonly rut: string; // operating RUT (canonical)
@@ -105,11 +89,14 @@ export interface F22Declaraciones {
   readonly declaraciones: readonly DeclaracionF22[];
 }
 
-/** Full readback for one (RUT, año): the selected declaración + its código grid. */
+/** Full readback for one (RUT, año): the selected declaración + its código grid (always
+ *  `f22Compacto`, identity/bank PII dropped). On a `--full` read `grupos` adds the contador
+ *  split over the SAME `codigos`; otherwise `grupos` is absent and the output is the flat grid. */
 export interface F22Estado extends F22Declaraciones {
   readonly folio: string | null; // selected declaración's folio
   readonly estado: string | null; // selected declaración's estado glosa
-  readonly codigos: readonly CodigoF22[]; // header/PII códigos excluded
+  readonly codigos: readonly CodigoF22[]; // identity/bank PII códigos excluded
+  readonly grupos?: F22Grupos; // present only on a `--full` read
 }
 
 /** One observación (inconsistencia) on a declaración. NOT PII — observación code + glosa
@@ -165,9 +152,15 @@ const aliasGet = (row: Record<string, unknown>, aliases: readonly string[]): unk
   return undefined;
 };
 const asStr = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
+/** Parse a código `valor`. SII serves montos in **es-CL format** — `.` = thousands, `,` =
+ *  decimals (confirmed live 2026-06-29; synthetic examples here: `"9.999"` = 9999,
+ *  `"12.345.678"` = 12345678). A bare `Number()` would misparse `"9.999"` as 9.999 (off by
+ *  1000×) and `"12.345.678"` as NaN (two dots). So strip the thousands dots and turn the
+ *  decimal comma into a dot before parsing. Plain integers (`"177"`, `-150000`) pass through. */
 const asNumber = (v: unknown): number | null => {
   if (v === null || v === undefined || v === '') return null;
-  const n = Number(v);
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  const n = Number(String(v).trim().replace(/\./g, '').replace(/,/g, '.'));
   return Number.isFinite(n) ? n : null;
 };
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
@@ -299,7 +292,28 @@ export async function fetchF22Declaraciones(
   };
 }
 
-/** Step 2: `f22Compacto` — the código grid for a folio, EXCLUDING header/PII códigos. */
+/** Project a código grid (`data:[{codigo,valor,glosa}]`) into rows, DROPPING the
+ *  identity/bank PII códigos (HEADER_CODIGOS). Sign preserved. */
+function parseCodigoGrid(data: unknown): CodigoF22[] {
+  if (!Array.isArray(data)) return [];
+  const out: CodigoF22[] = [];
+  for (const r of data) {
+    if (!isObj(r)) continue;
+    const codigo = asStr(aliasGet(r, CODIGO_ALIASES.codigo));
+    if (codigo === null || isHeaderCodigo(codigo)) continue; // drop identity/bank PII
+    out.push({
+      codigo,
+      valor: asNumber(aliasGet(r, CODIGO_ALIASES.valor)),
+      glosa: asStr(aliasGet(r, CODIGO_ALIASES.glosa)),
+    });
+  }
+  return out;
+}
+
+/** `f22Compacto` — the código grid for a folio, MINUS identity/bank PII. This IS the form the
+ *  SII renders (and its PDF); `--full` just adds the contador grouping over the same data via
+ *  `groupCodigos` (the sibling `f22Completo` only adds internal control códigos — noisier, not
+ *  richer — so it is not used). */
 export async function fetchF22Grid(
   session: PortalSession,
   params: { rut: Rut; anio: Anio; folio: string },
@@ -310,20 +324,7 @@ export async function fetchF22Grid(
     periodo: anio.canonical,
     folio,
   });
-  const rows = env.data;
-  if (!Array.isArray(rows)) return [];
-  const out: CodigoF22[] = [];
-  for (const r of rows) {
-    if (!isObj(r)) continue;
-    const codigo = asStr(aliasGet(r, CODIGO_ALIASES.codigo));
-    if (codigo === null || HEADER_CODIGOS.has(codigo)) continue; // drop header/PII códigos
-    out.push({
-      codigo,
-      valor: asNumber(aliasGet(r, CODIGO_ALIASES.valor)),
-      glosa: asStr(aliasGet(r, CODIGO_ALIASES.glosa)),
-    });
-  }
-  return out;
+  return parseCodigoGrid(env.data);
 }
 
 /** `situacionObservacion` — the observaciones (inconsistencias) for a folio. Rows carry
