@@ -17,8 +17,9 @@
 // empresa's own session (logout→login). The task therefore defaults to self.
 //
 // PII: the f22Compacto grid mixes tax-result códigos with HEADER/identity/bank códigos
-// (nombre/RUT/dirección/giro/email + bank account). Those are EXCLUDED from the curated
-// grid (kept in `raw` only) and never audited. Error envelope is `metaData.errors`
+// (nombre/RUT/dirección/giro/email + bank account). Those are DROPPED entirely — F22
+// exposes NO `raw` (unlike RCV), so the PII never reaches a surface/LLM/audit (see the
+// NOTE on the curated types below). Error envelope is `metaData.errors`
 // (a list of {id, descripcion}) — NOT RCV's `respEstado.codRespuesta`.
 import { z } from 'zod';
 import { HOSTS } from '../config/index.js';
@@ -46,9 +47,9 @@ const HEADERS: Record<string, string> = {
   Accept: 'application/json, text/plain, */*',
 };
 
-// HEADER / PII códigos in the f22Compacto grid — EXCLUDED from the curated grid (kept
-// in `raw`, never audited). Cited from spike #67 + live 2026-06-27: 1/2/3/5/6/8/13/14/
-// 53/55 identity; 7/15/315/8811 folio/fechas/moneda; 301/306/780 bank (account fields).
+// HEADER / PII códigos in the f22Compacto grid — DROPPED from the curated grid (F22 has
+// no `raw`, so these never surface anywhere). Cited from spike #67 + live 2026-06-27:
+// 1/2/3/5/6/8/13/14/53/55 identity; 7/15/315/8811 folio/fechas/moneda; 301/306/780 bank.
 const HEADER_CODIGOS: ReadonlySet<string> = new Set([
   '1',
   '2',
