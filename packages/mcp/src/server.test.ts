@@ -52,6 +52,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'auth_login',
       'auth_logout',
       'auth_status',
+      'f22_formulario',
       'f22_observaciones',
       'f22_status',
       'operate',
@@ -279,7 +280,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(toolText(res)).toContain('folio'); // verbatim validation message, not a silent drop
   });
 
-  it('f22_status { full: true } returns the complete form grouped (ingresos/deducciones/retenciones/resultado/otros, no PII)', async () => {
+  it('f22_formulario returns the complete form grouped (ingresos/deducciones/retenciones/resultado/otros, no PII)', async () => {
     const busca = {
       metaData: { errors: [] },
       data: {
@@ -321,8 +322,8 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     await client.callTool({ name: 'auth_login', arguments: {} });
 
     const res = await client.callTool({
-      name: 'f22_status',
-      arguments: { anio: '2025', full: true },
+      name: 'f22_formulario',
+      arguments: { anio: '2025' },
     });
     const parsed = JSON.parse(toolText(res)) as {
       grupos: {

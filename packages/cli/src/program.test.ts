@@ -266,7 +266,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
       glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
     },
   };
-  // f22Compacto grid (the source for both `status` and `status --full`): one código per group
+  // f22Compacto grid (the source for both `status` and `formulario`): one código per group
   // + a non-PII unclassified código (→ otros) + an identity PII código that must be dropped.
   const GRID = {
     metaData: {},
@@ -335,10 +335,11 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).toContain('2024  Vigente');
   });
 
-  it('f22 status <año> --full prints the complete form grouped (ingresos/deducciones/retenciones/resultado/otros)', async () => {
+  it('f22 formulario <año> prints the complete form grouped (ingresos/deducciones/retenciones/resultado/otros)', async () => {
     const rt = makeF22Runtime();
     await run(rt, 'auth', 'login');
-    const out = await run(rt, 'f22', 'status', '2025', '--full');
+    const out = await run(rt, 'f22', 'formulario', '2025');
+    expect(out).toContain('(formulario)');
     expect(out).toContain('Ingresos:');
     expect(out).toContain('110'); // honorarios
     expect(out).toContain('Deducciones:');
@@ -353,10 +354,13 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(out).not.toContain('11111111-1'); // PII value never prints
   });
 
-  it('f22 status --full without a year is rejected (full requires año)', async () => {
-    await expect(run(makeF22Runtime(), 'f22', 'status', '--full')).rejects.toBeInstanceOf(
-      ValidationError,
-    );
+  it('f22 formulario requires the año argument', async () => {
+    // The año is a required positional; commander rejects its absence.
+    await expect(run(makeF22Runtime(), 'f22', 'formulario')).rejects.toThrow();
+  });
+
+  it('f22 status no longer accepts --full (it moved to `formulario`)', async () => {
+    await expect(run(makeF22Runtime(), 'f22', 'status', '2025', '--full')).rejects.toThrow();
   });
 
   it('f22 status requires a session (NotAuthenticated)', async () => {
@@ -395,15 +399,15 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(json.rut).toBe('11111111-1'); // operating RUT identifies the declaration (a field, not PII leakage)
     expect(json.anio).toBe('2025');
     expect(json.codigos.map((c) => c.codigo)).toContain('305');
-    expect(json.grupos).toBeUndefined(); // no --full
+    expect(json.grupos).toBeUndefined(); // status never groups
     // The PII código (3 = RUT-as-value) is dropped from the structured grid too.
     expect(json.codigos.map((c) => c.codigo)).not.toContain('3');
   });
 
-  it('JSON default: `f22 status <año> --full` carries `grupos` as structured data', async () => {
+  it('JSON default: `f22 formulario <año>` carries `grupos` as structured data', async () => {
     const rt = makeF22Runtime();
     await run(rt, 'auth', 'login');
-    const json = (await runJson(rt, 'f22', 'status', '2025', '--full')) as {
+    const json = (await runJson(rt, 'f22', 'formulario', '2025')) as {
       grupos: { ingresos: { codigo: string }[]; resultado: { codigo: string }[] };
     };
     expect(json.grupos.ingresos.map((c) => c.codigo)).toContain('110');

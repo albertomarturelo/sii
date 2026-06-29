@@ -25,6 +25,7 @@ export type {
   F22Declaraciones,
   F22Overview,
   F22Observaciones,
+  F22Grupos,
   DeclaracionF22,
   CodigoF22,
   ObservacionF22,
