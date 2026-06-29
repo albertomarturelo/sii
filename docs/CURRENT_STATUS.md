@@ -23,12 +23,17 @@ Last updated: 2026-06-29 (PM — F22 historial shipped, #28 ✅ — F22 surface 
   (like `buscaDeclVgte`, unlike observaciones' numbers); cited in `sii-contract/f22.md` (the
   Python `sii-cli` only listed `buscaEventos` as a "supporting facade", never ported it).
   Default reads **EVERY folio of the año** (rectificatorias included), paced via `Clock.sleep`,
-  aggregated **most-recent-first**; `--folio` scopes to one. **Live-validated end-to-end**
-  through the CLI: AT 2025 → 3 eventos, AT 2024 → 5, AT 2023 → 8. **AT 2026 finding:**
-  `buscaEventos` returns an SII server-side parse error (`"For input string: \"    006034\""`)
-  for that recently-filed folio — surfaced **verbatim**, never retried (ADR-004). Rows are
-  **non-PII** (event code + glosa verbatim + carta refs) → fully curated, **no `raw`**,
-  session-keyed (no `--rut`). 11 new tests vs fakes (no SII), 165/165 green.
+  aggregated **most-recent-first**; `--folio` scopes to one. **Per-folio resilience:** one
+  folio's SII error is captured verbatim in `foliosConError` (CLI: a `⚠ folio …` line) and the
+  other folios' events still return — a session-level failure still aborts. **Live-validated
+  end-to-end** through the CLI: AT 2025 → 3 eventos, AT 2024 → 5, AT 2023 → 8. **AT 2026
+  finding (drove the resilience):** a rectificatoria year had TWO folios — the vigente returned
+  its 2 eventos, the superseded returned an SII server-side parse error
+  (`"For input string: \"    006034\""`); the historial now shows the good folio's events +
+  flags the bad one (exit 0), instead of aborting. (Also resolved: `vgte` arrives `"1"`/`"0"`
+  on some años, `"S"`/`"N"` on others.) Rows are **non-PII** (event code + glosa verbatim +
+  carta refs) → fully curated, **no `raw`**, session-keyed (no `--rut`). 13 new tests vs fakes
+  (no SII), 167/167 green.
 - [x] **F22 complete form → `f22 formulario` verb (#27/#32 then #36/#37).** The complete
   grouped F22 form: reads `f22Compacto` (the form the SII renders) + curates into the lines a
   contador reads — **ingresos / deducciones / retenciones·PPM·créditos / resultado**, with a
