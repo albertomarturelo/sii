@@ -6,10 +6,10 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { NotAuthenticatedError } from '../errors/index.js';
+import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
-import { f22Status, f22Overview } from './f22.js';
+import { f22Status, f22Overview, f22Observaciones } from './f22.js';
 
 // Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
@@ -29,6 +29,23 @@ const GRID_ENV = {
     { codigo: '3', valor: '20000042-0', glosa: 'RUT' }, // header PII → excluded
   ],
 };
+const OBS_ENV = {
+  data: [
+    {
+      codigo: 'B102',
+      descripcion: 'Control ganancia de capital',
+      url: 'http://www.sii.cl/B102.pdf',
+    },
+    {
+      codigo: 'G37',
+      descripcion: 'Control de retiros y dividendos',
+      url: 'http://www.sii.cl/G37.pdf',
+    },
+  ],
+  respCod: null,
+  errorMsg: null,
+  metaData: { errors: null },
+};
 
 function makeRuntime(): Runtime {
   return {
@@ -41,6 +58,7 @@ function makeRuntime(): Runtime {
         requestJson: (url) => {
           if (url.includes('buscaDeclVgte')) return BUSCA_ENV;
           if (url.includes('f22Compacto')) return GRID_ENV;
+          if (url.includes('situacionObservacion')) return OBS_ENV;
           return { metaData: {}, data: null };
         },
       },
@@ -132,5 +150,50 @@ describe('f22 tasks (fakes, no SII)', () => {
     const rt = makeRuntime(); // not seeded
     await expect(f22Status(rt, { anio: '2025' })).rejects.toBeInstanceOf(NotAuthenticatedError);
     expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_estado', result: 'failed' });
+  });
+
+  it('f22Observaciones composes decls + situacionObservacion, session-keyed, paces, audits', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    await setOperatingRut(rt.store, EMPRESA); // pointer = empresa → ignored (session-keyed)
+
+    const res = await f22Observaciones(rt, { anio: '2025' });
+    expect(res).toMatchObject({ rut: SELF, anio: '2025', tieneDeclaracion: true, folio: '12345' });
+    expect(res.observaciones.map((o) => o.codigo)).toEqual(['B102', 'G37']);
+    expect(slept(rt)).toEqual([1000]); // one pace before the observaciones POST
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'f22_observaciones',
+      result: 'ok',
+      rut: SELF,
+      period: '2025',
+    });
+  });
+
+  it('f22Observaciones: no declaración → sin observaciones, no 2nd POST', async () => {
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: () => ({ metaData: {}, data: { decls: null } }),
+        },
+      }),
+    };
+    await seed(rt);
+    const res = await f22Observaciones(rt, { anio: '2025' });
+    expect(res).toMatchObject({ tieneDeclaracion: false, folio: null });
+    expect(res.observaciones).toEqual([]);
+    expect(slept(rt)).toEqual([]);
+  });
+
+  it('f22Observaciones: a non-numeric --folio fails fast (ValidationError, no session)', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    await expect(f22Observaciones(rt, { anio: '2025', folio: 'abc' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    // Thrown before withSession → no observaciones audit receipt, no POST/pace.
+    expect(entries(rt).some((e) => e.action === 'f22_observaciones')).toBe(false);
+    expect(slept(rt)).toEqual([]);
   });
 });

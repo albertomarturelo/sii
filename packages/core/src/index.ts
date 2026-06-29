@@ -19,13 +19,15 @@ export { formatOperableEntry } from './identity/index.js';
 export type { OperatingContext, OperableEntry } from './identity/index.js';
 export { rcvSummary, rcvList } from './tasks/rcv.js';
 export type { RcvResumen, RcvResumenRow, RcvDetalle, RcvDetalleDoc, RcvSide } from './tasks/rcv.js';
-export { f22Status, f22Overview } from './tasks/f22.js';
+export { f22Status, f22Overview, f22Observaciones } from './tasks/f22.js';
 export type {
   F22Estado,
   F22Declaraciones,
   F22Overview,
+  F22Observaciones,
   DeclaracionF22,
   CodigoF22,
+  ObservacionF22,
 } from './tasks/f22.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---

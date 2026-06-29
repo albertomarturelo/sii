@@ -3,7 +3,7 @@
 // — a represented empresa's F22 needs the empresa's own session. zod input (ADR-011).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { f22Overview, f22Status, ValidationError, type Runtime } from '@sii/core';
+import { f22Observaciones, f22Overview, f22Status, ValidationError, type Runtime } from '@sii/core';
 import { toolText } from '../tool-helpers.js';
 
 export function registerF22Tools(server: McpServer, runtime: Runtime): void {
@@ -34,6 +34,27 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
         }
         const e = await f22Status(runtime, { anio, ...(folio ? { folio } : {}) });
         return JSON.stringify(e, null, 2);
+      }),
+  );
+
+  server.registerTool(
+    'f22_observaciones',
+    {
+      title: 'F22 observaciones (inconsistencias)',
+      description:
+        'Observaciones/inconsistencias de la Declaración Anual de Renta (F22) de un año: ' +
+        'código (B102, G37…), glosa y URL de ayuda del SII para corregir. Session-keyed: ' +
+        'lee tu propia renta; para una empresa, inicia sesión como ella.',
+      inputSchema: {
+        anio: z.string(),
+        folio: z.string().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ anio, folio }) =>
+      toolText(async () => {
+        const r = await f22Observaciones(runtime, { anio, ...(folio ? { folio } : {}) });
+        return JSON.stringify(r, null, 2);
       }),
   );
 }
