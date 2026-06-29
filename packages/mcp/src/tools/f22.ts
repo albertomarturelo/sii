@@ -3,7 +3,14 @@
 // — a represented empresa's F22 needs the empresa's own session. zod input (ADR-011).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { f22Observaciones, f22Overview, f22Status, ValidationError, type Runtime } from '@sii/core';
+import {
+  f22Historial,
+  f22Observaciones,
+  f22Overview,
+  f22Status,
+  ValidationError,
+  type Runtime,
+} from '@sii/core';
 import { toolText } from '../tool-helpers.js';
 
 export function registerF22Tools(server: McpServer, runtime: Runtime): void {
@@ -77,6 +84,29 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
     ({ anio, folio }) =>
       toolText(async () => {
         const r = await f22Observaciones(runtime, { anio, ...(folio ? { folio } : {}) });
+        return JSON.stringify(r, null, 2);
+      }),
+  );
+
+  server.registerTool(
+    'f22_historial',
+    {
+      title: 'F22 historial (eventos de Renta anual)',
+      description:
+        'Historial de eventos de la Declaración Anual de Renta (F22) de un año: la línea de ' +
+        'tiempo (declaración recibida, devolución autorizada, giros de Tesorería, ' +
+        'rectificatorias) con fecha y glosa verbatim del SII, más reciente primero. Por ' +
+        'defecto cubre todos los folios del año; `folio` acota a uno. Session-keyed: lee tu ' +
+        'propia renta; para una empresa, inicia sesión como ella.',
+      inputSchema: {
+        anio: z.string(),
+        folio: z.string().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ anio, folio }) =>
+      toolText(async () => {
+        const r = await f22Historial(runtime, { anio, ...(folio ? { folio } : {}) });
         return JSON.stringify(r, null, 2);
       }),
   );

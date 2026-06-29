@@ -9,7 +9,8 @@ import type { Runtime } from '../seams/index.js';
 import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
-import { f22Status, f22Overview, f22Observaciones } from './f22.js';
+import { f22Status, f22Overview, f22Observaciones, f22Historial } from './f22.js';
+import type { JsonRequest } from '../seams/index.js';
 
 // Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
@@ -60,6 +61,39 @@ const OBS_ENV = {
   metaData: { errors: null },
 };
 
+// Two events for the vigente folio, oldest-first (wire order); the task sorts most-recent-first.
+const EVENTOS_ENV = {
+  data: [
+    {
+      folio: '12345',
+      codEvento: '48',
+      nombre: 'Declaración recibida, solicita Devolución por $9.999.',
+      fechaEvento: '08/04/2025',
+      tipoEvento: '0',
+      codCarta: '000483',
+      idCarta: null,
+      referencia: '000483  ',
+      fechaCitacion: '',
+      unidadSii: '',
+    },
+    {
+      folio: '12345',
+      codEvento: '2',
+      nombre: 'Su devolución solicitada fue autorizada.',
+      fechaEvento: '16/04/2025',
+      tipoEvento: '0',
+      codCarta: '000400',
+      idCarta: null,
+      referencia: '000400',
+      fechaCitacion: '',
+      unidadSii: '',
+    },
+  ],
+  respCod: 0,
+  errorMsg: null,
+  metaData: { errors: null },
+};
+
 function makeRuntime(): Runtime {
   return {
     clock: new FixedClock(new Date('2026-06-27T12:00:00Z')),
@@ -72,6 +106,7 @@ function makeRuntime(): Runtime {
           if (url.includes('buscaDeclVgte')) return BUSCA_ENV;
           if (url.includes('f22Compacto')) return GRID_ENV;
           if (url.includes('situacionObservacion')) return OBS_ENV;
+          if (url.includes('buscaEventos')) return EVENTOS_ENV;
           return { metaData: {}, data: null };
         },
       },
@@ -243,5 +278,100 @@ describe('f22 tasks (fakes, no SII)', () => {
     // Thrown before withSession → no observaciones audit receipt, no POST/pace.
     expect(entries(rt).some((e) => e.action === 'f22_observaciones')).toBe(false);
     expect(slept(rt)).toEqual([]);
+  });
+
+  it('f22Historial composes decls + buscaEventos, sorts most-recent-first, session-keyed, paces, audits', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    await setOperatingRut(rt.store, EMPRESA); // pointer = empresa → ignored (session-keyed)
+
+    const res = await f22Historial(rt, { anio: '2025' });
+    expect(res).toMatchObject({ rut: SELF, anio: '2025', tieneDeclaracion: true });
+    expect(res.folios).toEqual(['12345']);
+    // Wire is oldest-first (08/04 then 16/04); the task returns most-recent-first.
+    expect(res.eventos.map((e) => e.codigo)).toEqual(['2', '48']);
+    expect(res.eventos[0]).toMatchObject({ fecha: '16/04/2025', referencia: '000400' });
+    expect(slept(rt)).toEqual([1000]); // one pace before the single buscaEventos POST
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'f22_historial',
+      result: 'ok',
+      rut: SELF,
+      period: '2025',
+    });
+  });
+
+  it('f22Historial reads EVERY folio of the año (rectificatorias) and merges events most-recent-first', async () => {
+    // Two declaraciones (folios 12345 + 67890); buscaEventos returns a distinct event per folio.
+    const TWO_DECLS = {
+      metaData: { errors: [] },
+      data: {
+        decls: [
+          { folio: '12345', vgte: 'N', codConc: 'C1', fecIng: '15/04/2025' },
+          { folio: '67890', vgte: 'S', codConc: 'C1', fecIng: '10/05/2025' },
+        ],
+        glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+      },
+    };
+    const eventFor = (folio: string, fecha: string, cod: string) => ({
+      data: [
+        { folio, codEvento: cod, nombre: `evento ${folio}`, fechaEvento: fecha, tipoEvento: '0' },
+      ],
+      respCod: 0,
+      errorMsg: null,
+      metaData: { errors: null },
+    });
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: (url, options?: JsonRequest) => {
+            if (url.includes('buscaDeclVgte')) return TWO_DECLS;
+            if (url.includes('buscaEventos')) {
+              const folio = String(
+                (options?.body as { data?: { folio?: unknown } } | undefined)?.data?.folio ?? '',
+              );
+              return folio === '67890'
+                ? eventFor('67890', '20/05/2025', 'B')
+                : eventFor('12345', '08/04/2025', 'A');
+            }
+            return { metaData: {}, data: null };
+          },
+        },
+      }),
+    };
+    await seed(rt);
+
+    const res = await f22Historial(rt, { anio: '2025' });
+    expect(res.folios).toEqual(['12345', '67890']); // both folios read
+    expect(res.eventos.map((e) => e.codigo)).toEqual(['B', 'A']); // 20/05 before 08/04
+    expect(slept(rt)).toEqual([1000, 1000]); // one pace per buscaEventos POST
+  });
+
+  it('f22Historial: no declaración → sin eventos, no buscaEventos POST', async () => {
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: () => ({ metaData: {}, data: { decls: null } }),
+        },
+      }),
+    };
+    await seed(rt);
+    const res = await f22Historial(rt, { anio: '2025' });
+    expect(res).toMatchObject({ tieneDeclaracion: false, folios: [], eventos: [] });
+    expect(slept(rt)).toEqual([]); // no folio → no POST → no pace
+  });
+
+  it('f22Historial: a --folio scopes to one folio; a non-numeric one fails fast (no session)', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const scoped = await f22Historial(rt, { anio: '2025', folio: '99999' });
+    expect(scoped.folios).toEqual(['99999']); // the override, not the decls' folio
+
+    await expect(f22Historial(rt, { anio: '2025', folio: 'abc' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
   });
 });

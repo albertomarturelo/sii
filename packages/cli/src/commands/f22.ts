@@ -5,6 +5,7 @@ import type { Command } from 'commander';
 import {
   Rut,
   ValidationError,
+  f22Historial,
   f22Observaciones,
   f22Overview,
   f22Status,
@@ -132,6 +133,35 @@ export function registerF22(program: Command, runtime: Runtime): void {
           if (o.url) out(`        ${o.url}`);
         }
         out(`${r.observaciones.length} observación(es).`);
+      });
+    });
+
+  f22
+    .command('historial')
+    .description(
+      'Historial de eventos de la F22 de un año (declaración recibida, devoluciones, giros, rectificatorias).',
+    )
+    .argument('<año>', 'Año tributario (YYYY).')
+    .option('--folio <n>', 'Folio específico (por defecto: todos los folios del año).')
+    .action(async (anioArg: string, opts: { folio?: string }) => {
+      const r = await f22Historial(runtime, {
+        anio: anioArg,
+        ...(opts.folio ? { folio: opts.folio } : {}),
+      });
+      emit(r, () => {
+        out(`F22 ${r.anio} — ${fmtRut(r.rut)} (historial)`);
+        if (!r.tieneDeclaracion && r.eventos.length === 0) {
+          out('Sin declaración para el año.');
+          return;
+        }
+        if (r.eventos.length === 0) {
+          out('Sin eventos.');
+          return;
+        }
+        for (const e of r.eventos) {
+          out(`  ${e.fecha ?? '—'}  ${e.glosa ?? e.codigo}`);
+        }
+        out(`${r.eventos.length} evento(s).`);
       });
     });
 }

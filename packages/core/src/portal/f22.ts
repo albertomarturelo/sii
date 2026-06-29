@@ -53,12 +53,24 @@ const F22_COMPACTO_NAMESPACE =
 // Observaciones (inconsistencias) of a folio — observed live 2026-06-29 (spike #26, own
 // session): data:{periodo,rut,dv,folio} → data:[{codigo,descripcion,url}]. Same SPA /
 // namespace family as the status facades. Rows are NOT PII (observación code + glosa +
-// SII ayuda URL). The sibling `buscaObservacion` (per carta — needs referencia/idCarta
-// from buscaEventos) is the historial detail, deferred to #28; situacionObservacion
-// gives the vigente observaciones from the folio alone.
+// SII ayuda URL). `situacionObservacion` gives the vigente observaciones from the folio
+// alone; the EVENT TIMELINE is `buscaEventos` (see below).
 const SITUACION_OBS_URL = `${F22_BASE}/situacionObservacion`;
 const SITUACION_OBS_NAMESPACE =
   'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/situacionObservacion';
+// Historial / eventos of a folio — observed live 2026-06-29 (spike #28, own session):
+// data:{periodo,rut,dv,folio} (ALL strings, like buscaDeclVgte) → data:[{codEvento, nombre,
+// fechaEvento, tipoEvento, codCarta, idCarta, codigo, referencia, evigCodigo, fechaCitacion,
+// unidadSii}] — the per-folio timeline (declaración recibida → devolución autorizada → giro
+// de Tesorería → rectificatorias…). Sent {periodo,rut,dv} WITHOUT folio returned a RESTEASY
+// 500 (the folio is required). Rows are NOT PII: `nombre` is the event GLOSA (the monto rides
+// inside it as verbatim SII text — tax content, same class as the formulario montos — NOT an
+// identity/bank field), so every field is curated, no header exclusion, no `raw`. The sibling
+// per-carta `buscaObservacion` (needs an `idCarta`, which is null on these eventos) is the
+// per-notification detail — out of scope here; `buscaEventos` IS the historial.
+const BUSCA_EVENTOS_URL = `${F22_BASE}/buscaEventos`;
+const BUSCA_EVENTOS_NAMESPACE =
+  'cl.sii.sdi.lob.renta.consultaestadof22.data.api.interfaces.FacadeService/buscaEventos';
 const CONVERSATION_COOKIE = 'TOKEN';
 
 // Per-surface headers — Referer is the F22-status SPA root (differs from RCV/F29).
@@ -107,6 +119,23 @@ export interface ObservacionF22 {
   readonly url: string | null; // SII ayuda PDF for correcting the observación
 }
 
+/** One event in a declaración's historial (`buscaEventos`). NOT PII — every field is a
+ *  tax-process datum: the event code/glosa, dates, and carta/notification references. The
+ *  monto rides inside `glosa` as verbatim SII text (tax content, not identity/bank), so the
+ *  row is fully curated — no header exclusion, no `raw`. */
+export interface EventoF22 {
+  readonly folio: string | null; // the declaración folio this event belongs to
+  readonly codigo: string; // codEvento — the event-type code (e.g. "48", "2", "10")
+  readonly glosa: string | null; // `nombre`, verbatim (human description; may embed the monto)
+  readonly fecha: string | null; // fechaEvento, verbatim (DD/MM/YYYY)
+  readonly tipo: string | null; // tipoEvento
+  readonly codCarta: string | null; // carta/notification number (leading zeros preserved)
+  readonly idCarta: string | null; // per-carta key (buscaObservacion); null when no formal carta
+  readonly referencia: string | null; // referencia, trimmed
+  readonly fechaCitacion: string | null; // citación date, when present
+  readonly unidadSii: string | null; // SII unit, when present
+}
+
 // --- Wire envelope (zod-at-the-boundary, ADR-011) --------------------------------
 // F22's error channel is `metaData.errors` (NOT RCV's respEstado). Keep `errors` and
 // `data` opaque (shapes differ per endpoint) and extract tolerantly below.
@@ -143,6 +172,20 @@ const OBSERVACION_ALIASES = {
   descripcion: ['descripcion', 'glosa'],
   url: ['url', 'link'],
 } as const;
+const EVENTO_ALIASES = {
+  folio: ['folio'],
+  // The event-type code is `codEvento`; the row ALSO carries an unrelated `codigo` (a long
+  // internal id), so `codEvento` MUST come first.
+  codigo: ['codEvento', 'codigo'],
+  glosa: ['nombre', 'glosa', 'descripcion'],
+  fecha: ['fechaEvento', 'fecha'],
+  tipo: ['tipoEvento', 'tipo'],
+  codCarta: ['codCarta'],
+  idCarta: ['idCarta'],
+  referencia: ['referencia'],
+  fechaCitacion: ['fechaCitacion'],
+  unidadSii: ['unidadSii'],
+} as const;
 
 const aliasGet = (row: Record<string, unknown>, aliases: readonly string[]): unknown => {
   for (const key of aliases) {
@@ -152,6 +195,14 @@ const aliasGet = (row: Record<string, unknown>, aliases: readonly string[]): unk
   return undefined;
 };
 const asStr = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
+/** Like `asStr` but trims and maps blank → null. For wire fields SII space-pads or leaves
+ *  empty (`referencia`, `fechaCitacion`, `unidadSii`) — a blank string is "absent", not data. */
+const trimToNull = (v: unknown): string | null => {
+  const s = asStr(v);
+  if (s === null) return null;
+  const t = s.trim();
+  return t === '' ? null : t;
+};
 /** Parse a código `valor`. SII serves montos in **es-CL format** — `.` = thousands, `,` =
  *  decimals (confirmed live 2026-06-29; synthetic examples here: `"9.999"` = 9999,
  *  `"12.345.678"` = 12345678). A bare `Number()` would misparse `"9.999"` as 9.999 (off by
@@ -352,6 +403,54 @@ export async function fetchF22Observaciones(
       codigo,
       descripcion: asStr(aliasGet(r, OBSERVACION_ALIASES.descripcion)),
       url: asStr(aliasGet(r, OBSERVACION_ALIASES.url)),
+    });
+  }
+  return out;
+}
+
+/** Sort key for an event's `fecha` (DD/MM/YYYY) → numeric YYYYMMDD for most-recent-first
+ *  ordering. Undated / unparseable events sink to the bottom (−∞). Exported for the task,
+ *  which sorts the aggregate across folios. */
+export function eventoDateKey(fecha: string | null): number {
+  if (fecha === null) return Number.NEGATIVE_INFINITY;
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(fecha.trim());
+  if (!m) return Number.NEGATIVE_INFINITY;
+  return Number(`${m[3]}${m[2]}${m[1]}`);
+}
+
+/** `buscaEventos` — the historial/eventos timeline for ONE folio (the folio is REQUIRED;
+ *  omitting it returns a RESTEASY 500). Rows carry NO identity/bank PII (event code + glosa
+ *  + dates + carta refs), so all are curated, nothing excluded, no `raw`. Wire order is
+ *  oldest-first; the task aggregates across folios and sorts most-recent-first. Empty/non-array
+ *  data = sin eventos (NOT an error). All params sent as strings (like buscaDeclVgte). */
+export async function fetchF22Historial(
+  session: PortalSession,
+  params: { rut: Rut; anio: Anio; folio: string },
+): Promise<EventoF22[]> {
+  const { rut, anio, folio } = params;
+  const env = await postSdi(session, BUSCA_EVENTOS_URL, BUSCA_EVENTOS_NAMESPACE, {
+    periodo: anio.canonical,
+    ...rutDigits(rut),
+    folio,
+  });
+  const rows = env.data;
+  if (!Array.isArray(rows)) return [];
+  const out: EventoF22[] = [];
+  for (const r of rows) {
+    if (!isObj(r)) continue;
+    const codigo = asStr(aliasGet(r, EVENTO_ALIASES.codigo));
+    if (codigo === null) continue;
+    out.push({
+      folio: asStr(aliasGet(r, EVENTO_ALIASES.folio)),
+      codigo,
+      glosa: asStr(aliasGet(r, EVENTO_ALIASES.glosa)), // verbatim (ADR-004) — may embed the monto
+      fecha: asStr(aliasGet(r, EVENTO_ALIASES.fecha)),
+      tipo: asStr(aliasGet(r, EVENTO_ALIASES.tipo)),
+      codCarta: asStr(aliasGet(r, EVENTO_ALIASES.codCarta)),
+      idCarta: asStr(aliasGet(r, EVENTO_ALIASES.idCarta)),
+      referencia: trimToNull(aliasGet(r, EVENTO_ALIASES.referencia)),
+      fechaCitacion: trimToNull(aliasGet(r, EVENTO_ALIASES.fechaCitacion)),
+      unidadSii: trimToNull(aliasGet(r, EVENTO_ALIASES.unidadSii)),
     });
   }
   return out;
