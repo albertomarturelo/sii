@@ -32,6 +32,8 @@ const printGrupos = (g: F22Grupos): void => {
   printCodigos(g.deducciones);
   out('Retenciones · PPM · Créditos:');
   printCodigos(g.creditos);
+  out('Cálculo (subtotales IGC/IUSC):');
+  printCodigos(g.calculo);
   out('Resultado:');
   printCodigos(g.resultado);
   if (g.otros.length) {

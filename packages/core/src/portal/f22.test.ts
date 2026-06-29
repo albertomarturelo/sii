@@ -133,7 +133,7 @@ describe('F22 facade (fake session, synthetic envelopes, no SII)', () => {
     expect(val('39')).toBe(177);
   });
 
-  it('groupCodigos organizes into ingresos/deducciones/retenciones·créditos/resultado; unmapped non-PII → otros', () => {
+  it('groupCodigos organizes into ingresos/deducciones/créditos/cálculo/resultado; unmapped non-PII → otros', () => {
     const codigos: CodigoF22[] = [
       { codigo: '110', valor: 3_000_000, glosa: 'Rentas honorarios' }, // ingreso
       { codigo: '547', valor: 3_000_000, glosa: 'Total Ingresos Brutos' }, // ingreso
@@ -141,14 +141,19 @@ describe('F22 facade (fake session, synthetic envelopes, no SII)', () => {
       { codigo: '900', valor: 200_000, glosa: 'Cotizaciones previsionales' }, // deducción
       { codigo: '198', valor: 300_000, glosa: 'Retenciones' }, // retención
       { codigo: '162', valor: 120_000, glosa: 'Crédito al IGC' }, // crédito
-      { codigo: '305', valor: -150_000, glosa: 'Resultado' }, // resultado
+      { codigo: '157', valor: 500_000, glosa: 'IGC según tabla' }, // cálculo intermedio
+      { codigo: '158', valor: 380_000, glosa: 'SUB TOTAL' }, // cálculo intermedio (#28: NOT resultado)
+      { codigo: '304', valor: 380_000, glosa: 'Débito fiscal' }, // cálculo intermedio
+      { codigo: '305', valor: -150_000, glosa: 'Resultado' }, // resultado FINAL
       { codigo: '8865', valor: 1, glosa: 'Código Emisión' }, // unclassified non-PII → otros
     ];
     const g = groupCodigos(codigos);
     expect(g.ingresos.map((c) => c.codigo)).toEqual(['110', '547']);
     expect(g.deducciones.map((c) => c.codigo)).toEqual(['494', '900']);
     expect(g.creditos.map((c) => c.codigo)).toEqual(['198', '162']);
-    expect(g.resultado.map((c) => c.codigo)).toEqual(['305']);
+    // 157/158/304 are intermediate IGC steps → `calculo`, NOT `resultado` (#28 review).
+    expect(g.calculo.map((c) => c.codigo)).toEqual(['157', '158', '304']);
+    expect(g.resultado.map((c) => c.codigo)).toEqual(['305']); // only the final outcome
     expect(g.otros.map((c) => c.codigo)).toEqual(['8865']); // surfaced, not hidden
   });
 
