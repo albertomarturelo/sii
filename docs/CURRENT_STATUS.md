@@ -1,19 +1,34 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — F22 formulario + CLI JSON-default session)
+Last updated: 2026-06-29 (PM — F22 historial shipped, #28 ✅ — F22 surface complete)
 
 ## In Progress
 
-- _(no feature in progress — F22 `--full`/formulario (#27/#32, #36/#37) and CLI JSON-default
-  (#35) are merged.)_ **Next session candidates:** **#28 historial** (`buscaEventos` + per-carta
-  `buscaObservacion`, already captured in the #26 spike → likely no extra spike); **#18 F29**
-  (session-keyed, reuse the f22 task shape); **#21 DTE authorized** (public, no spike);
-  **#20 BTE** (session-keyed). Two read templates exist: **RCV** (body-RUT) and **F22**
-  (session-keyed); the **JSON-default surface contract** (ADR-012) is now the norm for any new
-  CLI verb (`emit(data, humanFn)`).
+- _(no feature in progress — F22 is now COMPLETE: status/overview (#19), formulario (#27/#37),
+  observaciones (#26), historial (#28) all merged + live-validated; CLI JSON-default (#35).)_
+  **Next session candidates:** **#18 F29** (session-keyed, reuse the f22 task shape);
+  **#21 DTE authorized** (public, no spike); **#20 BTE** (session-keyed). Two read templates
+  exist: **RCV** (body-RUT) and **F22** (session-keyed); the **JSON-default surface contract**
+  (ADR-012) is the norm for any new CLI verb (`emit(data, humanFn)`).
 
 ## Recently Completed
 
+- [x] **F22 historial read surface (#28) — F22 surface now COMPLETE.** Fourth F22 vertical:
+  `portal/f22.ts` `fetchF22Historial` (`buscaEventos(periodo,rut,dv,folio)` → the per-folio
+  event timeline: declaración recibida, devoluciones, giros de Tesorería, rectificatorias,
+  fechas) → `tasks/f22.ts` `f22Historial` (`withSession`, session-keyed, paced, audited) →
+  CLI `sii f22 historial <año> [--folio]` + MCP `f22_historial`. **Phase-1 spike (live,
+  2026-06-29, own session):** located `buscaEventos` first-hand via a direct authenticated
+  probe — the **folio is REQUIRED** (without it: a RESTEASY 500), all params sent as **strings**
+  (like `buscaDeclVgte`, unlike observaciones' numbers); cited in `sii-contract/f22.md` (the
+  Python `sii-cli` only listed `buscaEventos` as a "supporting facade", never ported it).
+  Default reads **EVERY folio of the año** (rectificatorias included), paced via `Clock.sleep`,
+  aggregated **most-recent-first**; `--folio` scopes to one. **Live-validated end-to-end**
+  through the CLI: AT 2025 → 3 eventos, AT 2024 → 5, AT 2023 → 8. **AT 2026 finding:**
+  `buscaEventos` returns an SII server-side parse error (`"For input string: \"    006034\""`)
+  for that recently-filed folio — surfaced **verbatim**, never retried (ADR-004). Rows are
+  **non-PII** (event code + glosa verbatim + carta refs) → fully curated, **no `raw`**,
+  session-keyed (no `--rut`). 11 new tests vs fakes (no SII), 165/165 green.
 - [x] **F22 complete form → `f22 formulario` verb (#27/#32 then #36/#37).** The complete
   grouped F22 form: reads `f22Compacto` (the form the SII renders) + curates into the lines a
   contador reads — **ingresos / deducciones / retenciones·PPM·créditos / resultado**, with a
@@ -211,9 +226,10 @@ Last updated: 2026-06-29 (PM — F22 formulario + CLI JSON-default session)
 
 ## Next Priorities
 
-1. **F22 follow-up (issue open):** **#28 historial** (`buscaEventos` + per-carta
-   `buscaObservacion` already captured in the #26 spike → likely no extra spike). _(#27
-   `--full` is DONE — shipped as `f22 formulario`, #32/#37.)_
+1. **F22 surface is COMPLETE** — status/overview (#19), formulario (#27/#37), observaciones
+   (#26), historial (#28) all shipped + live-validated. _(Possible future: per-carta
+   `buscaObservacion` drill needs a non-null `idCarta`, absent on observed eventos — not
+   pursued.)_
 2. **Live-revalidate RCV** — re-observe the ported contract against a real session
    (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
    (F22 status/formulario + observaciones are now live-validated; RCV is not.)
