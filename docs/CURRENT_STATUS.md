@@ -1,19 +1,30 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testing fixes shipped; F29 is next)
+Last updated: 2026-06-29 (PM — F29 read surface BUILT + unit-tested; awaiting live validation)
 
 ## In Progress
 
-- _(no feature in progress — F22 is now COMPLETE: status/overview (#19), formulario (#27/#37),
-  observaciones (#26), historial (#28) all merged + live-validated; CLI JSON-default (#35); the
-  post-merge MCP-testing grouping fixes (#41/PR #40) are merged too.)_
-  **NEXT TARGET (chosen): #18 F29** — session-keyed read surface, reuse the F22 task shape
-  (`withSession`, principal-only, paced, audited; JSON-default surface via `emit`). Expected
-  session-keyed like F22 — **confirm reach live** (one `--rut <empresa>` probe) before wiring
-  (spike #15 open for F29/BHE). Likely needs a Phase-1 spike for the IVA propuesta + presented-F29
-  SDI endpoints (no ported contract yet). Templates to copy: **F22** (session-keyed) for the task
-  shape, **RCV** (body-RUT) for the alias-tolerant wire parsing. Then **#21 DTE authorized**
-  (public, no spike) and **#20 BTE** (session-keyed).
+- **#18 F29 read surface — BUILT, awaiting live validation.** Session-keyed propuesta + estado:
+  `portal/f29.ts` (`fetchF29Propuesta` via `getDeclaracionConCondicionesYTipoPropuesta`,
+  `fetchF29Estado` via `getDeclaracionConEstados`, on the `propuestaf29ui` SPA) → `tasks/f29.ts`
+  (`f29Draft` / `f29Status`, `withSession`, session-keyed, audited; a SINGLE POST each → no pacing)
+  → CLI `sii f29 draft|status <periodo>` + MCP `f29_draft`/`f29_status` (JSON-default via `emit`).
+  **Wire contract PORTED** from the Python `sii-cli` (`portal/f29.py` + its f29.md; cited in
+  `docs/sii-contract/f29.md`) — the endpoints/payloads existed there, so **no Phase-1 spike was
+  needed**; **NOT yet live-revalidated from TS** (same posture F22 status shipped with before #27).
+  **Session-keyed (ADR-005)** — answers spike #15 for F29 via the port (the body RUT of a
+  represented empresa returns `Consulta RUT no esta autorizado`, Python live 2026-06-26): the task
+  takes NO `--rut` AND **rejects a representing operate pointer UP FRONT** (before any session) with
+  an actionable "log in as the empresa" message. F29 **diverges from F22 here** (F22 silently reads
+  self; F29 rejects — the decision was confirmed with the user). **PII-safe**: curates ONLY the tax
+  códigos (`listCodPropuestos` + `listCodAdministrativos`), drops `listCodBase` / the PP29 `traza`
+  (embeds RUT) / estado `monto`, exposes **NO `raw`** — and needs **no per-código denylist** (unlike
+  F22) because the PII is segregated into its own arrays. F29 `valor` is plain-numeric (`.`-decimal,
+  no thousands separators), so a bare `Number()` is correct (floats like the PPM tasa survive) —
+  unlike F22's es-CL grid. 19 new tests vs fakes (no SII, synthetic RUTs), **187/187 green**.
+  **NEXT: live-validate** end-to-end (CLI + MCP) on a real session — propuesta + estado for a
+  período, and the representación rejection. Then **#21 DTE authorized** (public, no spike) and
+  **#20 BTE** (session-keyed).
 
 ## Recently Completed
 
@@ -228,8 +239,11 @@ Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testi
 1. **Operate reach (representación) spike (#15)** — **RCV = body-RUT** (live 2026-06-28:
    `--rut` reached a represented empresa's RCV). **F22 = session-keyed** (Python live
    2026-06-27: `--rut <empresa>` returned a clean negative; body-RUT does NOT reach it →
-   F22 reads the principal, no `--rut`). Still OPEN for **F29/BHE** (#18/#20) — expected
-   session-keyed like F22; confirm live before wiring.
+   F22 reads the principal, no `--rut`). **F29 = session-keyed** (Python live 2026-06-26:
+   the body RUT of a represented empresa returns `Consulta RUT no esta autorizado`) — wired
+   off the port (no `--rut`, rejects a representing pointer up front); **TS live-confirm
+   pending** alongside the F29 live validation. Still OPEN for **BHE** (#20) — expected
+   session-keyed like F22/F29; confirm live before wiring.
 2. **CLI header doesn't reflect a per-call `--rut`** — `operating as:` (preAction hook)
    shows the sticky operate POINTER, so `sii rcv summary … --rut <empresa>` prints
    "tú mismo" while the result line shows the empresa RUT. Minor ADR-005 "always
@@ -246,12 +260,11 @@ Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testi
 
 ## Next Priorities
 
-1. **#18 F29 — the next surface (chosen).** Read the IVA propuesta + the presented F29.
-   Session-keyed: reuse the F22 task shape (`withSession`, principal-only, paced, audited,
-   JSON-default `emit`). **Confirm reach live first** (spike #15: a `--rut <empresa>` probe —
-   expected session-keyed like F22). Likely a Phase-1 spike for the SDI endpoints (no ported
-   contract yet) → `sii-contract/f29.md`. Copy F22 (session-keyed task) + RCV (alias-tolerant
-   zod wire parsing). (ADR-005 / ADR-007)
+1. **Live-validate #18 F29 (operator-assisted).** The code is built + unit-tested off the ported
+   contract; confirm it end-to-end against a real session: propuesta (`f29 draft`) + estado
+   (`f29 status`) for a período, the representación rejection (operate an empresa → actionable
+   error, no doomed POST), and refresh the dates in `sii-contract/f29.md`. Then flip the ROADMAP
+   F29 row 🚧 → ✅ and move it from "In Progress" to "Recently Completed".
 2. **Live-revalidate RCV** — re-observe the ported contract against a real session
    (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
    (F22 status/formulario + observaciones + historial are live-validated; RCV is not.)
