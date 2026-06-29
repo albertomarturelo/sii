@@ -56,6 +56,8 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'f22_historial',
       'f22_observaciones',
       'f22_status',
+      'f29_draft',
+      'f29_status',
       'operate',
       'rcv_list',
       'rcv_summary',
@@ -456,5 +458,52 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     };
     expect(parsed).toMatchObject({ anio: '2025', folios: ['999'] });
     expect(parsed.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
+  });
+
+  it('f29_draft returns the curated IVA propuesta as JSON (session-keyed, no PII)', async () => {
+    const propuesta = {
+      metaData: { errors: null },
+      data: {
+        tipopropuesta: 40,
+        estado: 0,
+        descripcionEstado: null,
+        listCodPropuestos: [{ codigo: '511', valor: '1097' }],
+        listCodAdministrativos: [{ codigo: '9114', valor: '1097' }],
+        listCodBase: [{ codigo: '05', valor: 'PII-MARKER-XYZ' }], // identity PII → dropped
+      },
+    };
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('getDeclaracionConCondicionesYTipoPropuesta')
+              ? propuesta
+              : { metaData: {}, data: null },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+
+    const res = await client.callTool({ name: 'f29_draft', arguments: { periodo: '2026-05' } });
+    const parsed = JSON.parse(toolText(res)) as {
+      periodo: string;
+      tienePropuesta: boolean;
+      codigos: { codigo: string }[];
+    };
+    expect(parsed).toMatchObject({ periodo: '2026-05', tienePropuesta: true });
+    expect(parsed.codigos.map((c) => c.codigo)).toEqual(['511']);
+    expect(toolText(res)).not.toContain('PII-MARKER-XYZ'); // listCodBase never surfaces
+
+    // f29_draft is read-only.
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'f29_draft')?.annotations?.readOnlyHint).toBe(true);
   });
 });

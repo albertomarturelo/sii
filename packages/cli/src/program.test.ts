@@ -495,6 +495,96 @@ describe('sii f22 command (fake runtime, no SII)', () => {
   });
 });
 
+describe('sii f29 command (fake runtime, no SII)', () => {
+  const PROPUESTA = {
+    metaData: { errors: null },
+    data: {
+      tipopropuesta: 40,
+      estado: 0,
+      descripcionEstado: null,
+      listCodPropuestos: [
+        { codigo: '511', valor: '1097' },
+        { codigo: '538', valor: '7482' },
+      ],
+      listCodAdministrativos: [{ codigo: '9114', valor: '1097' }],
+      listCodBase: [{ codigo: '05', valor: 'PII NAME' }], // identity PII → dropped
+    },
+  };
+  const ESTADO = {
+    metaData: { errors: null },
+    data: [
+      {
+        estadoDeclaracionId: 1,
+        estado: 'Vigente',
+        folio: 7654321,
+        declFechaCreacion: '12/06/2026',
+        monto: 999999, // financial PII → dropped
+      },
+    ],
+  };
+  function makeF29Runtime(): Runtime {
+    return {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('getDeclaracionConCondicionesYTipoPropuesta')
+              ? PROPUESTA
+              : url.includes('getDeclaracionConEstados')
+                ? ESTADO
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+  }
+
+  it('f29 draft <periodo> prints the propuesta códigos (PII dropped)', async () => {
+    const rt = makeF29Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f29', 'draft', '2026-05');
+    expect(out).toContain('F29 2026-05');
+    expect(out).toContain('propuesta IVA');
+    expect(out).toContain('511');
+    expect(out).toContain('2 código(s) propuesto(s).');
+    expect(out).not.toContain('PII NAME'); // listCodBase never prints
+  });
+
+  it('f29 status <periodo> lists the presented declaración (monto dropped)', async () => {
+    const rt = makeF29Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f29', 'status', '2026-05');
+    expect(out).toContain('(estado)');
+    expect(out).toContain('Vigente');
+    expect(out).toContain('folio 7654321');
+    expect(out).not.toContain('999999'); // monto never prints
+  });
+
+  it('JSON default: `f29 draft <periodo>` emits the curated propuesta verbatim', async () => {
+    const rt = makeF29Runtime();
+    await run(rt, 'auth', 'login');
+    const json = (await runJson(rt, 'f29', 'draft', '2026-05')) as {
+      rut: string;
+      periodo: string;
+      codigos: { codigo: string; valor: number | null }[];
+    };
+    expect(json.rut).toBe('11111111-1');
+    expect(json.periodo).toBe('2026-05');
+    expect(json.codigos.map((c) => c.codigo)).toEqual(['511', '538']);
+  });
+
+  it('f29 draft requires a session (NotAuthenticated)', async () => {
+    await expect(run(makeF29Runtime(), 'f29', 'draft', '2026-05')).rejects.toBeInstanceOf(
+      NotAuthenticatedError,
+    );
+  });
+});
+
 describe('exit-code mapping (errors.ts contract)', () => {
   it('maps domain errors to documented codes', () => {
     expect(exitCodeFor(new NotAuthenticatedError('x'))).toBe(2);

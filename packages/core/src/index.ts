@@ -32,6 +32,8 @@ export type {
   EventoF22,
   ObservacionF22,
 } from './tasks/f22.js';
+export { f29Draft, f29Status } from './tasks/f29.js';
+export type { F29Propuesta, F29Estado, CodigoF29, DeclaracionEstadoF29 } from './tasks/f29.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
 export { createNodeRuntime } from './runtime.js';
