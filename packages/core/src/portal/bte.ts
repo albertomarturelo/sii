@@ -151,7 +151,8 @@ function monthlyUrl(side: BteSide, rut: Rut, periodo: Periodo, pagina: number): 
 }
 
 /** Split a flat `arr_informe_mensual` map (`<campo>_<i>`) into per-row records keyed by the
- *  1-based row index, ascending. Each record is `{ <campo>: value }` (the row's `raw`). */
+ *  1-based row index, ascending. Each record is `{ <campo>: value }` — the input to
+ *  `projectBoleta` (NOT surfaced; BTE exposes no `raw`). */
 function rowsByIndex(arr: Record<string, unknown>): Record<string, unknown>[] {
   const byIndex = new Map<number, Record<string, unknown>>();
   for (const [key, value] of Object.entries(arr)) {

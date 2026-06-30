@@ -23,7 +23,7 @@ const META = {
   dv_arrastre: '1',
 };
 // Two emitidas rows (arr_informe_mensual). Montos are dot-formatted; one vigente (N) + one
-// anulada (S). email_envio rides into raw only.
+// anulada (S). `email_envio`/`usuemisor` are non-curated → must never surface (no `raw`).
 const ARR_EMITIDAS = {
   nroboleta_1: '101',
   usuemisor_1: 'SYNTHETIC OWN EMITTER NAME', // own-identity (the emitter = self) — must NOT reach raw
@@ -59,7 +59,7 @@ const isArr = (expr: string): boolean => expr.includes('arr_informe_mensual');
 const isMeta = (expr: string): boolean => expr.includes('xml_values');
 
 describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
-  it('parses curated boletas + raw, drops own-PII, sends the emitidas CGI + params', async () => {
+  it('parses curated boletas, exposes no raw / own-PII, sends the emitidas CGI + params', async () => {
     const session = new FakePortalSession({
       evaluate: (expr) => (isArr(expr) ? ARR_EMITIDAS : isMeta(expr) ? META : null),
     });
