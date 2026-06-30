@@ -84,6 +84,19 @@ Python `sii-cli`, adapted to TypeScript.
   authenticated JSON POST (the session cookies ride along), never a bespoke HTTP
   client. Cite the endpoint + observation date; surface the `respEstado` error
   envelope verbatim; curated + `raw`. (ADR-003 / ADR-004)
+- **Inline-JS-map facades (legacy CGIs) go through `PortalSession.goto` + `evaluate`,
+  NOT `requestJson`.** Some surfaces (BHE/BTE on `loa.sii.cl/cgi_IMT/`) serve an HTML
+  skeleton whose tables are filled client-side from global JS maps (`xml_values`,
+  `arr_informe_mensual`). Navigate with `goto` (the `.sii.cl` session cookie SSO-carries;
+  detect a dead jar by a `LOGIN_HOST` landing → `SessionExpiredError`) and read the map
+  with `evaluate("…Object.fromEntries(Object.entries(V))…")` — the `Object.entries`
+  wrapper is REQUIRED (the maps are JS Arrays with string keys a bare read would drop).
+  NEVER scrape the rendered DOM (the cells still hold the filling JS). Cite the CGI +
+  observation date; pace pagination via `Clock.sleep`. (ADR-003 / ADR-004)
+- **Unauthenticated public consultas go through `PortalDriver.requestPublic`.** A
+  login-free CGI (DTE-authorized) is a cold, session-less, browser-free HTTP request
+  (Node `fetch`, charset-aware) — not a `PortalSession`. Still a task + seam (audited),
+  never a bespoke client in the facade. (ADR-014)
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
