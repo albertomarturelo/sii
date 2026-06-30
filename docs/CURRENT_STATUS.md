@@ -1,12 +1,21 @@
 # Current Project Status
 
-Last updated: 2026-06-30 — #21 DTE authorized MERGED (#45); #20 BTE built (spike + build), PR open; F29 Fase 2 deferred
+Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGED; ADR-015 accepted (publish core), CD next session
 
 ## In Progress
 
-- _(no feature in progress — #20 BTE read surface is BUILT + suite-green on `feature/GH-20-bte-read`,
-  PR open; spike done + TS-live-validated. #21 DTE authorized MERGED (#45). See Recently Completed.)_
-  **NEXT (deferred, ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
+- _(no feature in progress — #21 DTE authorized (#45) AND #20 BTE (#46) are MERGED to `main`.
+  See Recently Completed.)_
+  **NEXT (ADR-015, accepted this session): publish `@sii/core` → `@altumstack/sii-core` on
+  GitHub Packages (private).** Decision is recorded; implementation deferred to next session
+  (fresh context). The remaining work is: (1) the **rename** `@sii/core` → `@altumstack/sii-core`
+  across the monorepo (core `package.json` + cli/mcp imports + `workspace:*` keys); (2) publish
+  **config** (version 0.1.0, drop `private`, `publishConfig` → npm.pkg.github.com, `repository`,
+  `files:["dist"]`, `prepack` tsc, `license:UNLICENSED`); (3) a **CD workflow on git tag** (GH
+  Action that publishes on a `v*` tag — the user's chosen trigger); (4) **CHANGELOG.md + README**
+  for the published package(s); (5) a consumer how-to (`.npmrc` + token). ADR-015 leaves
+  playwright as a `dependency` + manual-then-automated release.
+  **STILL deferred (ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
   balance (computed totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind
   `rfiInternet` **GWT-RPC** — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the
   spike; `docs/sii-contract/f29.md`). Gated on a headless warm+intercept PoC; own PR + ADR;
@@ -16,7 +25,7 @@ Last updated: 2026-06-30 — #21 DTE authorized MERGED (#45); #20 BTE built (spi
 
 ## Recently Completed
 
-- [x] **BTE/BHE read surface — boletas de honorarios (#20) — BUILT + TS-live-validated (PR open).**
+- [x] **BTE/BHE read surface — boletas de honorarios (#20) — MERGED (PR #46) + live-validated.**
   `sii bte list <periodo> [--recibidas|--emitidas]` + MCP `bte_list` → one month's boletas de
   honorarios for the session principal. **First inline-JS-map facade:** the legacy
   `loa.sii.cl/cgi_IMT/` CGIs serve an HTML skeleton filled client-side from global JS maps
@@ -301,19 +310,22 @@ Last updated: 2026-06-30 — #21 DTE authorized MERGED (#45); #20 BTE built (spi
 
 ## Next Priorities
 
-1. **#18 F29 Fase 2 — presented form via GWT-RPC (own PR + ADR).** First a **headless PoC**:
+1. **Publish `@sii/core` → `@altumstack/sii-core` on GitHub Packages (ADR-015).** NEXT SESSION:
+   rename across the monorepo; publish config; a **CD GitHub Action triggered on a `v*` git tag**
+   (the chosen trigger); **CHANGELOG.md + README** for the package(s); a consumer how-to. ADR-015
+   is accepted; this is the implementation.
+2. **#18 F29 Fase 2 — presented form via GWT-RPC (own PR + ADR).** First a **headless PoC**:
    warm the `rfiInternet` 2-app chain + the `SdiAATokenService` handshake, intercept
    `findDeclaraciones`'s `<FormularioRfi>` XML, parse the código grid. If reliable, build
    `fuente:"presentada"` + a computed `resumen` (real totals 538/89/91), reusing the Fase-1
    taxonomy; encapsulate the GWT-RPC in the `PortalDriver` with "scraper roto" errors. Then flip
    the ROADMAP F29 row 🚧 → ✅.
-2. **Live-revalidate the ported contracts** — re-observe against a real session
+3. **Live-revalidate the remaining ported contracts** — re-observe against a real session
    (operator-assisted): refresh `sii-contract/rcv.md` (RCV) and `sii-contract/dte-authorized.md`
-   (the #21 DTE consulta was ported from sii-py, not yet TS-live-revalidated); plus the BHE
-   **recibidas** rows (#20 live-validated emitidas only — the test account had no recibidas).
-   (F22 status/formulario + observaciones + historial + BTE emitidas are live-validated; RCV +
-   DTE + BHE recibidas are not.)
-3. **`operate <alias>`** — alias targets now that the operable set has real empresas.
+   (the #21 DTE consulta was ported from sii-py, not yet TS-live-revalidated). **BHE is now done**
+   — emitidas + recibidas both live-validated 2026-06-30 (3 RUTs). (F22 + BTE are live-validated;
+   RCV + DTE are not.)
+4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
 
 _(F22 surface is COMPLETE — status/overview #19, formulario #27/#37, observaciones #26,
 historial #28, grouping fixes #41 — all shipped + live-validated.)_
