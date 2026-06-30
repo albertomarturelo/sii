@@ -1,10 +1,10 @@
-// `sii dte …` — Documentos Tributarios Electrónicos. Thin calls into @sii/core tasks
+// `sii dte …` — Documentos Tributarios Electrónicos. Thin calls into @altumstack/sii-core tasks
 // (ADR-003). Each domain module owns a `commands/<mod>.ts` exporting a
 // `register<Mod>(program, runtime)`; `program.ts` just calls it (append-only tree).
 //
 // `dte authorized` is the PUBLIC, login-free consulta (ADR-014): no session, any RUT.
 import type { Command } from 'commander';
-import { Rut, dteAuthorized, type Runtime } from '@sii/core';
+import { Rut, dteAuthorized, type Runtime } from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
 
 const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;

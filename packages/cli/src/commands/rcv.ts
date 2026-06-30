@@ -1,9 +1,9 @@
-// `sii rcv …` — Registro de Compras y Ventas. Thin calls into @sii/core tasks
+// `sii rcv …` — Registro de Compras y Ventas. Thin calls into @altumstack/sii-core tasks
 // (ADR-003). Each domain module owns a `commands/<mod>.ts` exporting a
 // `register<Mod>(program, runtime)`; `program.ts` just calls it, so the shared
 // command tree stays append-only across parallel modules (RCV sets this pattern).
 import type { Command } from 'commander';
-import { Rut, rcvList, rcvSummary, type RcvSide, type Runtime } from '@sii/core';
+import { Rut, rcvList, rcvSummary, type RcvSide, type Runtime } from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
 
 const sideOf = (opts: { venta?: boolean }): RcvSide => (opts.venta ? 'VENTA' : 'COMPRA');

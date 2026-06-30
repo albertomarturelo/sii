@@ -23,7 +23,7 @@ CI:
   cited in code (`// observed at <URL> on <YYYY-MM-DD>`). CI greps for known
   SII libs and fails on any import.
 - **Production-only, hostnames centralized.** SII hostnames are constants in
-  `@sii/core` config; never hard-coded elsewhere. No `SII_ENV` switch. Cert
+  `@altumstack/sii-core` config; never hard-coded elsewhere. No `SII_ENV` switch. Cert
   isolation, when DTE writes need it, returns as a per-call parameter.
 - **Audit every state-touching op** through the `AuditSink` port:
   `{ts, action, rut, result, durationMs?, ...extra}`; keys matching

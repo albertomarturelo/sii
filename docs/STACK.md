@@ -8,11 +8,11 @@
   Module mode is **NodeNext**: relative imports end in `.js` so `tsc -b` output
   runs directly on Node with no bundler. (ADR-009)
 - **Node.js** `>=20` (LTS) — the runtime for both surfaces (CLI + MCP).
-  `@sii/core` is a Node library; external dependencies sit behind injectable
+  `@altumstack/sii-core` is a Node library; external dependencies sit behind injectable
   seams for testability (ADR-003).
 - **pnpm** `10.x` workspaces (pinned `pnpm@10.33.2` via `packageManager`, the
   single source of truth read by CI) — the monorepo package manager. TypeScript
-  project references (`tsc -b`) wire `@sii/core` into each surface. (ADR-002)
+  project references (`tsc -b`) wire `@altumstack/sii-core` into each surface. (ADR-002)
 - macOS `aarch64` dev machine; portable to Linux. No Windows-specific bits.
 
 ## Infrastructure libraries (general-purpose, NOT SII-specific — ADR-004)
@@ -25,17 +25,17 @@ These are intended choices; versions are pinned when first installed.
   (contador workflows).
 - **`playwright`** `^1.49.0` (1.61.1 installed) — portal scraping (the portal is
   JS-heavy and session-stateful). Backs the default `PortalDriver` adapter
-  (`@sii/core` `adapters/node/portal.ts`): headed Chromium for `interactiveLogin`,
+  (`@altumstack/sii-core` `adapters/node/portal.ts`): headed Chromium for `interactiveLogin`,
   headless cookies-only for `restore`. Tests inject a fake instead. Chromium binary
-  via `pnpm --filter @sii/core exec playwright install chromium`. (ADR-008)
+  via `pnpm --filter @altumstack/sii-core exec playwright install chromium`. (ADR-008)
 - **`commander`** `^12.1.0` — the CLI framework for `@sii/cli` (ADR-008). Nested
   subcommands (`sii auth login`, `sii operate`). Lives in `@sii/cli` only;
-  `@sii/core` never imports it.
+  `@altumstack/sii-core` never imports it.
 - **Secret storage** — TBD via ADR (candidate: `keytar` / `@napi-rs/keyring`
   for the OS keychain). The default `SecretStore` adapter.
 - **`zod`** `^4.4.3` — **adopted (ADR-011)**. Boundary validation. Direct dependency
   of **both** `@sii/mcp` (MCP tool input schemas — the SDK's `registerTool` takes a zod
-  shape and emits the protocol JSON Schema) **and `@sii/core`** (SII wire-payload
+  shape and emits the protocol JSON Schema) **and `@altumstack/sii-core`** (SII wire-payload
   parsing: the SDI envelope is validated with zod, then rows are projected
   alias-tolerantly — landed with the RCV read surface, #17). Pinned to v4 to match the
   SDK's peer (`@modelcontextprotocol/sdk@1.29` → `zod@4.4.3`); same major in both

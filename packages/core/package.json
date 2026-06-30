@@ -1,9 +1,17 @@
 {
-  "name": "@sii/core",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@altumstack/sii-core",
+  "version": "0.1.0",
   "type": "module",
-  "description": "Shared SII domain core: rut, config (prod hostnames), contracts, tasks, ports. Runtime-agnostic; platform side-effects are injected via ports (ADR-003).",
+  "description": "Shared SII domain core: rut, config (prod hostnames), contracts, tasks, seams. A Node library; external side-effects (portal, secrets, audit, clock) are injected via seams (ADR-003).",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AltumStack/sii.git",
+    "directory": "packages/core"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -16,8 +24,13 @@
       "default": "./dist/cli.js"
     }
   },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "prepack": "tsc -b"
   },
   "dependencies": {
     "playwright": "^1.49.0",

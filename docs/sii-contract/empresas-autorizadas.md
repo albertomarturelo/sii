@@ -6,7 +6,7 @@ Python `sii-cli` (`portal/representacion.py`) — first-hand observation, no
 third-party library (ADR-004). All values below are **synthetic / redacted**; a
 represented empresa's RUT + razón social are PII and MUST NOT land here.
 
-Surface: `@sii/core` `portal/representacion.ts` (`fetchEmpresasAutorizadas`),
+Surface: `@altumstack/sii-core` `portal/representacion.ts` (`fetchEmpresasAutorizadas`),
 called best-effort on login to populate the operable set (ADR-005). Uses the
 `PortalSession.requestJson` seam (an authenticated JSON POST from the session's
 browser context — the primitive for all `www4.sii.cl` SDI facades).

@@ -18,10 +18,10 @@ publish-and-reinstall churn.
 - **Language: TypeScript**, `strict` plus `noUncheckedIndexedAccess`,
   `exactOptionalPropertyTypes`, `noImplicitOverride`, `noUnusedLocals/Parameters`.
   This is the `mypy --strict` equivalent and is a zero-error CI gate. ESM only.
-- **Runtime: Node.js `>=20`** for both surfaces (CLI + MCP). `@sii/core` is a
+- **Runtime: Node.js `>=20`** for both surfaces (CLI + MCP). `@altumstack/sii-core` is a
   Node library; external dependencies sit behind injectable seams (ADR-003).
 - **Package manager: pnpm `9.x` workspaces.** Packages live under `packages/*`
-  (`@sii/core`, `@sii/cli`, `@sii/mcp`); cross-package deps use `workspace:*`.
+  (`@altumstack/sii-core`, `@sii/cli`, `@sii/mcp`); cross-package deps use `workspace:*`.
 - **Build: TypeScript project references** (`tsc -b`) — a root solution
   `tsconfig.json` references each package; each package `extends`
   `tsconfig.base.json` and emits to `dist/`. `composite: true` enables

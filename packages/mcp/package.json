@@ -3,12 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "MCP server (stdio). Each tool/resource/prompt is a thin call into @sii/core tasks (ADR-003). Mirrors the CLI surface by default.",
+  "description": "MCP server (stdio). Each tool/resource/prompt is a thin call into @altumstack/sii-core tasks (ADR-003). Mirrors the CLI surface by default.",
   "bin": {
     "sii-mcp": "./dist/main.js"
   },
   "dependencies": {
-    "@sii/core": "workspace:*",
+    "@altumstack/sii-core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "zod": "^4.4.3"
   },

@@ -14,7 +14,7 @@ shared spine is small + stable, and dependencies never cycle.
 
 ## Decision
 
-`@sii/core/src/` is organized by concern, with a strict downward dependency rule:
+`@altumstack/sii-core/src/` is organized by concern, with a strict downward dependency rule:
 
 ```text
 config/    rut/    errors/      ← leaves: pure, zero deps, everyone may import

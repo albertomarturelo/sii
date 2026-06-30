@@ -6,9 +6,9 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
 
 - _(no feature in progress — #21 DTE authorized (#45) AND #20 BTE (#46) are MERGED to `main`.
   See Recently Completed.)_
-  **NEXT (ADR-015, accepted this session): publish `@sii/core` → `@altumstack/sii-core` on
+  **NEXT (ADR-015, accepted this session): publish `@altumstack/sii-core` → `@altumstack/sii-core` on
   GitHub Packages (private).** Decision is recorded; implementation deferred to next session
-  (fresh context). The remaining work is: (1) the **rename** `@sii/core` → `@altumstack/sii-core`
+  (fresh context). The remaining work is: (1) the **rename** `@altumstack/sii-core` → `@altumstack/sii-core`
   across the monorepo (core `package.json` + cli/mcp imports + `workspace:*` keys); (2) publish
   **config** (version 0.1.0, drop `private`, `publishConfig` → npm.pkg.github.com, `repository`,
   `files:["dist"]`, `prepack` tsc, `license:UNLICENSED`); (3) a **CD workflow on git tag** (GH
@@ -122,7 +122,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
   **split into its own verb `f22 formulario <año>` / MCP `f22_formulario` (#37)** — `status`
   no longer overloaded. Taxonomy extracted to `portal/f22-codigos.ts`. CLI + MCP, both thin
   calls into the same `f22Status({full})` task. 154/154 green; live-validated.
-- [x] **CLI JSON output by default — ADR-012 (#35).** The CLI emits each command's `@sii/core`
+- [x] **CLI JSON output by default — ADR-012 (#35).** The CLI emits each command's `@altumstack/sii-core`
   result object as pretty JSON on STDOUT by default (`--human` for text); the core is the
   JSON-serializable library contract, the MCP already spoke JSON. Shared `emit(data, humanFn)`
   helper; STDOUT pure (pipeable to `jq`), header/diagnostics on STDERR human-only; errors in JSON
@@ -176,7 +176,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
   the **`periodo`** primitive (YYYYMM, accepts `2026-5`), the **zod-at-the-boundary +
   alias-tolerant** wire-parsing convention (ADR-011), and the **per-module
   surface-registration pattern** (`commands/<mod>.ts` + `tools/<mod>.ts` register fns →
-  append-only barrels, so parallel worktrees don't conflict). zod added to `@sii/core`.
+  append-only barrels, so parallel worktrees don't conflict). zod added to `@altumstack/sii-core`.
   25 new tests vs fakes (no SII), 109/109 green.
 - [x] **`withSession` session-acquisition primitive (#14).** Factored the
   restore-session lifecycle out of login/`statusRefresh` into `auth/session.ts`:
@@ -210,7 +210,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
   markers) + the MCP `sii://operable` resource + a `listOperable` task; fixed the
   dangling operate-rejection hint to point at `sii operate --list`. (PR #10, merged.)
 - [x] **MCP stdio surface (ADR-011 — zod adopted).** `@sii/mcp` server built over
-  `@sii/core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
+  `@altumstack/sii-core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
   delegates to the browser flow, ADR-006), `auth_logout` (no args, #11),
   `auth_status` (`refresh`), `operate` (`rut`/`self`); Resources `sii://session`,
   `sii://operating`, `sii://operable`, `sii://config`.
@@ -218,7 +218,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
   errors to STDERR). zod v4 validates tool inputs (the SDK derives the protocol JSON
   Schema). 5 tests via an in-memory MCP client against fakes (no SII); the built
   binary passes the `initialize` handshake. `consoleLogin` stays unreachable (it's
-  in the CLI-only `@sii/core/cli` subpath). Claude Desktop config repointed at the
+  in the CLI-only `@altumstack/sii-core/cli` subpath). Claude Desktop config repointed at the
   TS binary (`/opt/homebrew/bin/node …/packages/mcp/dist/main.js`, abs paths —
   Desktop's PATH is restricted); live tool-use confirmation from Desktop pending.
 - [x] **Console login `sii auth login --console` (ADR-010)** — a CLI-only input
@@ -258,7 +258,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
   self), logout (best-effort server close + local wipe), `localStatus` (pure
   local), `statusRefresh` (portal readback). Tested with the fake driver.
 - [x] **`tasks/{auth,operate}`** public API (uniform `Runtime` arg) + the
-  `@sii/core` barrel (surfaces import only this).
+  `@altumstack/sii-core` barrel (surfaces import only this).
 - [x] **Node Playwright `PortalDriver`** — `adapters/node/portal.ts`: headed
   Chromium `interactiveLogin` (resolves off `zeusr.sii.cl` via URL-based
   detection), headless `restore`, cookies-only `storageState` (ADR-006). The only
@@ -269,7 +269,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
   on Node (no bundler) — the prior extensionless-ESM output couldn't. Verified by
   running the built `sii` binary.
 - [x] **`@sii/cli` (commander) surface** — `program.ts` command tree, thin calls
-  into `@sii/core` tasks (ADR-003): `auth login|status [--refresh]|logout`,
+  into `@altumstack/sii-core` tasks (ADR-003): `auth login|status [--refresh]|logout`,
   `operate [rut]|--self`. Always-visible `operating as:` STDERR header (ADR-005);
   error→exit-code mapping (NotAuthenticated 2 / LoginFailed 3 / RateLimit 4). Runs
   as a real binary; 8 CLI tests drive the whole tree against fakes (no SII).
@@ -310,7 +310,7 @@ Last updated: 2026-06-30 (session close) — #21 DTE (#45) + #20 BTE (#46) MERGE
 
 ## Next Priorities
 
-1. **Publish `@sii/core` → `@altumstack/sii-core` on GitHub Packages (ADR-015).** NEXT SESSION:
+1. **Publish `@altumstack/sii-core` → `@altumstack/sii-core` on GitHub Packages (ADR-015).** NEXT SESSION:
    rename across the monorepo; publish config; a **CD GitHub Action triggered on a `v*` git tag**
    (the chosen trigger); **CHANGELOG.md + README** for the package(s); a consumer how-to. ADR-015
    is accepted; this is the implementation.

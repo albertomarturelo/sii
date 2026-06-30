@@ -1,9 +1,9 @@
-// `bte_*` MCP tools — Boletas de Honorarios Electrónicas. Thin calls into @sii/core tasks
+// `bte_*` MCP tools — Boletas de Honorarios Electrónicas. Thin calls into @altumstack/sii-core tasks
 // (ADR-003), read-only. zod input schemas (ADR-011). SESSION-KEYED (ADR-005): reads the
 // session principal; no `rut` argument.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { bteList, type BteSide, type Runtime } from '@sii/core';
+import { bteList, type BteSide, type Runtime } from '@altumstack/sii-core';
 import { toolText } from '../tool-helpers.js';
 
 const sideOf = (recibidas?: boolean): BteSide => (recibidas ? 'RECIBIDAS' : 'EMITIDAS');

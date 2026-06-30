@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { HOSTS, testing, type Runtime } from '@sii/core';
+import { HOSTS, testing, type Runtime } from '@altumstack/sii-core';
 import { buildServer } from './server.js';
 
 // Synthetic, Mod-11-valid RUT (CONVENTIONS): 11.111.111-1.

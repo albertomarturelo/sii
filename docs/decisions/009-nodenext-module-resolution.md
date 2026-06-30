@@ -25,7 +25,7 @@ surfaces, no bundler (an explicit non-goal).
 - All relative imports in source carry an explicit **`.js`** extension
   (TypeScript keeps them verbatim on emit), e.g. `from './tasks/auth.js'`,
   `export * from './errors/index.js'`. Package (bare) specifiers like
-  `@sii/core` and `commander` stay extensionless.
+  `@altumstack/sii-core` and `commander` stay extensionless.
 - No bundler and no new dependency. `tsc -b` output is the runnable artifact;
   `node packages/cli/dist/main.js …` works directly.
 
@@ -52,6 +52,6 @@ zero-error strict gate (ADR-002).
   contract actually holds; forgetting an extension is a compile error, not a
   latent prod break.
 - Obligation: every relative import — existing and new — must end in `.js`.
-  One-time mechanical migration across `@sii/core` + `@sii/cli`; new code follows
+  One-time mechanical migration across `@altumstack/sii-core` + `@sii/cli`; new code follows
   the convention (recorded in CONVENTIONS.md). Editor/test tooling already
   resolves NodeNext, so no fixture churn.

@@ -39,10 +39,16 @@ Concrete package config (`packages/core/package.json`):
 - The rename ripples to `cli`/`mcp` imports (`@sii/core` → `@altumstack/sii-core`) and
   their `workspace:*` dep keys — a mechanical, repo-wide change.
 
-**Release flow: MANUAL to start** — `pnpm --filter @altumstack/sii-core publish` with a
-PAT carrying `write:packages` (consumers need `read:packages` + an `.npmrc` with
-`@altumstack:registry=…/npm.pkg.github.com` and a token). Bump `version` by hand per
-release. Automate (changesets + a GH Action) later if cadence grows — out of scope here.
+**Release flow: CD on a `v*` git tag.** Bump `packages/core/package.json` `version`
+by hand (no changesets — see alt 3), merge, then push a matching tag (`v0.2.0` ⇒
+version `0.2.0`). The `publish-core` GitHub Action (`.github/workflows/publish-core.yml`)
+builds (`tsc -b`), verifies the tag matches the package `version`, and runs
+`pnpm --filter @altumstack/sii-core publish` to GitHub Packages — authenticated by the
+workflow's `GITHUB_TOKEN` (`packages: write`), so NO PAT lives in CI. The Action
+automates only the PUBLISH step; version bumps stay manual. A maintainer can still
+publish by hand for the first release / as an escape hatch (`pnpm publish` with a PAT
+carrying `write:packages`). Consumers need `read:packages` + an `.npmrc` with
+`@altumstack:registry=…/npm.pkg.github.com` and a token (see `packages/core/README.md`).
 
 ## Alternatives Considered
 
@@ -66,9 +72,9 @@ release. Automate (changesets + a GH Action) later if cadence grows — out of s
 - Easier: the other internal project adds `@altumstack/sii-core` like any dep and codes
   against the task layer + `createNodeRuntime` + seam types (+ `testing` fakes) — the
   same contract `cli`/`mcp` use. No public-ToS work.
-- Obligation: a one-time scope rename across the repo; bump `version` + `pnpm publish`
-  per release; consumers need a GitHub token + `.npmrc`. The package is `0.x` ⇒ minor
-  bumps may break — pin or use `~` downstream.
+- Obligation: a one-time scope rename across the repo; bump `version` + push a `v*` tag
+  per release (the CD Action publishes); consumers need a GitHub token + `.npmrc`. The
+  package is `0.x` ⇒ minor bumps may break — pin or use `~` downstream.
 - Boundary held: only `core` is published; the guardrails (ADR-003/004/005/006) ship
   inside it, so a consumer gets the same rails. A future PUBLIC release still needs its
   own license/ToS ADR (ADR-004) — this ADR does not grant that.

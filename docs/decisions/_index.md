@@ -16,7 +16,7 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 009 | [NodeNext module resolution for Node-runnable surface builds](009-nodenext-module-resolution.md) | Accepted | 2026-06-27 |
 | 010 | [CLI console login — headless form-fill to a cookies-only session](010-cli-console-login.md) | Accepted | 2026-06-28 |
 | 011 | [Adopt zod for MCP tool input schemas (and wire-boundary validation)](011-zod-validation.md) | Accepted | 2026-06-28 |
-| 012 | [JSON is the default output; `@sii/core` is the JSON contract](012-json-default-output.md) | Accepted | 2026-06-29 |
+| 012 | [JSON is the default output; `@altumstack/sii-core` is the JSON contract](012-json-default-output.md) | Accepted | 2026-06-29 |
 | 013 | [F29 read surface — phased; robust SDI-JSON now, GWT-RPC presented form deferred](013-f29-phased-read-gwt-rpc-deferred.md) | Accepted | 2026-06-29 |
 | 014 | [Unauthenticated `PortalDriver.requestPublic` seam for public login-free consultas](014-public-consulta-seam.md) | Accepted | 2026-06-29 |
-| 015 | [Publish `@sii/core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
+| 015 | [Publish `@altumstack/sii-core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
