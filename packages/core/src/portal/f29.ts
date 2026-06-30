@@ -255,13 +255,18 @@ export async function fetchF29Propuesta(
       codigosAdministrativos: [],
     };
   }
+  const codigos = parseCodigos(data['listCodPropuestos']);
   return {
     ...base,
-    tienePropuesta: true,
+    // `data` can be a non-null object with NO meaningful proposal (empty list, or all-zero
+    // placeholder códigos) for a período SII has nothing for. Treat that as "sin propuesta"
+    // (observed: such months render empty groups) — `tienePropuesta` is true only when there is
+    // at least one proposed código with a non-zero value.
+    tienePropuesta: codigos.some((c) => c.valor !== null && c.valor !== 0),
     tipoPropuesta: asNumber(data['tipopropuesta']),
     estado: asNumber(data['estado']),
     descripcionEstado: asStr(data['descripcionEstado']),
-    codigos: parseCodigos(data['listCodPropuestos']),
+    codigos,
     codigosAdministrativos: parseCodigos(data['listCodAdministrativos']),
   };
 }

@@ -109,7 +109,9 @@ describe('f29 tasks (fakes, no SII)', () => {
     expect(f.grupos.creditos.map((l) => l.codigo)).toEqual(['511', '537']);
     expect(f.grupos.retenciones.map((l) => l.codigo)).toEqual(['151']);
     expect(f.grupos.totales.map((l) => l.codigo)).toEqual(['91']);
-    expect(f.grupos.otros.map((l) => l.codigo)).toEqual(['9114']); // unobserved → surfaced, not hidden
+    // The 90xx/91xx administrativos (9114) are SII-internal control códigos → NOT grouped.
+    expect(f.grupos.otros).toEqual([]);
+    expect(JSON.stringify(f.grupos)).not.toContain('9114');
     // Glosa + signo come from the observed taxonomy.
     expect(f.grupos.debitos.find((l) => l.codigo === '538')).toMatchObject({
       glosa: 'TOTAL DÉBITOS',

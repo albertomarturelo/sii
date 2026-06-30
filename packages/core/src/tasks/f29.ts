@@ -114,7 +114,10 @@ export async function f29Formulario(
       periodo: prop.periodo,
       fuente: 'propuesta',
       tienePropuesta: prop.tienePropuesta,
-      grupos: agrupar([...prop.codigos, ...prop.codigosAdministrativos]),
+      // Group ONLY the proposed tax códigos (listCodPropuestos). The `listCodAdministrativos`
+      // (90xx/91xx) are SII-internal control códigos — not lines the contador reads and absent
+      // from the rendered form (so they have no observed glosa) — excluded from the formulario.
+      grupos: agrupar(prop.codigos),
     };
     audit(runtime, 'f29_formulario', 'ok', {
       rut: res.rut,

@@ -77,6 +77,31 @@ describe('F29 facade (fake session, synthetic envelopes, no SII)', () => {
     expect(res.tipoPropuesta).toBeNull();
   });
 
+  it('propuesta: a non-null data with empty / all-zero códigos is "sin propuesta" (tienePropuesta false)', async () => {
+    // SII returns a propuesta object for a período it has nothing for: empty or zero-placeholder
+    // códigos. tienePropuesta must be false (else the surface shows an empty form as "hay propuesta").
+    const empty = session(() => ({
+      metaData: { errors: null },
+      data: { tipopropuesta: 40, listCodPropuestos: [] },
+    }));
+    expect((await fetchF29Propuesta(empty, { rut: RUT, periodo: PERIODO })).tienePropuesta).toBe(
+      false,
+    );
+    const allZero = session(() => ({
+      metaData: { errors: null },
+      data: {
+        tipopropuesta: 40,
+        listCodPropuestos: [
+          { codigo: '538', valor: '0' },
+          { codigo: '91', valor: 0 },
+        ],
+      },
+    }));
+    expect((await fetchF29Propuesta(allZero, { rut: RUT, periodo: PERIODO })).tienePropuesta).toBe(
+      false,
+    );
+  });
+
   it('propuesta: metaData.errors (list of {descripcion}) surfaces verbatim as F29Error', async () => {
     const s = session(() => ({
       metaData: { errors: [{ id: '0', descripcion: 'Consulta RUT no esta autorizado' }] },
