@@ -1,32 +1,38 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — F29 Fase 1 redesigned + live-validated; Fase 2 GWT-RPC deferred)
+Last updated: 2026-06-29 (PM — F29 Fase 1 MERGED (#43); Fase 2 GWT-RPC + propuesta glosas deferred)
 
 ## In Progress
 
-- **#18 F29 read surface — Fase 1 BUILT + LIVE-VALIDATED (ADR-013).** The initial 1:1 port of the
-  Python surface (propuesta + estado-metadata) was **rejected by the user**: it shows whether a
-  return was filed, not the **balance** (ingresos, IVA, lo que pagué) — across months. A live spike
-  (2026-06-29, operator-assisted, empresa session) mapped where the data lives and the surface was
-  **redesigned** into three session-keyed verbs over the robust SDI-**JSON** facades:
-  - `f29 formulario <periodo>` — the IVA **propuesta** códigos **labeled** (glosa) + **grouped**
-    (`fuente:"propuesta"`; débitos/créditos/retenciones/otros/totales).
-  - `f29 overview <desde> <hasta>` (+ `<año>` shortcut) — **per-month** position across a **date
-    range**: estado/folio/fecha + the declared **`total`** ("lo que pagué por mes"); paced, ≤36 meses.
-  - `f29 status <periodo>` — raw estado of one month.
-  CLI + MCP (`f29_formulario`/`f29_overview`/`f29_status`), JSON-default. Código **taxonomy**
-  (`portal/f29-codigos.ts`, **157 códigos** glosa+signo+grupo) observed first-hand from the form
-  HTML (`rfiInternet/cargarHtml`); unobserved código → `otros` (surfaced, anti-allowlist). Estado
-  **`monto` surfaced as `total`** (own figure; never audited). **Session-keyed (ADR-005)**: no
-  `--rut`, rejects a representing pointer up front (answers spike #15 for F29). **Live-validated
-  2026-06-29** (empresa 78.362.507-5): overview returned real per-month totals, formulario the
-  grouped propuesta, status the declaraciones; audit carries no amounts. 187/187 green.
-- **#18 F29 Fase 2 — DEFERRED (own PR + ADR-013).** The **presented** form's full balance (computed
-  totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind `rfiInternet` **GWT-RPC**
-  — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the spike; `docs/sii-contract/f29.md`).
-  Gated on a headless warm+intercept PoC before building; encapsulated with "scraper roto" errors.
+- _(no feature in progress — F29 Fase 1 is MERGED (#18, PR #43); see Recently Completed.)_
+  **NEXT (deferred, ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
+  balance (computed totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind
+  `rfiInternet` **GWT-RPC** — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the
+  spike; `docs/sii-contract/f29.md`). Gated on a headless warm+intercept PoC; own PR + ADR;
+  encapsulated with "scraper roto" errors. **Also pending:** capture the propuesta-internal código
+  glosas (142/563/115…) from `propuestaf29ui` once an available propuesta exists (June 2026; May
+  already declared) — until then those show `glosa:null` (honest; ADR-004). Then **#21 DTE
+  authorized** (public, no spike) and **#20 BTE** (session-keyed).
 
 ## Recently Completed
+
+- [x] **F29 Fase 1 read surface (#18, PR #43) — MERGED + live-validated.** Session-keyed,
+  robust SDI-JSON (no GWT-RPC). The initial 1:1 port (propuesta + estado-metadata) was rejected
+  for not showing the IVA **balance across months**; redesigned (ADR-013) into three verbs:
+  `f29 formulario <periodo>` (the IVA **propuesta** labeled + grouped, `fuente:"propuesta"`),
+  `f29 overview <desde> <hasta>`/`<año>` (**per-month** position across a date range: estado/folio
+  + the declared **`total`** = "lo que pagué"; paced, ≤36 meses), `f29 status <periodo>`. CLI + MCP
+  (`f29_formulario`/`f29_overview`/`f29_status`), JSON-default. **157-código taxonomy**
+  (`portal/f29-codigos.ts`, glosa+signo+grupo) observed from the form HTML (`rfiInternet/cargarHtml`);
+  unobserved código → `otros` (anti-allowlist). Estado `monto` surfaced as `total` (own figure;
+  never audited). **Session-keyed (ADR-005)**: no `--rut`, rejects a representing operate pointer
+  up front — answers spike #15 for F29 (the body RUT of a represented empresa returns "no
+  autorizado", Python live 2026-06-26). Post-redesign fixes from live MCP testing: `tienePropuesta`
+  on an empty/all-zero propuesta; administrativos 90xx/91xx dropped from the formulario.
+  **Live-validated 2026-06-29** (empresa session). **Review hygiene:** real folios/timestamps had
+  slipped into a test fixture as "synthetic" — caught in `/review-pr`, scrubbed to synthetic AND
+  purged from branch history (force-push). 188/188 green. Fase 2 (presented form via GWT-RPC) +
+  the propuesta código glosas are deferred.
 
 - [x] **F22 formulario grouping — post-merge MCP-testing fixes (PR #40).** Claude Desktop
   testing of the F22 surface surfaced four findings; resolved: (BUG 2) `157`/`158`/`304` (IGC
