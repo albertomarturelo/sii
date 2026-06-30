@@ -1,0 +1,11 @@
+# Code owners — every change to this repo requires an approving review from an
+# owner listed here. Combined with branch protection on `main`
+# (require_code_owner_reviews + 1 approval), this enforces that the single
+# required approval comes from a repo admin before a PR can merge.
+#
+# Admins themselves bypass the requirement (branch protection has
+# enforce_admins disabled), so an admin can merge without a second admin's
+# approval. Add more admins / a dedicated admins team here as they are granted
+# admin on the repo.
+
+* @albertomarturelo
