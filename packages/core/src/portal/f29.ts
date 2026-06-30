@@ -17,13 +17,14 @@
 // own session (logout→login). The facade itself just posts the RUT it is handed.
 //
 // PII: the propuesta response carries identity PII in a SEPARATE array (`listCodBase`:
-// nombre/RUT/dirección/comuna) and the PP29 calc `traza` EMBEDS the RUT; the estado rows carry
-// `monto` (the taxpayer's financial position). Those are DROPPED — F29 curates ONLY the tax
-// códigos (listCodPropuestos + listCodAdministrativos) and the estado metadata, and exposes NO
-// `raw` (like F22), so identity/financial PII never reaches a surface/LLM/audit. The tax códigos
-// live in their own arrays, cleanly segregated from `listCodBase`, so (unlike F22) no per-código
-// denylist is needed — we simply never read the PII arrays. Error channel is `metaData.errors`
-// (a list of {id, descripcion}) — like F22, NOT RCV's `respEstado`.
+// nombre/RUT/dirección/comuna) and the PP29 calc `traza` EMBEDS the RUT — those are DROPPED
+// (never read). F29 curates ONLY the tax códigos (listCodPropuestos + listCodAdministrativos)
+// and the estado metadata, and exposes NO `raw` (like F22), so identity PII never reaches a
+// surface/LLM. The tax códigos live in their own arrays, cleanly segregated from `listCodBase`,
+// so (unlike F22) no per-código denylist is needed. The estado `monto` (the declaración's total
+// a pagar) IS surfaced as `total` — it is the user's own monthly figure and the point of the
+// overview; it never reaches the audit log (which records only action/result/period). Error
+// channel is `metaData.errors` (a list of {id, descripcion}) — like F22, NOT RCV's `respEstado`.
 import { z } from 'zod';
 import { HOSTS } from '../config/index.js';
 import { F29Error, NotAuthenticatedError } from '../errors/index.js';
@@ -75,15 +76,16 @@ export interface F29Propuesta {
   readonly codigosAdministrativos: readonly CodigoF29[]; // listCodAdministrativos (91xx mirror)
 }
 
-/** One presented/saved F29 record for the período (a row of `getDeclaracionConEstados`). NOT PII
- *  — the form metadata only. `monto` (the taxpayer's financial position) is DROPPED on purpose
- *  (PII-minimal, like F22's bank/identity exclusion); read the estado to know IF/how it was filed,
- *  not the amount. */
+/** One presented/saved F29 record for the período (a row of `getDeclaracionConEstados`). The
+ *  `total` (the declared "total a pagar" of the declaración) IS surfaced — it is the user's own
+ *  monthly figure and the whole point of the overview ("lo que pagué por mes"). It never reaches
+ *  the audit log (audit records only action/result/period, no amounts). */
 export interface DeclaracionEstadoF29 {
   readonly estadoId: number | null; // `estadoDeclaracionId` — read `estado` (the label) instead
   readonly estado: string | null; // human label, e.g. "Guardada" (draft) / "Vigente" (filed)
   readonly folio: number | null; // presentation folio (0 when only saved, not filed)
   readonly fecha: string | null; // `declFechaCreacion`, verbatim SII format (DD/MM/YYYY)
+  readonly total: number | null; // `monto` — the declared total a pagar (self, surfaced)
   readonly enNegocio: boolean | null;
   readonly codigo: number | null;
 }
@@ -118,6 +120,7 @@ const ESTADO_ALIASES = {
   estado: ['estado', 'glosaEstado', 'descripcionEstado'],
   folio: ['folio', 'folioDeclaracion'],
   fecha: ['declFechaCreacion', 'fechaCreacion', 'fecha'],
+  total: ['monto', 'total', 'montoTotal'],
   enNegocio: ['enNegocio'],
   codigo: ['codigo', 'cod'],
 } as const;
@@ -284,6 +287,7 @@ export async function fetchF29Estado(
     estado: asStr(aliasGet(r, ESTADO_ALIASES.estado)),
     folio: asNumber(aliasGet(r, ESTADO_ALIASES.folio)),
     fecha: asStr(aliasGet(r, ESTADO_ALIASES.fecha)),
+    total: asNumber(aliasGet(r, ESTADO_ALIASES.total)),
     enNegocio: coerceBool(aliasGet(r, ESTADO_ALIASES.enNegocio)),
     codigo: asNumber(aliasGet(r, ESTADO_ALIASES.codigo)),
   }));

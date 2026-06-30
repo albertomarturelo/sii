@@ -56,7 +56,8 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'f22_historial',
       'f22_observaciones',
       'f22_status',
-      'f29_draft',
+      'f29_formulario',
+      'f29_overview',
       'f29_status',
       'operate',
       'rcv_list',
@@ -460,15 +461,18 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     expect(parsed.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
   });
 
-  it('f29_draft returns the curated IVA propuesta as JSON (session-keyed, no PII)', async () => {
+  it('f29_formulario returns the propuesta grouped + labeled as JSON (session-keyed, no PII)', async () => {
     const propuesta = {
       metaData: { errors: null },
       data: {
         tipopropuesta: 40,
         estado: 0,
         descripcionEstado: null,
-        listCodPropuestos: [{ codigo: '511', valor: '1097' }],
-        listCodAdministrativos: [{ codigo: '9114', valor: '1097' }],
+        listCodPropuestos: [
+          { codigo: '503', valor: '1000000' }, // debitos
+          { codigo: '511', valor: '50000' }, // creditos
+        ],
+        listCodAdministrativos: [],
         listCodBase: [{ codigo: '05', valor: 'PII-MARKER-XYZ' }], // identity PII → dropped
       },
     };
@@ -492,18 +496,23 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     const client = await connect(runtime);
     await client.callTool({ name: 'auth_login', arguments: {} });
 
-    const res = await client.callTool({ name: 'f29_draft', arguments: { periodo: '2026-05' } });
+    const res = await client.callTool({
+      name: 'f29_formulario',
+      arguments: { periodo: '2026-05' },
+    });
     const parsed = JSON.parse(toolText(res)) as {
       periodo: string;
+      fuente: string;
       tienePropuesta: boolean;
-      codigos: { codigo: string }[];
+      grupos: { debitos: { codigo: string }[]; creditos: { codigo: string }[] };
     };
-    expect(parsed).toMatchObject({ periodo: '2026-05', tienePropuesta: true });
-    expect(parsed.codigos.map((c) => c.codigo)).toEqual(['511']);
+    expect(parsed).toMatchObject({ periodo: '2026-05', fuente: 'propuesta', tienePropuesta: true });
+    expect(parsed.grupos.debitos.map((l) => l.codigo)).toEqual(['503']);
+    expect(parsed.grupos.creditos.map((l) => l.codigo)).toEqual(['511']);
     expect(toolText(res)).not.toContain('PII-MARKER-XYZ'); // listCodBase never surfaces
 
-    // f29_draft is read-only.
+    // f29_formulario is read-only.
     const { tools } = await client.listTools();
-    expect(tools.find((t) => t.name === 'f29_draft')?.annotations?.readOnlyHint).toBe(true);
+    expect(tools.find((t) => t.name === 'f29_formulario')?.annotations?.readOnlyHint).toBe(true);
   });
 });

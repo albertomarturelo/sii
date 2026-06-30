@@ -90,7 +90,7 @@ describe('F29 facade (fake session, synthetic envelopes, no SII)', () => {
     );
   });
 
-  it('estado: curates the declaración records, DROPS monto (financial PII), sends rut/formId/mes/anno', async () => {
+  it('estado: curates the declaración records (total surfaced), sends rut/formId/mes/anno', async () => {
     const s = session(() => ({
       metaData: { errors: null },
       data: [
@@ -99,7 +99,7 @@ describe('F29 facade (fake session, synthetic envelopes, no SII)', () => {
           estado: 'Vigente',
           folio: 7654321,
           declFechaCreacion: '12/06/2026',
-          monto: 999999, // financial position — must NOT surface
+          monto: 880000, // declared total a pagar → surfaced as `total` (synthetic)
           enNegocio: false,
           codigo: 0,
         },
@@ -124,6 +124,7 @@ describe('F29 facade (fake session, synthetic envelopes, no SII)', () => {
         estado: 'Vigente',
         folio: 7654321,
         fecha: '12/06/2026',
+        total: 880000, // monto → total (the declaración's total a pagar)
         enNegocio: false,
         codigo: 0,
       },
@@ -132,11 +133,11 @@ describe('F29 facade (fake session, synthetic envelopes, no SII)', () => {
         estado: 'Guardada',
         folio: 0,
         fecha: '11/06/2026',
+        total: 0,
         enNegocio: false,
         codigo: 0,
       },
     ]);
-    expect(JSON.stringify(res)).not.toContain('999999'); // monto never surfaces
     // Body: estado uses rut + formId (NOT rutContribuyente/formCodigo — SII's naming quirk).
     expect(reqBody(s)).toMatchObject({
       rut: '77777777',
