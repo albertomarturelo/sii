@@ -116,9 +116,14 @@ function tableRows(html: string): string[][] {
   return rows;
 }
 
+/** The `DteAutorizados` fields the report HEADER block carries — all string-valued, so the
+ *  header map can be `Record<HeaderField, string>` (the docs grid + `autorizado`/`mensaje`
+ *  are NOT header fields). */
+type HeaderField = 'rut' | 'razonSocial' | 'nResolucion' | 'fechaResolucion' | 'direccionRegional';
+
 /** Map a header-table label cell to a logical field. Order matters: "Fecha Resolución"
  *  also contains "resoluc", so test it before "N° Resolución" (mirrors Python). */
-function classifyHeaderLabel(label: string): keyof DteAutorizados | null {
+function classifyHeaderLabel(label: string): HeaderField | null {
   const low = label.toLowerCase();
   if (low.includes('fecha') && low.includes('resoluc')) return 'fechaResolucion';
   if (low.includes('resoluc')) return 'nResolucion';
@@ -161,7 +166,7 @@ function parseReport(html: string, subjectCanonical: string): DteAutorizados {
     };
   }
 
-  const header: Partial<Record<keyof DteAutorizados, string>> = {};
+  const header: Partial<Record<HeaderField, string>> = {};
   const documentos: DteAutorizado[] = [];
   for (const cells of tableRows(html)) {
     if (cells.length < 2) continue;

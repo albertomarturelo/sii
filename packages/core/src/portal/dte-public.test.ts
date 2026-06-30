@@ -85,6 +85,22 @@ describe('DTE public facade (fake driver, synthetic HTML, no SII)', () => {
     expect(res.mensaje).toContain('no corresponde a una empresa autorizada');
   });
 
+  it('falls back to the fixed not-authorized phrasing when the marker is not in a table cell', async () => {
+    // Marker present in the body but OUTSIDE any <td> (e.g. a bare <p>) → still a clean
+    // negative, with the fixed fallback sentence (the cell-extraction path finds nothing).
+    const res = await fetchDteAutorizados(
+      driverWith(
+        () =>
+          '<html><body><p>El rut que ha ingresado, no corresponde a una empresa autorizada a emitir Facturas Electronicas.</p></body></html>',
+      ),
+      RUT,
+    );
+    expect(res.autorizado).toBe(false);
+    expect(res.mensaje).toBe(
+      'El rut que ha ingresado, no corresponde a una empresa autorizada a emitir Facturas Electronicas.',
+    );
+  });
+
   it('an unrecognizable body (no header, no docs, no marker) is a scraper-roto DteError', async () => {
     await expect(
       fetchDteAutorizados(

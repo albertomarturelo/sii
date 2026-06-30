@@ -195,9 +195,13 @@ export class PlaywrightPortalDriver implements PortalDriver {
       body = new URLSearchParams(options.form).toString();
       headers['Content-Type'] ??= 'application/x-www-form-urlencoded';
     }
+    // Bound the request so a hung CGI fails loud instead of blocking the surface
+    // indefinitely (ADR-004 "never hang"); 30s mirrors the ported Python timeout. On
+    // timeout fetch rejects → the facade wraps it as DteError (no retry, ADR-004).
     const response = await fetch(url, {
       method: options.method ?? 'POST',
       headers,
+      signal: AbortSignal.timeout(30_000),
       ...(body !== undefined ? { body } : {}),
     });
     const buffer = await response.arrayBuffer();
