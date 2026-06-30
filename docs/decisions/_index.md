@@ -19,3 +19,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 012 | [JSON is the default output; `@sii/core` is the JSON contract](012-json-default-output.md) | Accepted | 2026-06-29 |
 | 013 | [F29 read surface — phased; robust SDI-JSON now, GWT-RPC presented form deferred](013-f29-phased-read-gwt-rpc-deferred.md) | Accepted | 2026-06-29 |
 | 014 | [Unauthenticated `PortalDriver.requestPublic` seam for public login-free consultas](014-public-consulta-seam.md) | Accepted | 2026-06-29 |
+| 015 | [Publish `@sii/core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
