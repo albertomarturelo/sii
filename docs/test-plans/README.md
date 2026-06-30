@@ -23,7 +23,8 @@ failed login. Never hammer SII; respect the pacing the tasks already apply.
 | [`f22.md`](f22.md) | F22 — Declaración Anual de Renta (estado) | `sii f22 status` · MCP `f22_status` | [`../sii-contract/f22.md`](../sii-contract/f22.md) |
 | _(planned)_ `rcv.md` | RCV — Registro de Compras y Ventas | `sii rcv summary\|list` · MCP `rcv_summary`/`rcv_list` | `../sii-contract/rcv.md` |
 | _(planned)_ `auth.md` | auth + operate (login/status/logout/operate) | `sii auth …` / `sii operate …` · MCP `auth_*`/`operate` | `../sii-contract/auth-login.md` |
-| _(planned)_ `f29.md`, `bte.md`, `dte.md` | as those surfaces land | — | — |
+| [`f29.md`](f29.md) | F29 — Declaración Mensual de IVA (Fase 1) | `sii f29 formulario\|overview\|status` · MCP `f29_formulario`/`f29_overview`/`f29_status` | [`../sii-contract/f29.md`](../sii-contract/f29.md) |
+| _(planned)_ `bte.md`, `dte.md` | as those surfaces land | — | — |
 
 ## Each plan's shape
 
