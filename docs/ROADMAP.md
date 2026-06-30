@@ -64,7 +64,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | ✅ | `sii f22 observaciones <año> [--folio]` (#26) | `f22_observaciones` | **Built + live-validated (#26, 2026-06-29)** — `situacionObservacion(periodo,rut,dv,folio)` → `[{codigo,descripcion,url}]`: the observación códigos (B102, G37…) + glosa + SII ayuda URL. Endpoint located first-hand via a live spike (no Python equivalent), cited in `sii-contract/f22.md`. Folio resolved from `buscaDeclVgte` (vigente) or `--folio`. **Session-keyed** (no `--rut`). PII-safe: rows are non-PII (no header-código exclusion, no `raw`). |
 | ✅ | `sii f22 historial <año>` (#28) | `f22_historial` | **Built + live-validated (#28, 2026-06-29)** — `buscaEventos(periodo,rut,dv,folio)` → the per-folio event timeline ("sección Historial"): declaración recibida, devoluciones, giros de Tesorería, rectificatorias, fechas. Endpoint located first-hand via a live probe (folio REQUIRED; sent as strings), cited in `sii-contract/f22.md`. Default reads ALL folios of the año (paced) and sorts most-recent-first; `--folio` scopes to one. **Session-keyed** (no `--rut`). PII-safe: rows are non-PII (event code + glosa verbatim + carta refs), no `raw`. |
 | 📋 | `sii bte list` (#20) | `bte_list` | Read BHE recibidas/emitidas. Session-keyed; blocked on spike #15 + RCV template. |
-| 📋 | `sii dte authorized` (#21) | `dte_authorized` | Public consulta of authorized DTE types (no login); reuses the RCV registration pattern only (no `withSession`/spike). |
+| ✅ | `sii dte authorized <rut>` (#21) | `dte_authorized` | **Built + tested (#21).** The FIRST public, login-free surface: `ee_empresa_rut` palena CGI → curated `DteAutorizados` (razón social, resolución, authorized-docs grid + `DD-MM-YYYY` dates), or a clean negative (`autorizado:false` + SII's verbatim message). **No `withSession`** — reached via the new **`PortalDriver.requestPublic`** seam (unauthenticated text-HTTP, Node `fetch`, charset-aware; ADR-014). Any RUT (counterparties incl.); no operate/`--rut` concept; audited `rut=<subject>` (no `rutAuth`). In-house HTML table parser (no third-party lib). Wire contract ported from sii-py (cited; `sii-contract/dte-authorized.md`), **not yet TS-live-revalidated**. |
 | 📋 | `sii iva` / `sii renta` | `iva` / `renta` | Composite contador summaries derived from the surfaces above. |
 
 ## Write surfaces (each needs its own ADR for legal weight)
@@ -89,7 +89,8 @@ client (no SII), and binary-smoke-validated (`initialize` handshake):
   `rcv_summary` / `rcv_list` (body-RUT) + `f22_status` (`anio`/`folio`/`years`,
   estado, session-keyed) + `f22_formulario` (`anio`/`folio`, the complete grouped
   form, #37) + `f22_observaciones` + `f29_formulario` / `f29_overview` / `f29_status`
-  (session-keyed, #18 Fase 1), all `readOnlyHint`. Each is a
+  (session-keyed, #18 Fase 1) + `dte_authorized` (`rut`, PUBLIC/login-free, #21), all
+  `readOnlyHint`. Each is a
   thin call into a `@sii/core` task; future writes get `destructiveHint`.
   `auth_logout` is MCP-eligible because it carries no secret (ADR-006). New modules
   register their tools via `tools/<mod>.ts` (`register<Mod>Tools`) — append-only.
