@@ -22,18 +22,19 @@ Last updated: 2026-06-30 — #21 DTE authorized MERGED (#45); #20 BTE built (spi
   `loa.sii.cl/cgi_IMT/` CGIs serve an HTML skeleton filled client-side from global JS maps
   (`xml_values` meta + `arr_informe_mensual` rows), so `portal/bte.ts` reads them via
   **`PortalSession.goto`/`evaluate`** (NOT `requestJson`) — paginated + paced (`Clock.sleep`),
-  curated `BteBoleta` + `raw` (the per-boleta row). **No new seam** (goto/evaluate already
-  existed). **Session-keyed (ADR-005)** — rejects a representing operate pointer up front, no
-  `--rut`. **PII posture refined by the live capture:** the taxpayer's OWN identity
-  (`nombre_contribuyente`/`rut_arrastre`) sits in the report meta → dropped; counterparty fields
-  are in the rows → curated+`raw`. **Phase-1 spike (live 2026-06-30, own persona session):**
-  confirmed the `.sii.cl` cookie SSO-carries to `loa.sii.cl` from a headless `restore`+`goto`, the
-  inline maps read through `evaluate`, and the annual/monthly/emitidas shapes match the ported
-  Python contract (+ new keys). Reach (spike #15 for BHE) = session-keyed, re-confirmed. es-CL
-  monto parsing; `S`/`N`→`ANUL`/`VIG`. Caveat: recibidas rows ported (account had none). Wire
-  contract `sii-contract/bte.md`; new CONVENTIONS bullet (inline-JS-map facades). 16 new tests vs
-  fakes (no SII), 222/222 green. **Spike #15 is now fully resolved** (RCV body-RUT; F22/F29/BHE
-  session-keyed).
+  curated `BteBoleta`, **NO `raw`**. **No new seam** (goto/evaluate already existed).
+  **Session-keyed (ADR-005)** — rejects a representing operate pointer up front, no `--rut`.
+  **PII — no `raw` (live BUG-1):** the boleta row mixes counterparty data with the taxpayer's OWN
+  identity on BOTH sides (emitidas `usuemisor` = self emitter, recibidas `nombre_receptor` = self
+  receptor) + a counterparty email; a per-field denylist isn't provably complete, so BTE drops
+  `raw` entirely (joins F22/F29). Found by **live MCP testing** (3 RUTs: persona / empresa / a
+  worker who emitted to the empresa) — `raw` had leaked the principal's full name. **Phase-1 spike
+  (live 2026-06-30):** confirmed the `.sii.cl` cookie SSO-carries to `loa.sii.cl` from a headless
+  `restore`+`goto`, the inline maps read through `evaluate`, and the shapes match the ported Python
+  contract (+ new keys). Reach (spike #15 for BHE) = session-keyed, re-confirmed. es-CL monto
+  parsing; `S`/`N`→`ANUL`/`VIG`. **Live-validated emitidas + recibidas** (3 RUTs). Wire contract
+  `sii-contract/bte.md`; CONVENTIONS bullets (inline-JS-map facades + prefer-drop-`raw`-over-
+  denylist). 222/222 green. **Spike #15 fully resolved** (RCV body-RUT; F22/F29/BHE session-keyed).
 - [x] **DTE authorized — public read surface (#21) — MERGED (PR #45).** The FIRST
   public, login-free SII surface: `sii dte authorized <rut>` + MCP `dte_authorized` query the
   palena CGI (`ee_empresa_rut`) for the DTE types a RUT is authorized to emit — **no session**,
