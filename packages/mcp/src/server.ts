@@ -25,6 +25,7 @@ import { toolText } from './tool-helpers.js';
 import { registerRcvTools } from './tools/rcv.js';
 import { registerF22Tools } from './tools/f22.js';
 import { registerF29Tools } from './tools/f29.js';
+import { registerDteTools } from './tools/dte.js';
 
 const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
 
@@ -190,6 +191,7 @@ export function buildServer(runtime: Runtime): McpServer {
   registerRcvTools(server, runtime);
   registerF22Tools(server, runtime);
   registerF29Tools(server, runtime);
+  registerDteTools(server, runtime);
 
   return server;
 }

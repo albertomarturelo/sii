@@ -67,6 +67,22 @@ export interface PortalSession {
   close(): Promise<void>;
 }
 
+/** An UNAUTHENTICATED public request (no session, no cookies). The basis for
+ *  login-free consultas — the DTE-authorized public CGI (ADR-014). */
+export interface PublicRequest {
+  readonly method?: 'GET' | 'POST';
+  readonly headers?: Record<string, string>;
+  /** `application/x-www-form-urlencoded` fields (the palena CGI takes form input). */
+  readonly form?: Record<string, string>;
+}
+
+export interface PublicResponse {
+  readonly status: number;
+  /** Decoded text body — the adapter decodes per the response's DECLARED charset
+   *  (the DTE report is `text/html; charset=ISO-8859-1`), so accents survive. */
+  readonly body: string;
+}
+
 export interface InteractiveLoginOptions {
   /** Post-login destination passed to the login URL. */
   readonly destination: string;
@@ -95,6 +111,10 @@ export interface PortalDriver {
   credentialLogin(options: CredentialLoginOptions): Promise<PortalSession>;
   /** Restore a (headless) session from persisted cookies for reads / liveness. */
   restore(storageState: unknown): Promise<PortalSession>;
+  /** Issue an UNAUTHENTICATED request (no session, no cookies, no browser) to a
+   *  public SII endpoint and return the decoded text body. The basis for login-free
+   *  consultas (DTE authorized) — it neither mints nor uses a session (ADR-014). */
+  requestPublic(url: string, options?: PublicRequest): Promise<PublicResponse>;
 }
 
 /** The set of seams a task needs. The composition root (runtime.ts) builds it. */

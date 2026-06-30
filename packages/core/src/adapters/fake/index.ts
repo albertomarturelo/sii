@@ -9,6 +9,8 @@ import type {
   KeyValueStore,
   PortalDriver,
   PortalSession,
+  PublicRequest,
+  PublicResponse,
 } from '../../seams/index.js';
 
 export class FixedClock implements Clock {
@@ -95,6 +97,11 @@ export interface FakeDriverScript {
   failLogin?: Error;
   /** When set, credentialLogin rejects with this (simulate bad Clave / lock / timeout). */
   failCredentialLogin?: Error;
+  /** Result for `requestPublic(url, options)` — a public (unauthenticated) consulta.
+   *  Return the decoded body string (status defaults to 200) or a full PublicResponse. */
+  requestPublic?: (url: string, options?: PublicRequest) => PublicResponse | string;
+  /** When set, requestPublic rejects with this (simulate a network / CGI failure). */
+  failPublic?: Error;
 }
 
 export class FakePortalDriver implements PortalDriver {
@@ -131,5 +138,16 @@ export class FakePortalDriver implements PortalDriver {
         ? this.script.restoreSession()
         : this.script.restoreSession;
     return new FakePortalSession(s ?? {});
+  }
+  requestPublicCalls = 0;
+  /** The last public request — lets a test assert the URL/form sent (no session). */
+  lastPublicRequest: { url: string; options?: PublicRequest } | null = null;
+  async requestPublic(url: string, options?: PublicRequest): Promise<PublicResponse> {
+    this.requestPublicCalls++;
+    this.lastPublicRequest = options ? { url, options } : { url };
+    if (this.script.failPublic) throw this.script.failPublic;
+    const r = this.script.requestPublic?.(url, options);
+    if (r === undefined) return { status: 200, body: '' };
+    return typeof r === 'string' ? { status: 200, body: r } : r;
   }
 }

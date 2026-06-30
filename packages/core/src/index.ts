@@ -44,6 +44,8 @@ export type {
   CodigoF29,
   DeclaracionEstadoF29,
 } from './tasks/f29.js';
+export { dteAuthorized } from './tasks/dte.js';
+export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';
 
 // --- runtime + seams: surfaces build adapters at their composition root ---
 export { createNodeRuntime } from './runtime.js';

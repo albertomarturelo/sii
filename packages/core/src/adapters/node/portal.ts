@@ -11,13 +11,15 @@ import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playw
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginError } from '../../auth/login-error.js';
-import { nonJsonResponseError } from './response.js';
+import { charsetOf, nonJsonResponseError } from './response.js';
 import type {
   CredentialLoginOptions,
   InteractiveLoginOptions,
   JsonRequest,
   PortalDriver,
   PortalSession,
+  PublicRequest,
+  PublicResponse,
 } from '../../seams/index.js';
 
 /** Extract SII's verbatim login-error message from the failed-login page (rendered
@@ -178,5 +180,28 @@ export class PlaywrightPortalDriver implements PortalDriver {
       await browser.close();
       throw err;
     }
+  }
+
+  async requestPublic(url: string, options: PublicRequest = {}): Promise<PublicResponse> {
+    // UNAUTHENTICATED public consulta (ADR-014): a cold HTTP request — no browser, no
+    // cookies, no session. Node's global fetch (undici) is the right tool; a public SII
+    // CGI needs nothing Chromium provides (the Python original used a plain httpx POST,
+    // and the endpoint requires no cookie / Referer / User-Agent — observed). Decode the
+    // body per the response's DECLARED charset so Latin-1 accents survive (the palena
+    // DTE report is ISO-8859-1, which a default UTF-8 decode would corrupt).
+    const headers: Record<string, string> = { ...options.headers };
+    let body: string | undefined;
+    if (options.form) {
+      body = new URLSearchParams(options.form).toString();
+      headers['Content-Type'] ??= 'application/x-www-form-urlencoded';
+    }
+    const response = await fetch(url, {
+      method: options.method ?? 'POST',
+      headers,
+      ...(body !== undefined ? { body } : {}),
+    });
+    const buffer = await response.arrayBuffer();
+    const text = new TextDecoder(charsetOf(response.headers.get('content-type'))).decode(buffer);
+    return { status: response.status, body: text };
   }
 }

@@ -47,3 +47,10 @@ export class F22Error extends SiiError {}
  *  authorizes by the session principal, so operating as a represented empresa is
  *  rejected up front (ADR-005). SII's message verbatim — never translated (ADR-004). */
 export class F29Error extends SiiError {}
+
+/** The public DTE-authorized consulta could not be completed for a non-user reason —
+ *  the network/CGI failed, a non-200 came back, or the portal HTML changed shape
+ *  ("scraper roto"). A RUT that is simply not a DTE emisor is NOT this error: it is a
+ *  clean negative result (`autorizado: false` + SII's verbatim message). Fail loud,
+ *  never retry (ADR-004 / ADR-014). */
+export class DteError extends SiiError {}

@@ -52,6 +52,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'auth_login',
       'auth_logout',
       'auth_status',
+      'dte_authorized',
       'f22_formulario',
       'f22_historial',
       'f22_observaciones',
@@ -459,6 +460,36 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
     };
     expect(parsed).toMatchObject({ anio: '2025', folios: ['999'] });
     expect(parsed.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
+  });
+
+  it('dte_authorized returns the curated public report as JSON — NO login required', async () => {
+    const authorizedHtml = `
+      <table>
+        <tr><td>Rut</td><td>20.000.042-0</td></tr>
+        <tr><td>Razon Social/Nombres</td><td>EMPRESA SINTETICA SPA</td></tr>
+      </table>
+      <table><tr><td>33</td><td>FACTURA ELECTRONICA</td><td>01-08-2014</td><td></td></tr></table>`;
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-29T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({ requestPublic: () => authorizedHtml }),
+    };
+    const client = await connect(runtime);
+
+    // Called directly, with no auth_login first (public, session-less — ADR-014).
+    const res = await client.callTool({ name: 'dte_authorized', arguments: { rut: '20000042-0' } });
+    const parsed = JSON.parse(toolText(res)) as {
+      rut: string;
+      autorizado: boolean;
+      documentos: { codigo: number }[];
+    };
+    expect(parsed).toMatchObject({ rut: '20000042-0', autorizado: true });
+    expect(parsed.documentos.map((d) => d.codigo)).toEqual([33]);
+
+    // dte_authorized is read-only.
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'dte_authorized')?.annotations?.readOnlyHint).toBe(true);
   });
 
   it('f29_formulario returns the propuesta grouped + labeled as JSON (session-keyed, no PII)', async () => {
