@@ -14,7 +14,8 @@ export const HOSTS = {
   portal: 'https://www.sii.cl',
   /** SPA JSON facades (RCV / F29 / F22) live under this host. */
   portalApi: 'https://www4.sii.cl',
-  /** DTE SOAP web services. */
+  /** Palena: DTE SOAP web services AND the public, login-free consulta CGIs
+   *  (e.g. `/cvc_cgi/dte/ee_empresa_rut` — empresas autorizadas a emitir DTE, ADR-014). */
   dteWs: 'https://palena.sii.cl',
   claveUnica: 'https://accounts.claveunica.gob.cl/openid/authorize/',
 } as const;

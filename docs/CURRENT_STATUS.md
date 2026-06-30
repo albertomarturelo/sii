@@ -1,20 +1,37 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — F29 Fase 1 MERGED (#43); Fase 2 GWT-RPC + propuesta glosas deferred)
+Last updated: 2026-06-29 (PM — #21 DTE authorized built, PR open; F29 Fase 2 GWT-RPC + propuesta glosas still deferred)
 
 ## In Progress
 
-- _(no feature in progress — F29 Fase 1 is MERGED (#18, PR #43); see Recently Completed.)_
+- _(no feature in progress — #21 DTE authorized is BUILT + suite-green on `feature/GH-21-dte-authorized`,
+  PR open; see Recently Completed. Not yet live-validated against real SII.)_
   **NEXT (deferred, ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
   balance (computed totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind
   `rfiInternet` **GWT-RPC** — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the
   spike; `docs/sii-contract/f29.md`). Gated on a headless warm+intercept PoC; own PR + ADR;
   encapsulated with "scraper roto" errors. **Also pending:** capture the propuesta-internal código
   glosas (142/563/115…) from `propuestaf29ui` once an available propuesta exists (June 2026; May
-  already declared) — until then those show `glosa:null` (honest; ADR-004). Then **#21 DTE
-  authorized** (public, no spike) and **#20 BTE** (session-keyed).
+  already declared) — until then those show `glosa:null` (honest; ADR-004). Then **#20 BTE**
+  (session-keyed).
 
 ## Recently Completed
+
+- [x] **DTE authorized — public read surface (#21) — BUILT + suite-green (PR open).** The FIRST
+  public, login-free SII surface: `sii dte authorized <rut>` + MCP `dte_authorized` query the
+  palena CGI (`ee_empresa_rut`) for the DTE types a RUT is authorized to emit — **no session**,
+  any RUT (counterparties incl.). Curated `DteAutorizados` (razón social, resolución,
+  authorized-docs grid with `DD-MM-YYYY` dates) **+ no `raw`** (the HTML carries exactly the
+  curated fields); a non-emisor RUT is a clean negative (`autorizado:false` + SII's verbatim
+  message), never an error. **New seam `PortalDriver.requestPublic` (ADR-014)** — the
+  unauthenticated text-HTTP primitive (Node `fetch`, charset-aware decode for the ISO-8859-1
+  report; fake mirrors it), since the consulta is **session-less + HTML** (the existing
+  `requestJson` is auth-bound + JSON-only, treats non-JSON as a login wall). `tasks/dte.ts`
+  `dteAuthorized` does **NOT** use `withSession`; Mod-11-validates locally; audited
+  `rut=<subject>` with **no `rutAuth`** (no authenticated principal). In-house HTML table parser
+  (stdlib regex, no third-party lib — ADR-004). Wire contract **ported** from the Python sii-cli
+  (cited; `docs/sii-contract/dte-authorized.md`), **not yet TS-live-revalidated**. 18 new tests
+  vs fakes (no SII), 206/206 green; `tsc -b`/eslint/prettier clean.
 
 - [x] **F29 Fase 1 read surface (#18, PR #43) — MERGED + live-validated.** Session-keyed,
   robust SDI-JSON (no GWT-RPC). The initial 1:1 port (propuesta + estado-metadata) was rejected
@@ -272,11 +289,11 @@ Last updated: 2026-06-29 (PM — F29 Fase 1 MERGED (#43); Fase 2 GWT-RPC + propu
    `fuente:"presentada"` + a computed `resumen` (real totals 538/89/91), reusing the Fase-1
    taxonomy; encapsulate the GWT-RPC in the `PortalDriver` with "scraper roto" errors. Then flip
    the ROADMAP F29 row 🚧 → ✅.
-2. **Live-revalidate RCV** — re-observe the ported contract against a real session
-   (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
-   (F22 status/formulario + observaciones + historial are live-validated; RCV is not.)
-3. **Then #21 DTE authorized** (public, no spike — reuses only the registration pattern) and
-   **#20 BTE** (session-keyed). (ADR-007)
+2. **Live-revalidate the ported contracts** — re-observe against a real session
+   (operator-assisted): refresh `sii-contract/rcv.md` (RCV) and `sii-contract/dte-authorized.md`
+   (the #21 DTE consulta was ported from sii-py, not yet TS-live-revalidated). (F22
+   status/formulario + observaciones + historial are live-validated; RCV + DTE are not.)
+3. **Then #20 BTE** (session-keyed). (ADR-007)
 4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
 
 _(F22 surface is COMPLETE — status/overview #19, formulario #27/#37, observaciones #26,

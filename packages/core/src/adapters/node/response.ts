@@ -16,3 +16,22 @@ export function nonJsonResponseError(finalUrl: string, contentType: string, stat
   }
   return new Error(`Respuesta no-JSON de SII (HTTP ${status}, ${ct || 'sin content-type'}).`);
 }
+
+/** Extract the charset label from a `Content-Type` header for decoding a public
+ *  (unauthenticated) response body (ADR-014). SII's palena reports declare
+ *  `text/html; charset=ISO-8859-1`, so a UTF-8 decode would mangle accents (ó, é,
+ *  °) — we honour the DECLARED charset and fall back to UTF-8 when it is absent or
+ *  not a label `TextDecoder` accepts. Pure → unit-tested without launching fetch. */
+export function charsetOf(contentType: string | null | undefined): string {
+  const label = /charset=([^;]+)/i
+    .exec(contentType ?? '')?.[1]
+    ?.trim()
+    .replace(/^["']|["']$/g, '');
+  if (!label) return 'utf-8';
+  try {
+    new TextDecoder(label); // validate the label; an unknown one throws RangeError
+    return label;
+  } catch {
+    return 'utf-8';
+  }
+}

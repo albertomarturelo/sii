@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { nonJsonResponseError } from './response.js';
+import { charsetOf, nonJsonResponseError } from './response.js';
 import { SessionExpiredError } from '../../errors/index.js';
 
 describe('nonJsonResponseError (SDI non-JSON classification)', () => {
@@ -29,5 +29,25 @@ describe('nonJsonResponseError (SDI non-JSON classification)', () => {
     const e = nonJsonResponseError('https://www4.sii.cl/x', '', 500);
     expect(e).not.toBeInstanceOf(SessionExpiredError);
     expect(e.message).toContain('sin content-type');
+  });
+});
+
+describe('charsetOf (public-response charset for decoding)', () => {
+  it('reads the declared charset (the palena DTE report is ISO-8859-1)', () => {
+    expect(charsetOf('text/html; charset=ISO-8859-1')).toBe('ISO-8859-1');
+  });
+
+  it('is case/space/quote tolerant', () => {
+    expect(charsetOf('text/html;  CHARSET="utf-8"')).toBe('utf-8');
+  });
+
+  it('defaults to utf-8 when no charset is declared', () => {
+    expect(charsetOf('text/html')).toBe('utf-8');
+    expect(charsetOf(null)).toBe('utf-8');
+    expect(charsetOf(undefined)).toBe('utf-8');
+  });
+
+  it('falls back to utf-8 for a label TextDecoder cannot accept', () => {
+    expect(charsetOf('text/html; charset=not-a-real-charset')).toBe('utf-8');
   });
 });
