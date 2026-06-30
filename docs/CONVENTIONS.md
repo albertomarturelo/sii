@@ -84,6 +84,19 @@ Python `sii-cli`, adapted to TypeScript.
   authenticated JSON POST (the session cookies ride along), never a bespoke HTTP
   client. Cite the endpoint + observation date; surface the `respEstado` error
   envelope verbatim; curated + `raw`. (ADR-003 / ADR-004)
+- **Inline-JS-map facades (legacy CGIs) go through `PortalSession.goto` + `evaluate`,
+  NOT `requestJson`.** Some surfaces (BHE/BTE on `loa.sii.cl/cgi_IMT/`) serve an HTML
+  skeleton whose tables are filled client-side from global JS maps (`xml_values`,
+  `arr_informe_mensual`). Navigate with `goto` (the `.sii.cl` session cookie SSO-carries;
+  detect a dead jar by a `LOGIN_HOST` landing → `SessionExpiredError`) and read the map
+  with `evaluate("…Object.fromEntries(Object.entries(V))…")` — the `Object.entries`
+  wrapper is REQUIRED (the maps are JS Arrays with string keys a bare read would drop).
+  NEVER scrape the rendered DOM (the cells still hold the filling JS). Cite the CGI +
+  observation date; pace pagination via `Clock.sleep`. (ADR-003 / ADR-004)
+- **Unauthenticated public consultas go through `PortalDriver.requestPublic`.** A
+  login-free CGI (DTE-authorized) is a cold, session-less, browser-free HTTP request
+  (Node `fetch`, charset-aware) — not a `PortalSession`. Still a task + seam (audited),
+  never a bespoke client in the facade. (ADR-014)
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
@@ -103,7 +116,12 @@ Python `sii-cli`, adapted to TypeScript.
   non-curated data is PII, not tax detail.** F22's uncurated fields are pure
   identity/bank PII (RUT, dirección, email, número de cuenta) — every tax código
   IS curated — so F22 exposes NO `raw` at all, keeping that PII off every surface
-  / the LLM / the audit log. (ADR-004)
+  / the LLM / the audit log. **BTE/BHE joins this no-`raw` camp (live BUG-1):** a
+  boleta ROW mixes counterparty data with the taxpayer's OWN identity on both sides
+  (emitidas `usuemisor` = self emitter, recibidas `nombre_receptor` = self receptor),
+  and the own-identity field set is not provably enumerable — so a per-field denylist
+  is unsafe; curate the named tax fields and expose NO `raw`. **Prefer dropping `raw`
+  over a denylist whenever the own-PII field set can't be proven complete.** (ADR-004)
 - **Curate PII-dense code grids by DENYLISTING the (bounded) PII, not allowlisting
   the tax códigos.** When a grid interleaves tax códigos with identity/bank PII
   (F22), drop ONLY the PII códigos and surface everything else. The PII set is small,

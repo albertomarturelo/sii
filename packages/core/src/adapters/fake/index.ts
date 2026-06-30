@@ -67,8 +67,12 @@ export class FakePortalSession implements PortalSession {
   closed = false;
   /** The last requestJson call — lets a test assert the URL/body sent to SII. */
   lastRequest: { url: string; options?: JsonRequest } | null = null;
+  /** Every URL passed to goto, in order — lets a goto/evaluate facade (BTE) assert
+   *  navigation + pagination without a real browser. */
+  readonly gotos: string[] = [];
   constructor(private readonly script: FakeSessionScript = {}) {}
   async goto(url: string): Promise<string> {
+    this.gotos.push(url);
     return this.script.landingUrl ?? url;
   }
   async evaluate<T>(expression: string): Promise<T> {

@@ -1,23 +1,41 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — #21 DTE authorized built, PR open; F29 Fase 2 GWT-RPC + propuesta glosas still deferred)
+Last updated: 2026-06-30 — #21 DTE authorized MERGED (#45); #20 BTE built (spike + build), PR open; F29 Fase 2 deferred
 
 ## In Progress
 
-- _(no feature in progress — #21 DTE authorized is BUILT + suite-green on `feature/GH-21-dte-authorized`,
-  PR open; see Recently Completed. Not yet live-validated against real SII.)_
+- _(no feature in progress — #20 BTE read surface is BUILT + suite-green on `feature/GH-20-bte-read`,
+  PR open; spike done + TS-live-validated. #21 DTE authorized MERGED (#45). See Recently Completed.)_
   **NEXT (deferred, ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
   balance (computed totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind
   `rfiInternet` **GWT-RPC** — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the
   spike; `docs/sii-contract/f29.md`). Gated on a headless warm+intercept PoC; own PR + ADR;
   encapsulated with "scraper roto" errors. **Also pending:** capture the propuesta-internal código
   glosas (142/563/115…) from `propuestaf29ui` once an available propuesta exists (June 2026; May
-  already declared) — until then those show `glosa:null` (honest; ADR-004). Then **#20 BTE**
-  (session-keyed).
+  already declared) — until then those show `glosa:null` (honest; ADR-004).
 
 ## Recently Completed
 
-- [x] **DTE authorized — public read surface (#21) — BUILT + suite-green (PR open).** The FIRST
+- [x] **BTE/BHE read surface — boletas de honorarios (#20) — BUILT + TS-live-validated (PR open).**
+  `sii bte list <periodo> [--recibidas|--emitidas]` + MCP `bte_list` → one month's boletas de
+  honorarios for the session principal. **First inline-JS-map facade:** the legacy
+  `loa.sii.cl/cgi_IMT/` CGIs serve an HTML skeleton filled client-side from global JS maps
+  (`xml_values` meta + `arr_informe_mensual` rows), so `portal/bte.ts` reads them via
+  **`PortalSession.goto`/`evaluate`** (NOT `requestJson`) — paginated + paced (`Clock.sleep`),
+  curated `BteBoleta`, **NO `raw`**. **No new seam** (goto/evaluate already existed).
+  **Session-keyed (ADR-005)** — rejects a representing operate pointer up front, no `--rut`.
+  **PII — no `raw` (live BUG-1):** the boleta row mixes counterparty data with the taxpayer's OWN
+  identity on BOTH sides (emitidas `usuemisor` = self emitter, recibidas `nombre_receptor` = self
+  receptor) + a counterparty email; a per-field denylist isn't provably complete, so BTE drops
+  `raw` entirely (joins F22/F29). Found by **live MCP testing** (3 RUTs: persona / empresa / a
+  worker who emitted to the empresa) — `raw` had leaked the principal's full name. **Phase-1 spike
+  (live 2026-06-30):** confirmed the `.sii.cl` cookie SSO-carries to `loa.sii.cl` from a headless
+  `restore`+`goto`, the inline maps read through `evaluate`, and the shapes match the ported Python
+  contract (+ new keys). Reach (spike #15 for BHE) = session-keyed, re-confirmed. es-CL monto
+  parsing; `S`/`N`→`ANUL`/`VIG`. **Live-validated emitidas + recibidas** (3 RUTs). Wire contract
+  `sii-contract/bte.md`; CONVENTIONS bullets (inline-JS-map facades + prefer-drop-`raw`-over-
+  denylist). 222/222 green. **Spike #15 fully resolved** (RCV body-RUT; F22/F29/BHE session-keyed).
+- [x] **DTE authorized — public read surface (#21) — MERGED (PR #45).** The FIRST
   public, login-free SII surface: `sii dte authorized <rut>` + MCP `dte_authorized` query the
   palena CGI (`ee_empresa_rut`) for the DTE types a RUT is authorized to emit — **no session**,
   any RUT (counterparties incl.). Curated `DteAutorizados` (razón social, resolución,
@@ -259,14 +277,14 @@ Last updated: 2026-06-29 (PM — #21 DTE authorized built, PR open; F29 Fase 2 G
 
 ## Open Decisions / Questions
 
-1. **Operate reach (representación) spike (#15)** — **RCV = body-RUT** (live 2026-06-28:
-   `--rut` reached a represented empresa's RCV). **F22 = session-keyed** (Python live
-   2026-06-27: `--rut <empresa>` returned a clean negative; body-RUT does NOT reach it →
-   F22 reads the principal, no `--rut`). **F29 = session-keyed** (Python live 2026-06-26:
-   the body RUT of a represented empresa returns `Consulta RUT no esta autorizado`) — wired
-   off the port (no `--rut`, rejects a representing pointer up front); **TS live-confirm
-   pending** alongside the F29 live validation. Still OPEN for **BHE** (#20) — expected
-   session-keyed like F22/F29; confirm live before wiring.
+1. **Operate reach (representación) spike (#15) — RESOLVED.** **RCV = body-RUT** (live
+   2026-06-28: `--rut` reached a represented empresa's RCV). **F22 = session-keyed** (Python
+   live 2026-06-27: body-RUT does NOT reach it → reads the principal, no `--rut`). **F29 =
+   session-keyed** (Python live 2026-06-26: represented body RUT returns `Consulta RUT no esta
+   autorizado`). **BHE = session-keyed** (Python live #62 + **TS-live re-confirmed 2026-06-30**,
+   #20: `rut_arrastre` is keyed to the principal). All session-keyed surfaces wired off this:
+   no `--rut`, reject a representing pointer up front. (F29 TS live-validation of the surface
+   itself still pending, but the reach contract is settled.)
 2. **CLI header doesn't reflect a per-call `--rut`** — `operating as:` (preAction hook)
    shows the sticky operate POINTER, so `sii rcv summary … --rut <empresa>` prints
    "tú mismo" while the result line shows the empresa RUT. Minor ADR-005 "always
@@ -291,10 +309,11 @@ Last updated: 2026-06-29 (PM — #21 DTE authorized built, PR open; F29 Fase 2 G
    the ROADMAP F29 row 🚧 → ✅.
 2. **Live-revalidate the ported contracts** — re-observe against a real session
    (operator-assisted): refresh `sii-contract/rcv.md` (RCV) and `sii-contract/dte-authorized.md`
-   (the #21 DTE consulta was ported from sii-py, not yet TS-live-revalidated). (F22
-   status/formulario + observaciones + historial are live-validated; RCV + DTE are not.)
-3. **Then #20 BTE** (session-keyed). (ADR-007)
-4. **`operate <alias>`** — alias targets now that the operable set has real empresas.
+   (the #21 DTE consulta was ported from sii-py, not yet TS-live-revalidated); plus the BHE
+   **recibidas** rows (#20 live-validated emitidas only — the test account had no recibidas).
+   (F22 status/formulario + observaciones + historial + BTE emitidas are live-validated; RCV +
+   DTE + BHE recibidas are not.)
+3. **`operate <alias>`** — alias targets now that the operable set has real empresas.
 
 _(F22 surface is COMPLETE — status/overview #19, formulario #27/#37, observaciones #26,
 historial #28, grouping fixes #41 — all shipped + live-validated.)_

@@ -14,6 +14,11 @@ export const HOSTS = {
   portal: 'https://www.sii.cl',
   /** SPA JSON facades (RCV / F29 / F22) live under this host. */
   portalApi: 'https://www4.sii.cl',
+  /** Legacy BHE/BTE consulta CGIs (boletas de honorarios). HTML skeleton filled
+   *  client-side from inline JS maps; read via `PortalSession.goto`/`evaluate`, NOT
+   *  the SDI-JSON facade. The `.sii.cl` session cookie SSO-carries here (observed
+   *  2026-06-30). Session-keyed (`rut_arrastre` = the principal). (#20 / ADR-004) */
+  bheCgi: 'https://loa.sii.cl/cgi_IMT',
   /** Palena: DTE SOAP web services AND the public, login-free consulta CGIs
    *  (e.g. `/cvc_cgi/dte/ee_empresa_rut` — empresas autorizadas a emitir DTE, ADR-014). */
   dteWs: 'https://palena.sii.cl',

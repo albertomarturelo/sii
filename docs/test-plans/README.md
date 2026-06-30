@@ -24,7 +24,8 @@ failed login. Never hammer SII; respect the pacing the tasks already apply.
 | _(planned)_ `rcv.md` | RCV — Registro de Compras y Ventas | `sii rcv summary\|list` · MCP `rcv_summary`/`rcv_list` | `../sii-contract/rcv.md` |
 | _(planned)_ `auth.md` | auth + operate (login/status/logout/operate) | `sii auth …` / `sii operate …` · MCP `auth_*`/`operate` | `../sii-contract/auth-login.md` |
 | [`f29.md`](f29.md) | F29 — Declaración Mensual de IVA (Fase 1) | `sii f29 formulario\|overview\|status` · MCP `f29_formulario`/`f29_overview`/`f29_status` | [`../sii-contract/f29.md`](../sii-contract/f29.md) |
-| _(planned)_ `bte.md`, `dte.md` | as those surfaces land | — | — |
+| [`bte.md`](bte.md) | BTE/BHE — Boletas de Honorarios (session-keyed) | `sii bte list` · MCP `bte_list` | [`../sii-contract/bte.md`](../sii-contract/bte.md) |
+| _(planned)_ `dte.md` | DTE authorized (public consulta) | `sii dte authorized` · MCP `dte_authorized` | `../sii-contract/dte-authorized.md` |
 
 ## Each plan's shape
 

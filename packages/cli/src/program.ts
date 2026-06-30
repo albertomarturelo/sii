@@ -27,6 +27,7 @@ import { registerRcv } from './commands/rcv.js';
 import { registerF22 } from './commands/f22.js';
 import { registerF29 } from './commands/f29.js';
 import { registerDte } from './commands/dte.js';
+import { registerBte } from './commands/bte.js';
 
 const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
 
@@ -181,6 +182,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
   registerF22(program, runtime);
   registerF29(program, runtime);
   registerDte(program, runtime);
+  registerBte(program, runtime);
 
   // Make `--json`/`--human` parse after a subcommand too (`sii f22 status --human`), by
   // adding them to every leaf command — after the register fns have built their subtrees.
