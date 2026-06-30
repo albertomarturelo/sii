@@ -37,7 +37,7 @@ Token cost so far ~2–4k. **Still no full source-file reads.**
 - English everywhere.
 
 ### Architecture (ADR-002 / ADR-003)
-- The CLI / MCP packages import ONLY `@sii/core`'s task layer (+ seam
+- The CLI / MCP packages import ONLY `@altumstack/sii-core`'s task layer (+ seam
   interfaces). **No reaching past tasks** into a portal/dte facade.
 - **`packages/core/src` imports NO Node-only module** (`node:*`, `fs`,
   `playwright`, a keyring lib). Side-effects go through ports. Grep the diff.
@@ -73,14 +73,14 @@ Token cost so far ~2–4k. **Still no full source-file reads.**
 ### TypeScript correctness
 - `strict` honored: no `any` without an inline justification; `unknown` +
   narrowing at boundaries. ESM, named exports.
-- No blocking patterns in async paths; no `console.log` in `@sii/core` (use the
+- No blocking patterns in async paths; no `console.log` in `@altumstack/sii-core` (use the
   injected logger/audit) — `console` only in surface user-facing output.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check` clean.
 
 ### Testing
 - New logic has vitest tests (`<module>.test.ts`); fixtures synthetic.
 - Tests must NOT hit production SII (no real Playwright/HTTP in CI).
-- Every new conditional branch / error path in `@sii/core` is exercised.
+- Every new conditional branch / error path in `@altumstack/sii-core` is exercised.
 
 ### Documentation (CFD — ADR-001)
 - New convention → `CONVENTIONS.md` updated in the SAME commit.

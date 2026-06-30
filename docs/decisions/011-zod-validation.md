@@ -23,8 +23,8 @@ boundary when read surfaces land (curated typed shape + `raw`, ADR-004).
   the SDK emits the protocol JSON Schema. No hand-written JSON Schema, no manual
   argument validation in tool handlers.
 - zod is also the sanctioned validator for **wire-boundary** parsing in
-  `@sii/core` (SII JSON payloads → curated typed shapes, ADR-004) WHEN those
-  surfaces land — added as a `@sii/core` dependency at that point, same major.
+  `@altumstack/sii-core` (SII JSON payloads → curated typed shapes, ADR-004) WHEN those
+  surfaces land — added as a `@altumstack/sii-core` dependency at that point, same major.
 - **Validation lives at the boundary only** — external inputs (MCP args, SII
   payloads). Internal domain invariants stay plain TypeScript types; no zod in
   pure core logic.

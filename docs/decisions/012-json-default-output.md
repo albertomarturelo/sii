@@ -1,13 +1,13 @@
-# ADR-012: JSON is the default output; `@sii/core` is the JSON contract
+# ADR-012: JSON is the default output; `@altumstack/sii-core` is the JSON contract
 
 ## Status
 
-Accepted — 2026-06-29. Driven by the requirement to embed `@sii/core` as a library in
+Accepted — 2026-06-29. Driven by the requirement to embed `@altumstack/sii-core` as a library in
 another system, where the consumer needs structured data, not human text.
 
 ## Context
 
-`@sii/core` tasks already return plain, JSON-serializable TypeScript objects (`F22Estado`,
+`@altumstack/sii-core` tasks already return plain, JSON-serializable TypeScript objects (`F22Estado`,
 `RcvSummary`, the operate context, …) — no `Date`/`Map`/`Set`, no formatting baked in. That
 IS the integration contract: a host system does `JSON.stringify(await f22Status(...))` and
 gets clean JSON. But the human saw only the `@sii/cli` text rendering and reasonably worried
@@ -16,7 +16,7 @@ CLI is driven programmatically (Claude Code via Bash, scripts, other systems she
 
 ## Decision
 
-- **The core is the data layer; surfaces are presentation.** `@sii/core` returns
+- **The core is the data layer; surfaces are presentation.** `@altumstack/sii-core` returns
   JSON-serializable objects and never formats for humans. The MCP surface already emits
   `JSON.stringify`. This is reaffirmed as a contract, not just current behaviour.
 - **The CLI emits JSON by DEFAULT.** `sii <cmd>` prints the task's object as pretty JSON to

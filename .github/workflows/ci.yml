@@ -89,14 +89,14 @@ jobs:
           done
           exit $fail
 
-      - name: Surface boundary (ADR-003 — surfaces call @sii/core tasks only)
-        # The CLI + MCP packages must import only @sii/core (its task layer +
+      - name: Surface boundary (ADR-003 — surfaces call @altumstack/sii-core tasks only)
+        # The CLI + MCP packages must import only @altumstack/sii-core (its task layer +
         # port interfaces), never reach into a portal/dte facade — that bypasses
         # the throttling / audit / credential rails the core owns.
         run: |
           set -euo pipefail
-          if git grep -nE "from ['\"]@sii/core/(portal|dte|auth|storage)" -- 'packages/cli/**/*.ts' 'packages/mcp/**/*.ts'; then
-            echo "::error::A surface imports a @sii/core internal (portal/dte/auth/storage) directly — ADR-003 forbids. Go through the task layer."
+          if git grep -nE "from ['\"]@altumstack/sii-core/(portal|dte|auth|storage)" -- 'packages/cli/**/*.ts' 'packages/mcp/**/*.ts'; then
+            echo "::error::A surface imports a @altumstack/sii-core internal (portal/dte/auth/storage) directly — ADR-003 forbids. Go through the task layer."
             exit 1
           fi
           echo "Surface boundary guard: CLI + MCP reach the core only via tasks."

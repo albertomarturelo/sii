@@ -1,9 +1,9 @@
 // Output + error→exit-code mapping for the CLI. SII's Spanish messages are passed
 // through unchanged (CONVENTIONS: opaque translations waste the user's time).
 import type { Command } from 'commander';
-import { LoginFailedError, NotAuthenticatedError, RateLimitError } from '@sii/core';
+import { LoginFailedError, NotAuthenticatedError, RateLimitError } from '@altumstack/sii-core';
 
-// JSON is the DEFAULT output: the CLI is a faithful façade over the @sii/core library
+// JSON is the DEFAULT output: the CLI is a faithful façade over the @altumstack/sii-core library
 // contract (the tasks return plain, JSON-serializable objects), so driving it via Bash yields
 // structured data, not text. `--human` switches to the readable rendering for the terminal.
 type OutputMode = 'json' | 'human';
@@ -42,7 +42,7 @@ export function withOutputFlags(cmd: Command): Command {
     .option('--human', 'Salida legible para humanos en vez de JSON.');
 }
 
-/** Exit-code contract (see @sii/core errors.ts): NotAuthenticated → 2 (incl.
+/** Exit-code contract (see @altumstack/sii-core errors.ts): NotAuthenticated → 2 (incl.
  *  SessionExpired), LoginFailed → 3, RateLimit → 4, anything else → 1. */
 export function exitCodeFor(error: unknown): number {
   if (error instanceof NotAuthenticatedError) return 2;

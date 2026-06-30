@@ -1,0 +1,56 @@
+name: Publish core
+
+# CD for @altumstack/sii-core → GitHub Packages, triggered by a `v*` git tag
+# (ADR-015). Bump packages/core/package.json `version`, merge, then push a tag
+# whose name matches (`v0.2.0` ⇒ version 0.2.0). GITHUB_TOKEN with packages:write
+# is enough to publish to this repo's registry — no PAT needed in CI.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build + publish @altumstack/sii-core
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # No `version:` here — action-setup reads pnpm from package.json
+      # `packageManager` (the single source of truth), matching ci.yml.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@altumstack'
+
+      - name: Install (frozen)
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck + build (tsc -b)
+        run: pnpm build
+
+      - name: Verify tag matches package version
+        # Guard against a mismatched tag publishing a stale version.
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./packages/core/package.json').version")
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$version" != "$tag" ]; then
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match @altumstack/sii-core version '${version}'. Bump package.json or retag."
+            exit 1
+          fi
+          echo "Tag ${GITHUB_REF_NAME} matches version ${version}."
+
+      - name: Publish to GitHub Packages
+        run: pnpm --filter @altumstack/sii-core publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -20,9 +20,9 @@ wall clock.
 
 ## Decision
 
-- **One core package `@sii/core`** holds ALL domain logic and is a normal Node
+- **One core package `@altumstack/sii-core`** holds ALL domain logic and is a normal Node
   library (it may `import` `node:*`, `fs`, `playwright`, a keyring lib). The CLI
-  and MCP packages are thin: each command / tool is a call into a `@sii/core`
+  and MCP packages are thin: each command / tool is a call into a `@altumstack/sii-core`
   task. A surface NEVER reaches past the task layer into a portal / DTE / auth /
   storage facade — that bypasses the rails. (CI enforces this with a
   surface-boundary grep.)

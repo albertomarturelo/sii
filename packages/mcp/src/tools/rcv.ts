@@ -1,9 +1,9 @@
-// `rcv_*` MCP tools — Registro de Compras y Ventas. Thin calls into @sii/core tasks
+// `rcv_*` MCP tools — Registro de Compras y Ventas. Thin calls into @altumstack/sii-core tasks
 // (ADR-003), read-only. Body-RUT (ADR-005): `rut` selects a represented empresa.
 // zod input schemas (ADR-011) — the SDK derives the protocol JSON Schema.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { rcvList, rcvSummary, type RcvSide, type Runtime } from '@sii/core';
+import { rcvList, rcvSummary, type RcvSide, type Runtime } from '@altumstack/sii-core';
 import { toolText } from '../tool-helpers.js';
 
 const sideOf = (venta?: boolean): RcvSide => (venta ? 'VENTA' : 'COMPRA');

@@ -1,11 +1,11 @@
-// F29 MCP tools — Declaración Mensual de IVA. Thin calls into @sii/core tasks (ADR-003),
+// F29 MCP tools — Declaración Mensual de IVA. Thin calls into @altumstack/sii-core tasks (ADR-003),
 // read-only. SESSION-KEYED (ADR-005): reads the session principal, NO `rut` — a represented
 // empresa's F29 needs the empresa's own session (the task rejects a representing operate
 // pointer). zod input (ADR-011). Fase 1 (robusta, sin GWT-RPC): formulario (propuesta) +
 // overview (estado por rango) + status (estado de un mes).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { f29Formulario, f29Overview, f29Status, type Runtime } from '@sii/core';
+import { f29Formulario, f29Overview, f29Status, type Runtime } from '@altumstack/sii-core';
 import { toolText } from '../tool-helpers.js';
 
 export function registerF29Tools(server: McpServer, runtime: Runtime): void {

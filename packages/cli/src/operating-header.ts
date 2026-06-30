@@ -2,7 +2,7 @@
 // guess which RUT a command acts under. Printed to STDERR before every command so
 // STDOUT stays a clean machine-readable result. No-op when there's no session yet
 // (e.g. before `auth login`).
-import { Rut, operatingStatus, type Runtime } from '@sii/core';
+import { Rut, operatingStatus, type Runtime } from '@altumstack/sii-core';
 import { err, isHumanMode } from './io.js';
 
 export async function printOperatingHeader(runtime: Runtime): Promise<void> {
@@ -13,7 +13,7 @@ export async function printOperatingHeader(runtime: Runtime): Promise<void> {
   if (!ctx) return;
   const rut = Rut.parse(ctx.operatingRut).formatted;
   // razón social is the user's own represented empresa shown on their own terminal
-  // (never audited, never sent to an LLM — that boundary is enforced in @sii/core).
+  // (never audited, never sent to an LLM — that boundary is enforced in @altumstack/sii-core).
   const who = ctx.isSelf ? 'tú mismo' : (ctx.razonSocial ?? 'empresa representada');
   err(`operating as: ${rut} (${who})`);
 }

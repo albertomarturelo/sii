@@ -16,7 +16,7 @@ codebase, so they get an ADR before the code lands.
 
 - **CLI framework: `commander`.** Ubiquitous, simple, first-class nested
   subcommands (`sii auth login`, `sii operate`), good TS support, minimal
-  ceremony. Lives in `@sii/cli` only; `@sii/core` never imports it.
+  ceremony. Lives in `@sii/cli` only; `@altumstack/sii-core` never imports it.
 - **Auth base is browser cookies-only first** (ADR-006 default path). `auth login`
   opens a headed browser at SII's login page; the user types the Clave; we
   persist cookies-only via the `SessionStore` (a `KeyValueStore` key). This is the
@@ -29,7 +29,7 @@ codebase, so they get an ADR before the code lands.
   in-house `rut`/`config` modules; `zod` is adopted when the first MCP tool with
   a non-trivial input schema lands, not before.
 - **Portal driver: `playwright`** (already set by ADR-004/STACK) — the default
-  `PortalDriver` adapter in `@sii/core`. Added with that adapter, not in the
+  `PortalDriver` adapter in `@altumstack/sii-core`. Added with that adapter, not in the
   pure-spine increment, to keep the first install light.
 
 ## Alternatives Considered

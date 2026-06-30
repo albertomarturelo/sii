@@ -29,7 +29,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@sii/core':
+      '@altumstack/sii-core':
         specifier: workspace:*
         version: link:../core
       commander:
@@ -47,12 +47,12 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@altumstack/sii-core':
+        specifier: workspace:*
+        version: link:../core
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.29.0(zod@4.4.3)
-      '@sii/core':
-        specifier: workspace:*
-        version: link:../core
       zod:
         specifier: ^4.4.3
         version: 4.4.3

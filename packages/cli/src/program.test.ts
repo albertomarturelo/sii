@@ -8,7 +8,7 @@ import {
   ValidationError,
   testing,
   type Runtime,
-} from '@sii/core';
+} from '@altumstack/sii-core';
 import { buildProgram } from './program.js';
 import { exitCodeFor } from './io.js';
 import type { Prompters } from './prompt.js';
