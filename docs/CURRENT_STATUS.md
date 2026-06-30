@@ -1,19 +1,30 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testing fixes shipped; F29 is next)
+Last updated: 2026-06-29 (PM — F29 Fase 1 redesigned + live-validated; Fase 2 GWT-RPC deferred)
 
 ## In Progress
 
-- _(no feature in progress — F22 is now COMPLETE: status/overview (#19), formulario (#27/#37),
-  observaciones (#26), historial (#28) all merged + live-validated; CLI JSON-default (#35); the
-  post-merge MCP-testing grouping fixes (#41/PR #40) are merged too.)_
-  **NEXT TARGET (chosen): #18 F29** — session-keyed read surface, reuse the F22 task shape
-  (`withSession`, principal-only, paced, audited; JSON-default surface via `emit`). Expected
-  session-keyed like F22 — **confirm reach live** (one `--rut <empresa>` probe) before wiring
-  (spike #15 open for F29/BHE). Likely needs a Phase-1 spike for the IVA propuesta + presented-F29
-  SDI endpoints (no ported contract yet). Templates to copy: **F22** (session-keyed) for the task
-  shape, **RCV** (body-RUT) for the alias-tolerant wire parsing. Then **#21 DTE authorized**
-  (public, no spike) and **#20 BTE** (session-keyed).
+- **#18 F29 read surface — Fase 1 BUILT + LIVE-VALIDATED (ADR-013).** The initial 1:1 port of the
+  Python surface (propuesta + estado-metadata) was **rejected by the user**: it shows whether a
+  return was filed, not the **balance** (ingresos, IVA, lo que pagué) — across months. A live spike
+  (2026-06-29, operator-assisted, empresa session) mapped where the data lives and the surface was
+  **redesigned** into three session-keyed verbs over the robust SDI-**JSON** facades:
+  - `f29 formulario <periodo>` — the IVA **propuesta** códigos **labeled** (glosa) + **grouped**
+    (`fuente:"propuesta"`; débitos/créditos/retenciones/otros/totales).
+  - `f29 overview <desde> <hasta>` (+ `<año>` shortcut) — **per-month** position across a **date
+    range**: estado/folio/fecha + the declared **`total`** ("lo que pagué por mes"); paced, ≤36 meses.
+  - `f29 status <periodo>` — raw estado of one month.
+  CLI + MCP (`f29_formulario`/`f29_overview`/`f29_status`), JSON-default. Código **taxonomy**
+  (`portal/f29-codigos.ts`, **157 códigos** glosa+signo+grupo) observed first-hand from the form
+  HTML (`rfiInternet/cargarHtml`); unobserved código → `otros` (surfaced, anti-allowlist). Estado
+  **`monto` surfaced as `total`** (own figure; never audited). **Session-keyed (ADR-005)**: no
+  `--rut`, rejects a representing pointer up front (answers spike #15 for F29). **Live-validated
+  2026-06-29** (empresa 78.362.507-5): overview returned real per-month totals, formulario the
+  grouped propuesta, status the declaraciones; audit carries no amounts. 187/187 green.
+- **#18 F29 Fase 2 — DEFERRED (own PR + ADR-013).** The **presented** form's full balance (computed
+  totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind `rfiInternet` **GWT-RPC**
+  — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the spike; `docs/sii-contract/f29.md`).
+  Gated on a headless warm+intercept PoC before building; encapsulated with "scraper roto" errors.
 
 ## Recently Completed
 
@@ -228,8 +239,11 @@ Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testi
 1. **Operate reach (representación) spike (#15)** — **RCV = body-RUT** (live 2026-06-28:
    `--rut` reached a represented empresa's RCV). **F22 = session-keyed** (Python live
    2026-06-27: `--rut <empresa>` returned a clean negative; body-RUT does NOT reach it →
-   F22 reads the principal, no `--rut`). Still OPEN for **F29/BHE** (#18/#20) — expected
-   session-keyed like F22; confirm live before wiring.
+   F22 reads the principal, no `--rut`). **F29 = session-keyed** (Python live 2026-06-26:
+   the body RUT of a represented empresa returns `Consulta RUT no esta autorizado`) — wired
+   off the port (no `--rut`, rejects a representing pointer up front); **TS live-confirm
+   pending** alongside the F29 live validation. Still OPEN for **BHE** (#20) — expected
+   session-keyed like F22/F29; confirm live before wiring.
 2. **CLI header doesn't reflect a per-call `--rut`** — `operating as:` (preAction hook)
    shows the sticky operate POINTER, so `sii rcv summary … --rut <empresa>` prints
    "tú mismo" while the result line shows the empresa RUT. Minor ADR-005 "always
@@ -246,12 +260,12 @@ Last updated: 2026-06-29 (PM — session close: F22 surface complete + MCP-testi
 
 ## Next Priorities
 
-1. **#18 F29 — the next surface (chosen).** Read the IVA propuesta + the presented F29.
-   Session-keyed: reuse the F22 task shape (`withSession`, principal-only, paced, audited,
-   JSON-default `emit`). **Confirm reach live first** (spike #15: a `--rut <empresa>` probe —
-   expected session-keyed like F22). Likely a Phase-1 spike for the SDI endpoints (no ported
-   contract yet) → `sii-contract/f29.md`. Copy F22 (session-keyed task) + RCV (alias-tolerant
-   zod wire parsing). (ADR-005 / ADR-007)
+1. **#18 F29 Fase 2 — presented form via GWT-RPC (own PR + ADR).** First a **headless PoC**:
+   warm the `rfiInternet` 2-app chain + the `SdiAATokenService` handshake, intercept
+   `findDeclaraciones`'s `<FormularioRfi>` XML, parse the código grid. If reliable, build
+   `fuente:"presentada"` + a computed `resumen` (real totals 538/89/91), reusing the Fase-1
+   taxonomy; encapsulate the GWT-RPC in the `PortalDriver` with "scraper roto" errors. Then flip
+   the ROADMAP F29 row 🚧 → ✅.
 2. **Live-revalidate RCV** — re-observe the ported contract against a real session
    (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
    (F22 status/formulario + observaciones + historial are live-validated; RCV is not.)

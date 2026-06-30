@@ -41,3 +41,9 @@ export class RcvError extends SiiError {}
 /** SII rejected an F22 (Declaración Anual de Renta) facade request, or the response
  *  was not parseable. SII's message verbatim — never translated (ADR-004). */
 export class F22Error extends SiiError {}
+
+/** SII rejected an F29 (Declaración Mensual de IVA) facade request, the response was
+ *  not parseable, OR the operation is invalid for F29's session-keyed contract — F29
+ *  authorizes by the session principal, so operating as a represented empresa is
+ *  rejected up front (ADR-005). SII's message verbatim — never translated (ADR-004). */
+export class F29Error extends SiiError {}

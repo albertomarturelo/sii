@@ -88,8 +88,8 @@ hexagonal ceremony (ADR-003).
 | `seams` | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` (now + `sleep`, the pacing primitive) interfaces + Node defaults. `PortalSession` includes `requestJson`/`cookie` — the authenticated SPA-JSON-facade primitive (www4 SDI endpoints) | Done |
 | `auth` | Session lifecycle: browser cookies-only login, logout, status; only login mints. `withSession` is the consume-path — domain tasks acquire a live `PortalSession` (+ resolved operating RUT) through it; it never mints, raises `NotAuthenticated` when none | login/logout/status + `withSession` done; rest planned |
 | `identity` | Operate-centric model: operating RUT, operable set | Planned |
-| `portal/*` | Portal surfaces as typed facades over `PortalSession.requestJson`. Envelope parsed with zod (ADR-011), per-row curated projection alias-tolerant + `raw` (ADR-004) — except F22, which drops raw (its non-curated data is pure PII). `representacion` + `rcv` (body-RUT) + `f22` (session-keyed, consultaestadof22ui) landed; f29, bte, dte-public next | representación + rcv + f22 done; rest planned |
-| `tasks/*` | High-level operations the surfaces call. Domain reads wrap a facade in `withSession` + one audit receipt (auth, operate, rcv, f22 done; profile, f29, bte, iva, renta planned) | auth/operate/rcv/f22 done; rest planned |
+| `portal/*` | Portal surfaces as typed facades over `PortalSession.requestJson`. Envelope parsed with zod (ADR-011), per-row curated projection alias-tolerant + `raw` (ADR-004) — except F22/F29, which drop raw (their non-curated data is PII). `representacion` + `rcv` (body-RUT) + `f22` (session-keyed, consultaestadof22ui) + `f29` (session-keyed, propuestaf29ui) landed; bte, dte-public next | representación + rcv + f22 + f29 done; rest planned |
+| `tasks/*` | High-level operations the surfaces call. Domain reads wrap a facade in `withSession` + one audit receipt (auth, operate, rcv, f22, f29 done; profile, bte, iva, renta planned) | auth/operate/rcv/f22/f29 done; rest planned |
 | `audit` | Append-only JSONL receipt (secret keys dropped) | Planned |
 | `dte` | In-house DTE XML + signing + SOAP | Future |
 
