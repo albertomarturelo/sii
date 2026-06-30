@@ -1,30 +1,30 @@
 # Current Project Status
 
-Last updated: 2026-06-29 (PM — F29 read surface BUILT + unit-tested; awaiting live validation)
+Last updated: 2026-06-29 (PM — F29 Fase 1 redesigned + live-validated; Fase 2 GWT-RPC deferred)
 
 ## In Progress
 
-- **#18 F29 read surface — BUILT, awaiting live validation.** Session-keyed propuesta + estado:
-  `portal/f29.ts` (`fetchF29Propuesta` via `getDeclaracionConCondicionesYTipoPropuesta`,
-  `fetchF29Estado` via `getDeclaracionConEstados`, on the `propuestaf29ui` SPA) → `tasks/f29.ts`
-  (`f29Draft` / `f29Status`, `withSession`, session-keyed, audited; a SINGLE POST each → no pacing)
-  → CLI `sii f29 draft|status <periodo>` + MCP `f29_draft`/`f29_status` (JSON-default via `emit`).
-  **Wire contract PORTED** from the Python `sii-cli` (`portal/f29.py` + its f29.md; cited in
-  `docs/sii-contract/f29.md`) — the endpoints/payloads existed there, so **no Phase-1 spike was
-  needed**; **NOT yet live-revalidated from TS** (same posture F22 status shipped with before #27).
-  **Session-keyed (ADR-005)** — answers spike #15 for F29 via the port (the body RUT of a
-  represented empresa returns `Consulta RUT no esta autorizado`, Python live 2026-06-26): the task
-  takes NO `--rut` AND **rejects a representing operate pointer UP FRONT** (before any session) with
-  an actionable "log in as the empresa" message. F29 **diverges from F22 here** (F22 silently reads
-  self; F29 rejects — the decision was confirmed with the user). **PII-safe**: curates ONLY the tax
-  códigos (`listCodPropuestos` + `listCodAdministrativos`), drops `listCodBase` / the PP29 `traza`
-  (embeds RUT) / estado `monto`, exposes **NO `raw`** — and needs **no per-código denylist** (unlike
-  F22) because the PII is segregated into its own arrays. F29 `valor` is plain-numeric (`.`-decimal,
-  no thousands separators), so a bare `Number()` is correct (floats like the PPM tasa survive) —
-  unlike F22's es-CL grid. 19 new tests vs fakes (no SII, synthetic RUTs), **187/187 green**.
-  **NEXT: live-validate** end-to-end (CLI + MCP) on a real session — propuesta + estado for a
-  período, and the representación rejection. Then **#21 DTE authorized** (public, no spike) and
-  **#20 BTE** (session-keyed).
+- **#18 F29 read surface — Fase 1 BUILT + LIVE-VALIDATED (ADR-013).** The initial 1:1 port of the
+  Python surface (propuesta + estado-metadata) was **rejected by the user**: it shows whether a
+  return was filed, not the **balance** (ingresos, IVA, lo que pagué) — across months. A live spike
+  (2026-06-29, operator-assisted, empresa session) mapped where the data lives and the surface was
+  **redesigned** into three session-keyed verbs over the robust SDI-**JSON** facades:
+  - `f29 formulario <periodo>` — the IVA **propuesta** códigos **labeled** (glosa) + **grouped**
+    (`fuente:"propuesta"`; débitos/créditos/retenciones/otros/totales).
+  - `f29 overview <desde> <hasta>` (+ `<año>` shortcut) — **per-month** position across a **date
+    range**: estado/folio/fecha + the declared **`total`** ("lo que pagué por mes"); paced, ≤36 meses.
+  - `f29 status <periodo>` — raw estado of one month.
+  CLI + MCP (`f29_formulario`/`f29_overview`/`f29_status`), JSON-default. Código **taxonomy**
+  (`portal/f29-codigos.ts`, **157 códigos** glosa+signo+grupo) observed first-hand from the form
+  HTML (`rfiInternet/cargarHtml`); unobserved código → `otros` (surfaced, anti-allowlist). Estado
+  **`monto` surfaced as `total`** (own figure; never audited). **Session-keyed (ADR-005)**: no
+  `--rut`, rejects a representing pointer up front (answers spike #15 for F29). **Live-validated
+  2026-06-29** (empresa 78.362.507-5): overview returned real per-month totals, formulario the
+  grouped propuesta, status the declaraciones; audit carries no amounts. 187/187 green.
+- **#18 F29 Fase 2 — DEFERRED (own PR + ADR-013).** The **presented** form's full balance (computed
+  totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind `rfiInternet` **GWT-RPC**
+  — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the spike; `docs/sii-contract/f29.md`).
+  Gated on a headless warm+intercept PoC before building; encapsulated with "scraper roto" errors.
 
 ## Recently Completed
 
@@ -260,11 +260,12 @@ Last updated: 2026-06-29 (PM — F29 read surface BUILT + unit-tested; awaiting 
 
 ## Next Priorities
 
-1. **Live-validate #18 F29 (operator-assisted).** The code is built + unit-tested off the ported
-   contract; confirm it end-to-end against a real session: propuesta (`f29 draft`) + estado
-   (`f29 status`) for a período, the representación rejection (operate an empresa → actionable
-   error, no doomed POST), and refresh the dates in `sii-contract/f29.md`. Then flip the ROADMAP
-   F29 row 🚧 → ✅ and move it from "In Progress" to "Recently Completed".
+1. **#18 F29 Fase 2 — presented form via GWT-RPC (own PR + ADR).** First a **headless PoC**:
+   warm the `rfiInternet` 2-app chain + the `SdiAATokenService` handshake, intercept
+   `findDeclaraciones`'s `<FormularioRfi>` XML, parse the código grid. If reliable, build
+   `fuente:"presentada"` + a computed `resumen` (real totals 538/89/91), reusing the Fase-1
+   taxonomy; encapsulate the GWT-RPC in the `PortalDriver` with "scraper roto" errors. Then flip
+   the ROADMAP F29 row 🚧 → ✅.
 2. **Live-revalidate RCV** — re-observe the ported contract against a real session
    (operator-assisted): confirm endpoints/fields, refresh the dates in `sii-contract/rcv.md`.
    (F22 status/formulario + observaciones + historial are live-validated; RCV is not.)
