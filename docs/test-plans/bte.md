@@ -10,9 +10,11 @@ empresa** (logout→login).
 
 **Architecture:** the only read surface that is **not** an SDI-JSON facade — it reads the legacy
 `loa.sii.cl/cgi_IMT/` CGIs' inline JS maps via `goto`/`evaluate` (the `.sii.cl` cookie SSO-carries
-to `loa.sii.cl`). **PII posture:** curated boleta + `raw` (the per-boleta row — counterparty data,
-like RCV); the taxpayer's **own** identity (`nombre_contribuyente`, `rut_arrastre`) lives in the
-report meta and is **dropped** — never curated, never in `raw`.
+to `loa.sii.cl`). **PII posture:** curated boleta, **NO `raw`** (live BUG-1, 2026-06-30): the row
+mixes counterparty data with the taxpayer's OWN identity on both sides (emitidas `usuemisor` = self
+emitter, recibidas `nombre_receptor` = self receptor), so — like F22/F29 — BTE exposes only the
+curated tax fields and **no `raw`**. The own identity (`nombre_contribuyente`/`rut_arrastre` in the
+meta; `usuemisor`/`nombre_receptor` in the row) is never surfaced.
 
 **Scope:** `bte list <periodo>` returns ONE month's boletas (EMITIDAS by default; `--recibidas`).
 Montos are es-CL parsed; `estado` is `VIG`/`ANUL`. An empty month is a clean 0-boleta result, not
@@ -45,9 +47,9 @@ result. Inputs — `bte_list`: `periodo` (YYYYMM/YYYY-MM), `recibidas?` (boolean
 | M1 | "Inicia sesión en el SII" | `auth_login` (no password) | Browser flow; you type the Clave. PASS: Clave never crosses the tool arg / chat. |
 | M2 | "¿Quién soy?" | `auth_status` | Shows `SELF`. Record it. |
 | **Emitidas** ||||
-| M3 🎯 | "Muéstrame mis boletas de honorarios emitidas de `<MES_EMI>`" | `bte_list {periodo:"<MES_EMI>"}` | JSON `{rut, periodo, side:"EMITIDAS", totalBoletas, totales:{honorarios,retencionEmisor,retencionReceptor,liquido}, boletas[]}`, each `{folio, fecha, contraparteRut, contraparteNombre, totalHonorarios, honorariosLiquidos, retencionReceptor, estado:"VIG"|"ANUL", fechaAnulacion, socProfesional, raw}`. PASS: `boletas.length == totalBoletas`. |
+| M3 🎯 | "Muéstrame mis boletas de honorarios emitidas de `<MES_EMI>`" | `bte_list {periodo:"<MES_EMI>"}` | JSON `{rut, periodo, side:"EMITIDAS", totalBoletas, totales:{honorarios,retencionEmisor,retencionReceptor,liquido}, boletas[]}`, each `{folio, fecha, contraparteRut, contraparteNombre, totalHonorarios, honorariosLiquidos, retencionReceptor, estado:"VIG"|"ANUL", fechaAnulacion, socProfesional}` — **no `raw` key**. PASS: `boletas.length == totalBoletas`. |
 | M4 | "¿A quién le emití boletas en `<MES_EMI>`?" | (reads M3) | Lists the **receptores** (`contraparteRut` + `contraparteNombre`). |
-| M5 🔒 | "En esas boletas, ¿aparece mi propio nombre o RUT como titular del informe?" | (reads M3) | PASS only if the taxpayer's OWN identity does NOT appear (no `nombre_contribuyente`/`rut_arrastre` anywhere, incl. `raw`). Counterparty RUT/nombre ARE expected. Any own-identity leak → FAIL (record it). |
+| M5 🔒 | "En esas boletas, ¿aparece mi propio nombre o RUT como titular del informe?" | (reads M3) | PASS only if the taxpayer's OWN identity does NOT appear anywhere — and there is **no `raw` key at all** (the regression source for BUG-1: `raw.usuemisor`/`raw.nombre_receptor`). Counterparty RUT/nombre ARE expected. Any own-identity leak → FAIL (record it). |
 | M6 | "Mis boletas emitidas de `<MES_VACÍO>`" | `bte_list {periodo}` | `totalBoletas:0`, `boletas:[]` — clean negative, not an error. |
 | **Recibidas (validates the ported side)** ||||
 | M7 🎯 | "Muéstrame las boletas de honorarios que **recibí** en `<MES_REC>`" | `bte_list {periodo:"<MES_REC>", recibidas:true}` | `side:"RECIBIDAS"`; `contraparteRut`/`contraparteNombre` are the **emisor** (`rutemisor`/`nombre_emisor`). PASS: rows parse (this is the priority live check — see report-back). |
@@ -75,7 +77,7 @@ STDERR (human mode only). Check `echo $?` for the exit code where noted.
 | C3 🎯 | `sii bte list <MES_EMI> --human` | Header `BHE EMITIDAS <MES_EMI> — <rut>`, then per boleta `  folio=<n>  <DD/MM/YYYY>  <contraparte rut>  <nombre>  líquido=<monto>` (anuladas tagged `[ANULADA]`), then `N boleta(s); líquido total=<monto>.`. PASS: count + total render. |
 | C4 🔒 | Inspect C3 output for OWN-identity PII | PASS only if the taxpayer's own nombre/RUT-as-titular does NOT appear (counterparty data does). Any own-identity leak → FAIL (record it). |
 | C5 | `sii bte list <MES_VACÍO> --human` | `Sin boletas en el período.` — clean negative, not an error. Exit 0. |
-| C6 | `sii bte list <MES_EMI>` (JSON, default) `\| jq '.boletas[0]'` | Pipeable JSON boleta `{folio, fecha, contraparteRut, contraparteNombre, totalHonorarios, honorariosLiquidos, estado, raw}`. PASS: STDOUT is pure JSON (header on STDERR). |
+| C6 | `sii bte list <MES_EMI>` (JSON, default) `\| jq '.boletas[0] \| has("raw")'` | `false` — there is **no `raw` key** (BUG-1). `jq '.boletas[0]'` shows only curated fields. PASS: STDOUT is pure JSON (header on STDERR). |
 | C7 | `sii bte list <MES_EMI> --emitidas --human` | Identical to C3 (explicit emitidas = default). |
 | **Recibidas (validates the ported side)** ||
 | C8 🎯 | `sii bte list <MES_REC> --recibidas --human` | Header `BHE RECIBIDAS <MES_REC> — <rut>`; `contraparte` is the **emisor**. PASS: rows parse with `contraparteRut`/`contraparteNombre` populated (priority live check). |
@@ -106,9 +108,10 @@ Capture (synthetic/redacted only here; keep real folios/RUTs/montos/PII out of g
 - **`porcentaje_retencion`** (monthly meta) — record its value + meaning if it can be pinned.
 - **CLI ↔ MCP parity** — `bte_list {periodo}` boletas match `sii bte list <periodo>` (same folios,
   contrapartes, montos, totals).
-- **PII** — confirm the own-identity meta (`nombre_contribuyente`/`rut_arrastre`) NEVER surfaces (curated
-  or `raw`); counterparty RUT/nombre/`email_envio` DO (curated/raw) — confirm that posture is intended.
-  The audit log carries only action/result/period/side (no montos, no names).
+- **PII** — confirm there is **no `raw` key** and the own-identity (meta `nombre_contribuyente`/
+  `rut_arrastre`; row `usuemisor`/`nombre_receptor`) NEVER surfaces. Only the curated tax fields +
+  the **counterparty** `contraparteRut`/`contraparteNombre` appear. The audit log carries only
+  action/result/period/side (no montos, no names).
 
 When done, refresh the dates/fields in `docs/sii-contract/bte.md` and tick the live-validation in
 `docs/CURRENT_STATUS.md`.

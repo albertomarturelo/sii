@@ -110,12 +110,13 @@ Row montos (`totalhonorarios`, `honorariosliquidos`, …) ARE **Chilean dot-form
 (`"1.300.000"`) — parse es-CL (cf. F22). Observed row fields:
 
 - **Recibidas** row `_<i>`: `nroboleta`, `rutemisor`+`dvemisor`, `nombre_emisor`,
-  `fecha_boleta`, `totalhonorarios`, `honorariosliquidos`, `es_soc_profesional`,
-  `retencion_receptor`, `estado` (`S`/`N`), `fechaanulacion`, `cod_comuna`, `codigobarras`.
-- **Emitidas** row `_<i>`: `nroboleta`, `usuemisor`, `fechaemision`, `rutreceptor`+`dvreceptor`,
-  `nombrereceptor`, `fecha_boleta`, `totalhonorarios`, `es_soc_profesional`, `email_envio`,
-  `retencion_emisor`, `retencion_receptor`, `honorariosliquidos`, `estado` (`S`/`N`),
-  `fechaanulacion`, `codigobarras`.
+  **`nombre_receptor`** (the RECEPTOR = self → own-identity PII, live BUG-1), `fecha_boleta`,
+  `totalhonorarios`, `honorariosliquidos`, `es_soc_profesional`, `retencion_receptor`,
+  `estado` (`S`/`N`), `fechaanulacion`, `cod_comuna`, `codigobarras`.
+- **Emitidas** row `_<i>`: `nroboleta`, **`usuemisor`** (the EMITTER = self → own-identity PII,
+  live BUG-1), `fechaemision`, `rutreceptor`+`dvreceptor`, `nombrereceptor`, `fecha_boleta`,
+  `totalhonorarios`, `es_soc_profesional`, `email_envio` (counterparty email), `retencion_emisor`,
+  `retencion_receptor`, `honorariosliquidos`, `estado` (`S`/`N`), `fechaanulacion`, `codigobarras`.
 
 Pagination: walk `pagina_solicitada` from 0; stop once `len(collected) >=
 xml_values.total_boletas`, OR a page adds no new rows (dedup by folio + counterparty
@@ -147,27 +148,25 @@ No JSON envelope — state read from the inline maps:
 | `estado` (per boleta) | `S` = anulada → `ANUL`; `N` = vigente → `VIG`. `fechaanulacion` set when anulada. |
 | Soc. Prof. | `SI`/`NO` → bool |
 
-## Curated + raw / PII posture (refined by the TS live capture)
+## PII posture — NO `raw` (live BUG-1, 2026-06-30)
 
-The own-PII is in the **header/meta**, the tax data is in the **rows** — so curate per
-location (TS live 2026-06-30):
+BTE exposes **NO `raw`** — only the curated tax fields — exactly like F22/F29 (CONVENTIONS:
+drop `raw` when the non-curated data is PII).
 
 - **Annual map + monthly meta** carry the taxpayer's OWN identity (`nombre_contribuyente`,
-  `rut_arrastre`, `dv_arrastre`) → **DROP from curated, never raw** (we already hold the
-  operating RUT; the name is pure identity PII, cf. F22's denylist). Surface only the tax
-  numbers (the month grid / the `total_boletas` + `suma_*`).
-- **Monthly rows** are the boletas → **curated typed shape + `raw`** of the ROW (like RCV):
-  the counterparty `rutreceptor`/`nombrereceptor` (emitidas) or `rutemisor`/`nombre_emisor`
-  (recibidas) are legitimate boleta fields, not the taxpayer's own identity. `raw` is the
-  per-boleta row, **not** the header meta (so the meta's own-PII stays out of `raw`).
-- **EXCEPTION — `usuemisor` is own-identity (live M5, 2026-06-30).** An EMITIDAS row carries
-  `usuemisor` = the EMITTER, i.e. the taxpayer themselves — so it is the titular's OWN name,
-  NOT counterparty data. It is **denylisted out of `raw`** (`portal/bte.ts` `RAW_OWN_PII`); the
-  first live MCP test (`bte_list` emitidas) leaked it via `raw.usuemisor` before this fix. The
-  denylist is the bounded-own-PII pattern (cf. F22): drop the known own-identity row field,
-  keep everything else.
-- Note `email_envio` (emitidas) is the receptor's (counterparty) email — surfaced in `raw` only
-  (not curated); reconsider dropping if it proves to be the taxpayer's own send-address.
+  `rut_arrastre`, `dv_arrastre`) → never read. Surface only the tax numbers (the month grid /
+  `total_boletas` + `suma_*`).
+- **Monthly rows** mix counterparty data with the taxpayer's OWN identity on **both** sides:
+  EMITIDAS carries `usuemisor` (the emitter = self) and RECIBIDAS carries `nombre_receptor` (the
+  receptor = self). Live testing (3 RUTs: persona / empresa / a worker who emitted to the empresa)
+  found **BUG-1** — `raw` leaked the session principal's full name via `raw.usuemisor` (emitidas)
+  and `raw.nombre_receptor` (recibidas), touching the real PII of two people. A per-field denylist
+  was rejected: the full own-identity field set is **not provably enumerable** across both sides /
+  future fields. So the curated shape (`folio`, counterparty `contraparte{Rut,Nombre}`, montos,
+  retenciones, `estado`, …) IS the whole output — `raw` is dropped. The dropped fields are
+  own-identity PII (`usuemisor`/`nombre_receptor`), a counterparty email (`email_envio`), and
+  low-value metadata (`codigobarras`, `cod_comuna`) — no tax detail is lost.
+- The **audit log** already carried no boleta data (action/result/rut/period/side only) — unaffected.
 
 ## Read / write boundary
 

@@ -101,13 +101,12 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
       fechaAnulacion: '21/05/2026',
     });
     expect(res.boletas[1]?.contraparteRut).toBe('12345670-K');
-    // email_envio rides into raw only (not a curated field); the row's keys are de-indexed.
-    expect(res.boletas[0]?.raw.email_envio).toBe('cliente1@example.com');
-    // The emitter's OWN identity (usuemisor) is denylisted out of raw (live M5).
-    expect(res.boletas[0]?.raw.usuemisor).toBeUndefined();
-    // No own-identity value (report meta OR the row's usuemisor) surfaces anywhere.
-    expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN NAME');
-    expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN EMITTER NAME');
+    // BUG-1: BTE exposes NO `raw` — own-identity (usuemisor + report-meta name) and the
+    // counterparty email never surface; only the curated tax fields do.
+    expect(res.boletas[0]).not.toHaveProperty('raw');
+    expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN EMITTER NAME'); // usuemisor (own)
+    expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN NAME'); // report-meta name
+    expect(JSON.stringify(res)).not.toContain('cliente1@example.com'); // counterparty email (was raw-only)
     // Navigated to the emitidas monthly CGI with the split RUT + período + page 0.
     expect(session.gotos[0]).toContain('/TMBCOC_InformeMensualBhe.cgi');
     expect(session.gotos[0]).toContain('cbanoinformemensual=2026&cbmesinformemensual=05');
@@ -121,6 +120,7 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
       rutemisor_1: '20000042',
       dvemisor_1: '0',
       nombre_emisor_1: 'Proveedor Servicios EIRL',
+      nombre_receptor_1: 'SYNTHETIC OWN RECEPTOR NAME', // own identity (self = receptor) — must NOT surface
       totalhonorarios_1: '120.000',
       honorariosliquidos_1: '102.600',
       retencion_receptor_1: '17.400',
@@ -149,6 +149,9 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
       contraparteNombre: 'Proveedor Servicios EIRL',
       totalHonorarios: 120000,
     });
+    // BUG-1: the RECIBIDAS self receptor-name never surfaces (no `raw`).
+    expect(res.boletas[0]).not.toHaveProperty('raw');
+    expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN RECEPTOR NAME');
     expect(session.gotos[0]).toContain('/TMBCOC_InformeMensualBheRec.cgi');
   });
 

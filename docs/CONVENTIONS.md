@@ -116,7 +116,12 @@ Python `sii-cli`, adapted to TypeScript.
   non-curated data is PII, not tax detail.** F22's uncurated fields are pure
   identity/bank PII (RUT, dirección, email, número de cuenta) — every tax código
   IS curated — so F22 exposes NO `raw` at all, keeping that PII off every surface
-  / the LLM / the audit log. (ADR-004)
+  / the LLM / the audit log. **BTE/BHE joins this no-`raw` camp (live BUG-1):** a
+  boleta ROW mixes counterparty data with the taxpayer's OWN identity on both sides
+  (emitidas `usuemisor` = self emitter, recibidas `nombre_receptor` = self receptor),
+  and the own-identity field set is not provably enumerable — so a per-field denylist
+  is unsafe; curate the named tax fields and expose NO `raw`. **Prefer dropping `raw`
+  over a denylist whenever the own-PII field set can't be proven complete.** (ADR-004)
 - **Curate PII-dense code grids by DENYLISTING the (bounded) PII, not allowlisting
   the tax códigos.** When a grid interleaves tax códigos with identity/bank PII
   (F22), drop ONLY the PII códigos and surface everything else. The PII set is small,
