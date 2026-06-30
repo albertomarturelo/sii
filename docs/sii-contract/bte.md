@@ -159,9 +159,15 @@ location (TS live 2026-06-30):
 - **Monthly rows** are the boletas → **curated typed shape + `raw`** of the ROW (like RCV):
   the counterparty `rutreceptor`/`nombrereceptor` (emitidas) or `rutemisor`/`nombre_emisor`
   (recibidas) are legitimate boleta fields, not the taxpayer's own identity. `raw` is the
-  per-boleta row, **not** the header meta (so own-PII stays out of `raw`).
-- Note `email_envio` (emitidas) is a counterparty email — surface in `raw` only (not a
-  curated field); reconsider dropping if it proves to be the taxpayer's own send-address.
+  per-boleta row, **not** the header meta (so the meta's own-PII stays out of `raw`).
+- **EXCEPTION — `usuemisor` is own-identity (live M5, 2026-06-30).** An EMITIDAS row carries
+  `usuemisor` = the EMITTER, i.e. the taxpayer themselves — so it is the titular's OWN name,
+  NOT counterparty data. It is **denylisted out of `raw`** (`portal/bte.ts` `RAW_OWN_PII`); the
+  first live MCP test (`bte_list` emitidas) leaked it via `raw.usuemisor` before this fix. The
+  denylist is the bounded-own-PII pattern (cf. F22): drop the known own-identity row field,
+  keep everything else.
+- Note `email_envio` (emitidas) is the receptor's (counterparty) email — surfaced in `raw` only
+  (not curated); reconsider dropping if it proves to be the taxpayer's own send-address.
 
 ## Read / write boundary
 

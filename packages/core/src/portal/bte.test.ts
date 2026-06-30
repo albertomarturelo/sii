@@ -26,6 +26,7 @@ const META = {
 // anulada (S). email_envio rides into raw only.
 const ARR_EMITIDAS = {
   nroboleta_1: '101',
+  usuemisor_1: 'SYNTHETIC OWN EMITTER NAME', // own-identity (the emitter = self) — must NOT reach raw
   fechaemision_1: '15/05/2026',
   rutreceptor_1: '77777777',
   dvreceptor_1: '7',
@@ -102,8 +103,11 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
     expect(res.boletas[1]?.contraparteRut).toBe('12345670-K');
     // email_envio rides into raw only (not a curated field); the row's keys are de-indexed.
     expect(res.boletas[0]?.raw.email_envio).toBe('cliente1@example.com');
-    // The taxpayer's OWN name (report meta) never surfaces anywhere in the result.
+    // The emitter's OWN identity (usuemisor) is denylisted out of raw (live M5).
+    expect(res.boletas[0]?.raw.usuemisor).toBeUndefined();
+    // No own-identity value (report meta OR the row's usuemisor) surfaces anywhere.
     expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN NAME');
+    expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN EMITTER NAME');
     // Navigated to the emitidas monthly CGI with the split RUT + período + page 0.
     expect(session.gotos[0]).toContain('/TMBCOC_InformeMensualBhe.cgi');
     expect(session.gotos[0]).toContain('cbanoinformemensual=2026&cbmesinformemensual=05');

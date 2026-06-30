@@ -31,9 +31,11 @@ const MENSUAL_CGI: Record<BteSide, string> = {
 // pagination first in practice; this only caps a pathological page sequence (ADR-004).
 const MAX_PAGINAS = 100;
 
-/** One boleta de honorarios (curated) + `raw` (the full per-boleta ROW — counterparty data,
- *  like RCV's detalle; the taxpayer's OWN identity lives in the report META, NOT here, so it
- *  never reaches `raw`). Montos are parsed from SII's es-CL dot-formatted strings. */
+/** One boleta de honorarios (curated) + `raw` (the per-boleta ROW — counterparty data, like
+ *  RCV's detalle). The taxpayer's OWN identity is dropped: the report META's
+ *  `nombre_contribuyente`/`rut_arrastre` are never read, and the EMITIDAS row's `usuemisor`
+ *  (the emitter = self) is denylisted out of `raw` (live M5). Montos are parsed from SII's
+ *  es-CL dot-formatted strings. */
 export interface BteBoleta {
   readonly folio: number | null;
   /** Emisión/boleta date, `DD/MM/YYYY` verbatim (ADR-004). */
@@ -165,6 +167,16 @@ function rowsByIndex(arr: Record<string, unknown>): Record<string, unknown>[] {
   return [...byIndex.entries()].sort((a, b) => a[0] - b[0]).map(([, row]) => row);
 }
 
+// Own-identity row fields to DENYLIST from `raw` (live M5, observed 2026-06-30): in an
+// EMITIDAS row, `usuemisor` is the EMITTER — i.e. the taxpayer THEMSELVES — so it is the
+// titular's own-identity PII, NOT counterparty data. Drop it from `raw` (the bounded
+// own-PII denylist pattern, cf. F22) so the own name never surfaces. (A RECIBIDAS row
+// identifies the emisor as the COUNTERPARTY via `rutemisor`/`nombre_emisor` — kept.)
+const RAW_OWN_PII = new Set(['usuemisor']);
+
+const rawWithoutOwnPii = (row: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(row).filter(([k]) => !RAW_OWN_PII.has(k)));
+
 function projectBoleta(row: Record<string, unknown>): BteBoleta {
   return {
     folio: asMonto(aliasGet(row, ALIASES.folio)),
@@ -178,7 +190,7 @@ function projectBoleta(row: Record<string, unknown>): BteBoleta {
     estado: estadoLabel(aliasGet(row, ALIASES.estado)),
     fechaAnulacion: asStr(aliasGet(row, ALIASES.fechaAnulacion)),
     socProfesional: boolSiNo(aliasGet(row, ALIASES.socProfesional)),
-    raw: row,
+    raw: rawWithoutOwnPii(row), // own-identity (usuemisor) stripped — never in raw
   };
 }
 
