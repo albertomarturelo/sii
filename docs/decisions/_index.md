@@ -21,3 +21,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 014 | [Unauthenticated `PortalDriver.requestPublic` seam for public login-free consultas](014-public-consulta-seam.md) | Accepted | 2026-06-29 |
 | 015 | [Publish `@altumstack/sii-core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
 | 016 | [Embeddable core — pure main barrel, `./node` composition subpath, optional Playwright peer](016-embeddable-core-node-subpath.md) | Accepted | 2026-07-02 |
+| 017 | [BHE emission — the first write surface (`bte emit`) posture](017-bte-emit-write-posture.md) | Accepted | 2026-07-02 |

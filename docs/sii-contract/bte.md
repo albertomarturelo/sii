@@ -170,10 +170,85 @@ drop `raw` when the non-curated data is PII).
 
 ## Read / write boundary
 
-- **READ (this surface, #20):** the 4 informe CGIs (anual + mensual × recibidas + emitidas).
-- **WRITE (out of scope — own ADR):** the `TMBECN_*` emission flow. Emit rides **Clave,
-  no certificate** (NOT blocked on the DTE cert layer); its blockers are the legal-weight
-  ADR + capturing the form fields + final-submit endpoint.
+- **READ (#20):** the 4 informe CGIs (anual + mensual × recibidas + emitidas).
+- **WRITE (this section, ADR-017):** the `TMBECN_*` emission flow — **captured live
+  2026-07-02** (own session, headed Playwright, a REAL boleta issued end-to-end). Emit rides
+  **Clave, no certificate** (NOT blocked on the DTE cert layer). Session-keyed to the principal.
+
+## Emisión (write) — the `TMBECN_*` flow (observed 2026-07-02, prod)
+
+Host `loa.sii.cl/cgi_IMT/`; the client logic lives in `loa.sii.cl/IMT/js/TMBECN_Emision.js`
+(function `presionaBoton(boton)` is the state machine — each POST carries an `origen` marker).
+The `.sii.cl` session cookie SSO-carries here (same as the read CGIs). **All values below are
+synthetic placeholders — no real PII.**
+
+### Flow (state machine)
+
+| Paso | `boton` | Endpoint (`form.action`) | Issues? |
+|---|---|---|---|
+| 1 | — | `GET TMBECN_ValidaTimbrajeContrib.cgi?modo=1` (from scratch) / `?modo=2` (prefill) | no — validates the emisor is authorized |
+| 2 | — | `POST TMBECN_PresentaDatosBoleta.cgi` | no — returns the emisor form (+ `xml_values`) |
+| 3 | `validar` | `POST TMBECN_ConfirmaTimbrajeContrib.cgi` (33 fields) | **no — PREVIEW** (server computes retención/líquido). `--dry-run` ends here |
+| 4 | `confirmar` | `POST TMBECN_BoletaHonorariosElectronica.cgi` (24 fields, `origen=SEPTIMO`) | ⚠️ **YES — issues the boleta (assigns folio / cód. de barras)** |
+| 5a | `preparar_envio` | `POST TMBECN_PresentaDatosEnvio.cgi` (`origen`, `txt_codigo_barra`) | no — prep the email step (optional) |
+| 5b | `enviar_boleta` | `POST TMBECN_EnviarBoleta.cgi` | no — emails the PDF (optional, post-issue) |
+
+`tipo_retencion` / `consulta_destinatario` buttons re-POST `TMBECN_PresentaDatosBoleta.cgi`
+(reload the form: recompute retención / look up the receptor). Guard (JS): cannot emit to
+oneself (`rut_arrastre == txt_rut_destinatario`).
+
+### Emit payload — `TMBECN_BoletaHonorariosElectronica.cgi` (24 fields)
+
+```
+dia_actual, mes_actual, anio_actual        # current date (from the form)
+rut_arrastre, dv_arrastre                  # EMISOR = the session principal (session-keyed)
+sin_destinatario                           # SI/NO (boleta with no identified receptor)
+OptTipoRetencion                           # RETRECEPTOR | RETCONTRIBUYENTE (who withholds PPM)
+hdn_muestra_glosa, hdn_glosa_actividad     # show-detail flag + activity glosa
+cantidad_filas_ingreso, CantidadFilas      # number of prestación lines (1..4)
+cbo_domicilio                              # emisor address selector
+cbo_dia_boleta, cbo_mes_boleta, cbo_anio_boleta   # BOLETA date (must be within ±3 months of today)
+txt_rut_destinatario, txt_dv_destinatario, txt_nombres_destinatario,
+txt_domicilio_destinatario, txt_comuna_destinatario   # RECEPTOR (comuna resolved to its code)
+txt_email_contribuyente                    # emisor email (for the copy)
+origen                                     # flow-position marker (emit sends SEPTIMO)
+desc_prestacion_1..4, valor_prestacion_1..4   # LINE ITEMS: service glosa + GROSS amount, only used lines sent
+```
+
+The **preview** (`ConfirmaTimbrajeContrib.cgi`) sends a 33-field superset (adds the emisor
+`txt_comuna/txt_telefono/txt_fax`, `cod_region`, `cbo_comuna`, `rdb_glosa`); the confirm page has
+**no extra hidden token** — the final emit re-sends the confirmed field set.
+
+**Retención is server-side.** The payload sends GROSS amounts (`valor_prestacion_*`) + who
+withholds (`OptTipoRetencion`); SII computes retención/líquido using `porc_retencion` (the year's
+vigente rate), which it injects into the form's `xml_values` — so the client reads the rate, never
+hardcodes a per-year table. Who-withholds rule (JS): `PJ = 50000000`; if the receptor RUT > PJ
+(persona jurídica) and the emisor RUT < PJ (natural), it suggests `RETRECEPTOR`.
+
+### Emit response — the form's `xml_values` on the result page
+
+- `cod_barras` — the **código de barras**, the boleta's identifier. Format `<rut8><dv><seq9>DD`
+  (e.g. `NNNNNNNN0000NNNNNNDD`). This IS the folio-equivalent key.
+- `codigo_inferior` — the Code-39 rendering of the código (→ `txt_cod_39` in the envío step).
+- `nombre_archivo` — the PDF filename.
+- **PDF:** `GET TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=<cod_barras>` (same host).
+
+### Envío por email (optional, post-issue)
+
+1. `POST TMBECN_PresentaDatosEnvio.cgi` — `origen`, `txt_codigo_barra` (= the issued `cod_barras`).
+2. `POST TMBECN_EnviarBoleta.cgi` — `txt_rut_destinatario`, `txt_dv_destinatario`, `txt_cod_39`
+   (Code-39), `txt_codigo_barra`, `txt_descr_comuna`, `origen` (NOVENO), `txt_nombre_receptor`,
+   `txt_email` (destination), `OptMandaEmailOrigen` (`SI` = also copy the emisor). Response
+   `<title>RESPUESTA A ENVIO DE MAIL` — "correo electrónico ha sido enviado exitosamente".
+
+### Región / comuna pickers — `loa.sii.cl/IMT/js/GLB_comunas.js`
+
+Static asset (no auth). Table `comunas[<region>][<codComuna>] = "<NAME>"`: **16 regiones**
+(indices 1–16; 16 = Ñuble), **367 comunas**. `cbo_comuna` is populated dynamically per region
+(`NuevocambiaComunasDyn(region, "cbo_comuna")`). The 4-digit comuna code (e.g. 8101 = CHILLÁN) is
+what goes in `cbo_comuna` / `txt_comuna_destinatario`. Ported to `portal/bte-comunas.ts` for local
+validation (cod_region 1–16 + cod_comuna belongs to the region). Region name glosas are NOT in this
+JS (they render from the `<select cod_region>` HTML).
 
 ## Open / TBD (carry into Phase 2)
 
