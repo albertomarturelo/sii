@@ -80,10 +80,13 @@ export interface BteEmitida extends BtePreview {
 // variable whitespace — observed 2026-07-02). Amounts on the confirm page are wrapped in
 // `formatMiles("<n>", ".")` — we read the raw integer argument.
 
-/** Read a single `xml_values['key'] = '...'` value from the response HTML, or null. */
+/** Read a single `xml_values['key'] = '...'` (or `"..."`) value from the response HTML, or null.
+ *  SII mixes single- and double-quoted values (e.g. `PorcentajeRetencion` / `iddir1` are double),
+ *  so accept either; the closing quote must match the opening one. */
 function xmlValue(html: string, key: string): string | null {
-  const re = new RegExp(`xml_values\\['${key}'\\]\\s*=\\s*'([^']*)'`);
-  return re.exec(html)?.[1] ?? null;
+  const re = new RegExp(`xml_values\\['${key}'\\]\\s*=\\s*(?:'([^']*)'|"([^"]*)")`);
+  const m = re.exec(html);
+  return m ? (m[1] ?? m[2] ?? null) : null;
 }
 
 /** Read a `xml_values['key'] = formatMiles("<n>", ...)` integer amount from the confirm page. */
@@ -93,17 +96,13 @@ function xmlMonto(html: string, key: string): number | null {
   return m === undefined ? null : Number(m);
 }
 
-/** The `selected` option value of a `<select name="...">`, else its first option, else null.
- *  The emisor's registered domicilio comes from `cbo_domicilio` this way (its value is the id). */
-function selectedOption(html: string, selectName: string): string | null {
-  const block = new RegExp(
-    `<select[^>]*name=["']?${selectName}["'][^>]*>([\\s\\S]*?)</select>`,
-    'i',
-  ).exec(html)?.[1];
-  if (block === undefined) return null;
-  const opts = [...block.matchAll(/<option[^>]*value=["']?([^"'>]*)["']?[^>]*>/gi)];
-  const sel = opts.find((o) => /\bselected\b/i.test(o[0]));
-  return (sel ?? opts[0])?.[1] ?? null;
+/** The emisor's registered domicilio id (`cbo_domicilio` value). The address `<select>` is
+ *  built client-side by JS from an `arr_direcciones` map, so it is NOT a static `<option>` in the
+ *  HTML — the ids live in `iddir<n>` entries (observed 2026-07-2: `['iddir1'] = "092726950"`,
+ *  double-quoted). `iddir1` is the first/default address (the selected one for a single-address
+ *  emisor; `CantidadDirecciones` counts them). Returns it, or null. */
+function firstDomicilioId(html: string): string | null {
+  return /\['iddir1'\]\s*=\s*["']([^"']+)["']/.exec(html)?.[1] ?? null;
 }
 
 /** SII rejects (login wall handled by the seam) surface as a `#### errorxxx ####` block or an
@@ -132,22 +131,25 @@ interface EmisorCtx {
 }
 
 /** Steps 1–2: validate authorization, then POST for the emisor form and read the emisor context
- *  (own domicilio / comuna / actividad / server date). `rut` is the session principal. */
+ *  (own domicilio / comuna / actividad / server date). `rut` is the session principal.
+ *  `optRetencion` is the who-withholds choice — the from-scratch flow (modo=1) POSTs it to get
+ *  the form (observed 2026-07-02: body `{rut_arrastre, dv_arrastre, sin_destinatario, OptTipoRetencion}`;
+ *  the `prellenar/ult_boleta/boleta` body is the modo=2 prefill path, NOT used here). */
 async function loadEmisorForm(
   session: PortalSession,
   rut: Rut,
+  optRetencion: string,
 ): Promise<{ html: string; ctx: EmisorCtx }> {
   // 1. Validate the contribuyente is authorized to emit (liveness + auth). The seam turns a dead
   //    session into SessionExpiredError; a non-form body here is a "not authorized" failure.
   await session.requestForm(VALIDA_URL, { method: 'GET' });
-  // 2. Request the emisor form from scratch (prellenar empty → a blank boleta).
+  // 2. Request the blank emisor form (from scratch) with the retención choice.
   const res = await session.requestForm(PRESENTA_URL, {
     form: {
       rut_arrastre: String(rut.body),
       dv_arrastre: rut.dv,
-      prellenar: '',
-      ult_boleta: '',
-      boleta: '',
+      sin_destinatario: 'NO',
+      OptTipoRetencion: optRetencion,
     },
   });
   const html = res.body;
@@ -157,7 +159,7 @@ async function loadEmisorForm(
     diaActual: xmlValue(html, 'dia_actual') ?? two(now.getDate()),
     mesActual: xmlValue(html, 'mes_actual') ?? two(now.getMonth() + 1),
     anioActual: xmlValue(html, 'anio_actual') ?? String(now.getFullYear()),
-    cboDomicilio: selectedOption(html, 'cbo_domicilio') ?? '',
+    cboDomicilio: firstDomicilioId(html) ?? '',
     comuna: xmlValue(html, 'comuna_ctr') ?? '',
     telefono: xmlValue(html, 'fono_ctr') ?? '',
     glosaActividad: xmlValue(html, 'glosa_actividad') ?? '',
@@ -228,7 +230,7 @@ async function runToPreview(
   rut: Rut,
   input: BteEmisionInput,
 ): Promise<{ preview: BtePreview; confirmHtml: string; confirmForm: Record<string, string> }> {
-  const { ctx } = await loadEmisorForm(session, rut);
+  const { ctx } = await loadEmisorForm(session, rut, OPT_RETENCION[input.retiene]);
   const confirmForm = buildConfirmForm(rut, ctx, input);
   const res = await session.requestForm(CONFIRMA_URL, { form: confirmForm });
   assertEmisorForm(res.body, 'confirmaTimbraje');

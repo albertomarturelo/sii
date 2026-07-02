@@ -21,9 +21,10 @@ const FORM_HTML =
   '<html><script>' +
   "xml_values['dia_actual'] = '02';xml_values['mes_actual'] = '07';xml_values['anio_actual'] = '2026';" +
   "xml_values['comuna_ctr'] = 'SANTIAGO';xml_values['fono_ctr'] = '';" +
-  "xml_values['glosa_actividad'] = 'SERVICIOS PROFESIONALES';</script>" +
-  "<form name='formulario'><select name='cbo_domicilio'>" +
-  "<option value='111'>A</option><option value='092726950' selected>B</option></select></form></html>";
+  "xml_values['glosa_actividad'] = 'SERVICIOS PROFESIONALES';" +
+  // The domicilio id lives in `iddir1` (double-quoted), the address <select> being JS-built.
+  'xml_values[\'iddir1\'] = "092726950";</script>' +
+  "<form name='formulario'>ok</form></html>";
 
 const CONFIRM_HTML =
   '<html><script>' +
