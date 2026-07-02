@@ -14,6 +14,8 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'auth_login',
       'auth_logout',
       'auth_status',
+      'bte_emit',
+      'bte_emit_preview',
       'bte_list',
       'dte_authorized',
       'f22_formulario',

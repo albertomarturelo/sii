@@ -53,3 +53,82 @@ describe('sii bte command (fake runtime, no SII)', () => {
     );
   });
 });
+
+describe('sii bte emit (fake runtime, no SII)', () => {
+  const FORM =
+    "<html><script>xml_values['dia_actual']='02';xml_values['mes_actual']='07';" +
+    "xml_values['anio_actual']='2026';xml_values['comuna_ctr']='SANTIAGO';" +
+    "xml_values['glosa_actividad']='SERV';</script><form name='formulario'>" +
+    "<select name='cbo_domicilio'><option value='999' selected>x</option></select></form></html>";
+  const CONFIRM =
+    '<html><script>' +
+    'xml_values[\'Monto_Boleta\']=formatMiles("1000000",".");' +
+    'xml_values[\'Monto_Retencion\']=formatMiles("137500",".");' +
+    'xml_values[\'Monto_Liquido\']=formatMiles("862500",".");' +
+    "xml_values['PorcentajeRetencion']='13,75';</script><form name='formulario'>ok</form></html>";
+  const RESULT = "<html><script>xml_values['cod_barras']='200000420000000123DD';</script>ok</html>";
+
+  const requestForm = (url: string): string => {
+    if (url.includes('ConfirmaTimbrajeContrib')) return CONFIRM;
+    if (url.includes('BoletaHonorariosElectronica')) return RESULT;
+    return FORM;
+  };
+  const makeEmitRuntime = (): Runtime => ({
+    clock: new testing.FixedClock(new Date('2026-07-02T12:00:00Z')),
+    audit: new testing.RecordingAuditSink(),
+    store: new testing.InMemoryKeyValueStore(),
+    portal: new testing.FakePortalDriver({
+      loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos, requestForm },
+    }),
+  });
+
+  const EMIT_ARGS = [
+    'bte',
+    'emit',
+    '--receptor',
+    '12345670-K',
+    '--nombre',
+    'ACME SPA',
+    '--domicilio',
+    'Av 100',
+    '--region',
+    '13',
+    '--comuna',
+    '15103',
+    '--linea',
+    '1000000:Asesoría',
+  ];
+
+  it('--dry-run (default, no --confirm) previews WITHOUT issuing', async () => {
+    const rt = makeEmitRuntime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, ...EMIT_ARGS, '--human');
+    expect(out).toContain('vista previa');
+    expect(out).toContain('Líquido a recibir: 862.500');
+    expect(out).toContain('NO se emitió');
+    // audit shows a preview, never an emit.
+    const actions = (rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action);
+    expect(actions).toContain('bte_emit_preview');
+    expect(actions).not.toContain('bte_emit');
+  });
+
+  it('--confirm with the matching total issues and returns the código de barras', async () => {
+    const rt = makeEmitRuntime();
+    await run(rt, 'auth', 'login');
+    const json = (await runJson(rt, ...EMIT_ARGS, '--confirm', '1000000')) as { codBarras: string };
+    expect(json.codBarras).toBe('200000420000000123DD');
+    expect((rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action)).toContain(
+      'bte_emit',
+    );
+  });
+
+  it('--confirm with a MISMATCHED total aborts (never issues)', async () => {
+    const rt = makeEmitRuntime();
+    await run(rt, 'auth', 'login');
+    await expect(run(rt, ...EMIT_ARGS, '--confirm', '999')).rejects.toThrow('no coincide');
+    expect((rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action)).not.toContain(
+      'bte_emit',
+    );
+  });
+});

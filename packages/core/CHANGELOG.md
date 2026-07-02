@@ -8,11 +8,21 @@ pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
 ### Added
 
+- **BHE emission — the first WRITE surface (`bteEmit` / `bteEmitPreview`, ADR-017).**
+  Issue a Boleta de Honorarios Electrónica: `bteEmitPreview` runs SII's flow to the
+  confirmation step and returns the server-computed retención/líquido WITHOUT issuing;
+  `bteEmit` issues and returns the código de barras (folio) + PDF URL, with an optional
+  email send. Session-keyed (rejects a representing pointer); local validation (Mod-11
+  receptor, positive monto, ±3-month date, region/comuna) before any session; the audit
+  receipt carries the folio but never the receptor / monto / glosa. Retención is
+  server-side (the emitter reads the vigente rate from the form, never a hardcoded table).
 - **`PortalSession.requestForm`** — an authenticated `x-www-form-urlencoded` POST
   from the logged-in session (cookies ride along), returning the decoded text body.
   The primitive behind the legacy HTML write flows (BHE emission, ADR-017); the
   authenticated peer of `PublicRequest.form`. Login-wall detection is URL-based
   (landing on `LOGIN_HOST` → `SessionExpiredError`), since an HTML body is expected.
+- **`portal/bte-comunas`** — the SII region/comuna code table (16 regiones / 346
+  comunas), ported verbatim from `GLB_comunas.js`, for local region-comuna validation.
 
 ## 0.2.0 — 2026-07-02
 

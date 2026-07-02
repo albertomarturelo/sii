@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, testing, type Runtime } from '@altumstack/sii-core';
-import { connect, datos, toolText } from '../test-helpers.js';
+import { connect, datos, isError, toolText } from '../test-helpers.js';
 
 describe('@sii/mcp bte tools (in-memory client, fake runtime, no SII)', () => {
   it('bte_list returns the month boletas as JSON (session-keyed, own-PII dropped)', async () => {
@@ -46,5 +46,89 @@ describe('@sii/mcp bte tools (in-memory client, fake runtime, no SII)', () => {
 
     const { tools } = await client.listTools();
     expect(tools.find((t) => t.name === 'bte_list')?.annotations?.readOnlyHint).toBe(true);
+  });
+
+  // --- emit (write surface, ADR-017) ---
+  const FORM =
+    "<html><script>xml_values['dia_actual']='02';xml_values['mes_actual']='07';" +
+    "xml_values['anio_actual']='2026';xml_values['comuna_ctr']='SANTIAGO';" +
+    "xml_values['glosa_actividad']='SERV';</script><form name='formulario'>" +
+    "<select name='cbo_domicilio'><option value='999' selected>x</option></select></form></html>";
+  const CONFIRM =
+    '<html><script>' +
+    'xml_values[\'Monto_Boleta\']=formatMiles("1000000",".");' +
+    'xml_values[\'Monto_Retencion\']=formatMiles("137500",".");' +
+    'xml_values[\'Monto_Liquido\']=formatMiles("862500",".");' +
+    "xml_values['PorcentajeRetencion']='13,75';</script><form name='formulario'>ok</form></html>";
+  const RESULT = "<html><script>xml_values['cod_barras']='200000420000000123DD';</script>ok</html>";
+  const emitRuntime = (): Runtime => ({
+    clock: new testing.FixedClock(new Date('2026-07-02T12:00:00Z')),
+    audit: new testing.RecordingAuditSink(),
+    store: new testing.InMemoryKeyValueStore(),
+    portal: new testing.FakePortalDriver({
+      loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+      restoreSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datos,
+        requestForm: (url: string) =>
+          url.includes('ConfirmaTimbrajeContrib')
+            ? CONFIRM
+            : url.includes('BoletaHonorariosElectronica')
+              ? RESULT
+              : FORM,
+      },
+    }),
+  });
+  const emitInput = {
+    receptor: '12345670-K',
+    nombre: 'ACME SPA',
+    domicilio: 'Av 100',
+    region: 13,
+    comuna: 15103,
+    lineas: [{ glosa: 'Asesoría', monto: 1_000_000 }],
+    retiene: 'receptor' as const,
+  };
+
+  it('bte_emit_preview computes retención/líquido without issuing (readOnlyHint)', async () => {
+    const rt = emitRuntime();
+    const client = await connect(rt);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+    const res = await client.callTool({ name: 'bte_emit_preview', arguments: emitInput });
+    const parsed = JSON.parse(toolText(res)) as { liquido: number };
+    expect(parsed.liquido).toBe(862_500);
+    expect((rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action)).not.toContain(
+      'bte_emit',
+    );
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'bte_emit_preview')?.annotations?.readOnlyHint).toBe(true);
+    // bte_emit is the first destructive tool.
+    const emitTool = tools.find((t) => t.name === 'bte_emit');
+    expect(emitTool?.annotations?.destructiveHint).toBe(true);
+    expect(emitTool?.annotations?.readOnlyHint).toBe(false);
+  });
+
+  it('bte_emit requires confirmar + a matching montoTotalConfirmacion; then issues', async () => {
+    const rt = emitRuntime();
+    const client = await connect(rt);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+
+    // Mismatched total → error, no issue.
+    const bad = await client.callTool({
+      name: 'bte_emit',
+      arguments: { ...emitInput, confirmar: true, montoTotalConfirmacion: 999 },
+    });
+    expect(isError(bad)).toBe(true);
+    expect(toolText(bad)).toContain('no coincide');
+    expect((rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action)).not.toContain(
+      'bte_emit',
+    );
+
+    // Matching total → issues.
+    const ok = await client.callTool({
+      name: 'bte_emit',
+      arguments: { ...emitInput, confirmar: true, montoTotalConfirmacion: 1_000_000 },
+    });
+    const parsed = JSON.parse(toolText(ok)) as { codBarras: string };
+    expect(parsed.codBarras).toBe('200000420000000123DD');
   });
 });
