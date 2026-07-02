@@ -214,4 +214,45 @@ describe('bte emit (fakes, no SII)', () => {
     await seed(rt);
     await expect(bteEmit(rt, baseArgs)).rejects.toBeInstanceOf(BteError);
   });
+
+  it('surfaces a SII "no autorizado" rejection VERBATIM as BteError', async () => {
+    const rt: Runtime = {
+      clock: new FixedClock(new Date('2026-07-02T12:00:00Z')),
+      audit: new RecordingAuditSink(),
+      store: new InMemoryKeyValueStore(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestForm: (url: string) =>
+            url.includes('PresentaDatosBoleta')
+              ? '<html><body>Usted no está autorizado a emitir boletas de honorarios.</body></html>'
+              : FORM_HTML,
+        },
+      }),
+    };
+    await seed(rt);
+    await expect(bteEmitPreview(rt, baseArgs)).rejects.toThrow('no está autorizado a emitir');
+  });
+
+  it('does NOT false-positive on a valid form full of alert() validation calls', async () => {
+    const rt: Runtime = {
+      clock: new FixedClock(new Date('2026-07-02T12:00:00Z')),
+      audit: new RecordingAuditSink(),
+      store: new InMemoryKeyValueStore(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          // A valid form whose JS has alert() calls (like the real one) must still parse.
+          requestForm: (url: string) => {
+            if (url.includes('ConfirmaTimbrajeContrib'))
+              return CONFIRM_HTML.replace('<script>', "<script>alert('Debe indicar el detalle');");
+            return FORM_HTML.replace('<script>', "<script>alert('Debe seleccionar');");
+          },
+        },
+      }),
+    };
+    await seed(rt);
+    const preview = await bteEmitPreview(rt, baseArgs);
+    expect(preview.liquido).toBe(862_500); // parsed fine despite the alert() calls
+  });
 });

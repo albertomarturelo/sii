@@ -105,9 +105,17 @@ function firstDomicilioId(html: string): string | null {
   return /\['iddir1'\]\s*=\s*["']([^"']+)["']/.exec(html)?.[1] ?? null;
 }
 
-/** SII rejects (login wall handled by the seam) surface as a `#### errorxxx ####` block or an
- *  alert; a page that carries no emisor form / no `xml_values` is a hard failure. */
+/** Assert the response is a real emisor/confirm page, not a SII rejection. NOTE: the valid form is
+ *  full of `alert('…')` VALIDATION calls in its JS, so a generic alert-scan would false-positive —
+ *  we only detect the explicit AUTHORIZATION-rejection text ("no está autorizado a emitir …") and
+ *  surface it VERBATIM (ADR-004; the login-wall case is already `SessionExpiredError` from the
+ *  seam). Otherwise, a page with no emisor form at all (no `xml_values` AND no `formulario`) is a
+ *  generic hard failure. */
 function assertEmisorForm(html: string, step: string): void {
+  const rejection = /(no (?:est[aá]|se encuentra) autorizad[oa](?: a emitir)?[^<.]{0,120})/i.exec(
+    html,
+  )?.[1];
+  if (rejection) throw new BteError(rejection.replace(/\s+/g, ' ').trim());
   if (!html.includes('xml_values[') && !html.includes('formulario')) {
     throw new BteError(
       `El SII no entregó el formulario de emisión de BHE (paso: ${step}). ` +
@@ -325,28 +333,36 @@ export interface BteEnvio {
 }
 
 /** Email the issued boleta's PDF to the receptor (optional, post-issue). Reuses the código de
- *  barras; the receptor fields are read from the envío-prep page. (observed 2026-07-02) */
+ *  barras. OBSERVATION STATUS (ADR-004): the two POST REQUEST shapes are observed 2026-07-02 —
+ *  `PresentaDatosEnvio` sends `{origen:'SEPTIMO', txt_codigo_barra}` (event 12), `EnviarBoleta`
+ *  sends the field NAMES below with `origen:'NOVENO'` (event 14). NOT yet verified: the
+ *  envío-prep RESPONSE's `xml_values` keys that source `txt_rut_destinatario`/`…dv`/`txt_cod_39`
+ *  /`txt_descr_comuna`/`txt_nombre_receptor` — that response body was not captured, so those
+ *  reads are INFERRED and live-validated with the issue path in #62. Until then the email send is
+ *  best-effort. */
 export async function enviarBteEmision(
   session: PortalSession,
   envio: BteEnvio,
 ): Promise<{ enviado: boolean }> {
   const prep = await session.requestForm(PRESENTA_ENVIO_URL, {
-    form: { origen: 'OCTAVO', txt_codigo_barra: envio.codBarras },
+    // origen SEPTIMO observed 2026-07-02 (event 12) — NOT a guess.
+    form: { origen: 'SEPTIMO', txt_codigo_barra: envio.codBarras },
   });
   const html = prep.body;
+  // The request field names are observed (event 14); the xml_values sources are INFERRED (#62).
   const form: FormRequest['form'] = {
     txt_rut_destinatario: xmlValue(html, 'rut_destinatario') ?? '',
     txt_dv_destinatario: xmlValue(html, 'dv_destinatario') ?? '',
     txt_cod_39: xmlValue(html, 'codigo_inferior') ?? '',
     txt_codigo_barra: envio.codBarras,
     txt_descr_comuna: xmlValue(html, 'desc_comuna') ?? '',
-    origen: 'NOVENO',
+    origen: 'NOVENO', // observed 2026-07-02 (event 14)
     txt_nombre_receptor: xmlValue(html, 'nombres_destinatario') ?? '',
     txt_email: envio.email,
     OptMandaEmailOrigen: envio.copiaEmisor === false ? 'NO' : 'SI',
   };
   const res = await session.requestForm(ENVIAR_URL, { form });
-  return { enviado: /enviado/i.test(res.body) };
+  return { enviado: /enviado|exitosamente/i.test(res.body) };
 }
 
 // --- Local input validation (before any SII call) ---------------------------------
