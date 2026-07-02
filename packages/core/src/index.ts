@@ -36,6 +36,7 @@ export { f29Formulario, f29Overview, f29Status, F29_GRUPO_LABELS } from './tasks
 export type {
   F29Formulario,
   F29Overview,
+  F29OverviewArgs,
   MesF29,
   LineaF29,
   F29Grupo,

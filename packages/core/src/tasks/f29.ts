@@ -22,7 +22,7 @@ import { fetchF29Estado, fetchF29Propuesta } from '../portal/f29.js';
 import type { CodigoF29, DeclaracionEstadoF29, F29Estado } from '../portal/f29.js';
 import { F29_CODIGOS, glosaF29, grupoF29 } from '../portal/f29-codigos.js';
 import type { F29Grupo } from '../portal/f29-codigos.js';
-import type { AuditEntry, Runtime } from '../seams/index.js';
+import type { AuditEntry, Clock, Runtime } from '../seams/index.js';
 
 export type { CodigoF29, DeclaracionEstadoF29, F29Estado, F29Propuesta } from '../portal/f29.js';
 export { F29_GRUPO_LABELS } from '../portal/f29-codigos.js';
@@ -175,6 +175,59 @@ export interface F29Overview {
   readonly meses: readonly MesF29[]; // chronological (desde → hasta)
 }
 
+/** Overview range input. ONE semantics for every surface (the policy lives here,
+ *  not in the CLI/MCP — they pass their raw args through):
+ *  - `anio` (YYYY) — or a bare-`YYYY` `desde` — → the whole calendar year
+ *    (an explicit `hasta` may narrow it);
+ *  - `desde` (YYYY-MM) alone → that single month;
+ *  - nothing → the current calendar year to date (via the injected Clock).
+ *  Props admit `undefined` so surfaces forward optional args verbatim
+ *  (exactOptionalPropertyTypes-friendly). */
+export interface F29OverviewArgs {
+  readonly desde?: string | undefined;
+  readonly hasta?: string | undefined;
+  readonly anio?: string | undefined;
+}
+
+/** Resolve the overview args into a concrete [desde, hasta] pair — fail fast on a
+ *  malformed value (ValidationError, no session opened). */
+function resolveOverviewRange(
+  clock: Clock,
+  args: F29OverviewArgs,
+): { desde: Periodo; hasta: Periodo } {
+  if (args.anio !== undefined && args.desde !== undefined) {
+    throw new ValidationError('Indica el rango con `anio` O con `desde`/`hasta`, no ambos.');
+  }
+  if (args.anio !== undefined && !/^\d{4}$/.test(args.anio.trim())) {
+    throw new ValidationError(`Año inválido: "${args.anio}" (esperado YYYY).`);
+  }
+  // A bare-YYYY `desde` is the CLI's year shorthand — same meaning as `anio`.
+  const anio =
+    args.anio?.trim() ??
+    (args.desde !== undefined && /^\d{4}$/.test(args.desde.trim()) ? args.desde.trim() : undefined);
+  if (anio !== undefined) {
+    const year = Number(anio);
+    return {
+      desde: Periodo.of(year, 1),
+      hasta: args.hasta !== undefined ? Periodo.parse(args.hasta) : Periodo.of(year, 12),
+    };
+  }
+  if (args.desde !== undefined) {
+    const desde = Periodo.parse(args.desde);
+    return { desde, hasta: args.hasta !== undefined ? Periodo.parse(args.hasta) : desde };
+  }
+  // Nothing → current calendar year to date. The Clock seam keeps this testable
+  // and the core wall-clock-free (ADR-003).
+  const now = clock.now();
+  return {
+    desde: Periodo.of(now.getFullYear(), 1),
+    hasta:
+      args.hasta !== undefined
+        ? Periodo.parse(args.hasta)
+        : Periodo.of(now.getFullYear(), now.getMonth() + 1),
+  };
+}
+
 /** Enumerate the months in [desde, hasta] inclusive (chronological). */
 function periodosEnRango(desde: Periodo, hasta: Periodo): Periodo[] {
   const out: Periodo[] = [];
@@ -205,10 +258,9 @@ function declaracionVigente(decls: readonly DeclaracionEstadoF29[]): Declaracion
  *  vigente estado/folio/fecha + the declared `total`. Session principal (ADR-005), paced. */
 export async function f29Overview(
   runtime: Runtime,
-  args: { desde: string; hasta: string },
+  args: F29OverviewArgs = {},
 ): Promise<F29Overview> {
-  const desde = Periodo.parse(args.desde); // fail fast — no session opened
-  const hasta = Periodo.parse(args.hasta);
+  const { desde, hasta } = resolveOverviewRange(runtime.clock, args); // fail fast — no session opened
   if (desde.year > hasta.year || (desde.year === hasta.year && desde.month > hasta.month)) {
     throw new ValidationError(
       `Rango inválido: "desde" (${desde.formatted}) es posterior a "hasta" (${hasta.formatted}).`,
