@@ -1,12 +1,19 @@
 # Current Project Status
 
-Last updated: 2026-07-02 — embeddable core (ADR-016, #55) + f29-range fix (#56) + shared helpers (#57) + f22/test splits (#58) + `0.2.0` release (#59); tag `v0.2.0` publishes on merge
+Last updated: 2026-07-02 — **`bte emit` — first WRITE surface MERGED (ADR-017, #60/PR #61)**; preview live-validated, issue path deferred to #62
 
 ## In Progress
 
-- _(no feature in progress — ADR-015 publish (PR #47) AND repo-governance (PR #48) are MERGED to
-  `main`; `@altumstack/sii-core@0.1.0` is live on GitHub Packages. See Recently Completed.)_
-  **NEXT (deferred, ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
+- _(no feature in progress — `bte emit` (#60, PR #61) is MERGED to `main`.)_
+  **NEXT (deferred, #62): live-validate the `bte emit` ISSUE step + cut the `0.3.0` release.** The
+  preview/dry-run path is LIVE-VALIDATED (own session, 2026-07-02: login → valida → presenta →
+  confirma returns the correct total/retención 15,25%/líquido, no boleta issued; both retención
+  modes — RETRECEPTOR/RETCONTRIBUYENTE — dry-run-validated). NOT yet TS-live-validated: the final
+  ISSUE POST (`TMBECN_BoletaHonorariosElectronica.cgi`, step 4) + its `cod_barras` parse + the
+  optional email send — coded to the 2026-07-02 capture but exercised for real only next month
+  (#62), to avoid a throwaway legal document + manual anulación. **The `v0.3.0` tag waits on #62.**
+  Annulment (`bte anular`) is a separate follow-up (#63; needs its own live capture).
+  **ALSO deferred (ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
   balance (computed totals 538/89/91, `fuente:"presentada"` + a `resumen`) lives ONLY behind
   `rfiInternet` **GWT-RPC** — a two-GWT-app, UI-stateful, build-hash-fragile flow (mapped in the
   spike; `docs/sii-contract/f29.md`). Gated on a headless warm+intercept PoC; own PR + ADR;
@@ -15,6 +22,25 @@ Last updated: 2026-07-02 — embeddable core (ADR-016, #55) + f29-range fix (#56
   already declared) — until then those show `glosa:null` (honest; ADR-004).
 
 ## Recently Completed
+
+- [x] **`bte emit` — the FIRST WRITE surface (ADR-017, #60, PR #61).** Issue a Boleta de Honorarios
+  Electrónica (legally-binding). The `TMBECN_*` emission contract — **never captured before** — was
+  **live-captured 2026-07-02** (a real boleta issued end-to-end, operator-driven headed Playwright)
+  → `docs/sii-contract/bte.md` § Emisión. Clave-no-cert, **session-keyed** (emisor = principal).
+  **New seam `PortalSession.requestForm`** (authenticated form-POST, the peer of `requestPublic.form`).
+  Facade `portal/bte-emit.ts` (in-house `xml_values`/`formatMiles` parsers, cited `observed
+  2026-07-02`) — `previewBteEmision` (steps 1–3, NO issue) + `emitBteEmision` (step 4, returns
+  `cod_barras`/folio + PDF) + optional email. `portal/bte-comunas.ts` (16 regiones/346 comunas from
+  `GLB_comunas.js`). Retención is **server-side** (reads the vigente rate from the form — 15,25%
+  2026; no hardcoded table). **CLI** `sii bte emit`: default = safe preview; real issue needs
+  `--confirm <monto-total>` (double-entry of the gross total). **MCP**: `bte_emit_preview` (readOnly)
+  + `bte_emit` — the **first `destructiveHint:true` tool** (requires `confirmar` + amount echo).
+  Audit records the folio only (never receptor/monto/glosa); session-keyed guard reused; no retry.
+  **Preview LIVE-VALIDATED** (both retención modes); it also caught two wire mismatches the fakes
+  couldn't (the from-scratch step-2 body; double-quoted `xml_values`). **`/review-pr` APPROVE** — two
+  findings fixed (envío `origen` SEPTIMO; a scoped "no autorizado" detector, not a false-positive
+  alert scan). 253/253 green. The ISSUE step's live validation + the `0.3.0` tag are #62; `bte
+  anular` is #63.
 
 - [x] **Embeddable core → `@altumstack/sii-core@0.2.0` (ADR-016; PRs #55/#56/#57/#58/#59,
   issues #50–#54).** Driven by the first EXTERNAL consumer (OCSI's `sii-cl` connector, which
