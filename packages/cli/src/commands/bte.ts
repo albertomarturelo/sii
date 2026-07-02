@@ -4,13 +4,17 @@
 //
 // SESSION-KEYED (ADR-005): reads the session principal; no `--rut`.
 import type { Command } from 'commander';
-import { Rut, bteList, type BteSide, type Runtime } from '@altumstack/sii-core';
+import {
+  bteList,
+  formatMoney as money,
+  formatRut as fmtRut,
+  type BteSide,
+  type Runtime,
+} from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
 
 const sideOf = (opts: { recibidas?: boolean }): BteSide =>
   opts.recibidas ? 'RECIBIDAS' : 'EMITIDAS';
-const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
-const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;
 
 export function registerBte(program: Command, runtime: Runtime): void {
   const bte = program.command('bte').description('Boletas de Honorarios Electrónicas (BHE/BTE).');

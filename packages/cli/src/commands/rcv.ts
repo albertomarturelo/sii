@@ -3,14 +3,19 @@
 // `register<Mod>(program, runtime)`; `program.ts` just calls it, so the shared
 // command tree stays append-only across parallel modules (RCV sets this pattern).
 import type { Command } from 'commander';
-import { Rut, rcvList, rcvSummary, type RcvSide, type Runtime } from '@altumstack/sii-core';
+import {
+  formatMoney as money,
+  formatRut as fmtRut,
+  rcvList,
+  rcvSummary,
+  type RcvSide,
+  type Runtime,
+} from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
 
 const sideOf = (opts: { venta?: boolean }): RcvSide => (opts.venta ? 'VENTA' : 'COMPRA');
 // exactOptionalPropertyTypes: only carry `rut` when the override was passed.
 const rutOpt = (rut?: string): { rut?: string } => (rut ? { rut } : {});
-const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
-const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;
 
 export function registerRcv(program: Command, runtime: Runtime): void {
   const rcv = program.command('rcv').description('Registro de Compras y Ventas (RCV).');

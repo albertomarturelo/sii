@@ -7,9 +7,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
   HOSTS,
-  Rut,
   authStatus,
+  describeOperating,
   formatOperableEntry,
+  formatRut as fmt,
   listOperable,
   login,
   logout,
@@ -17,7 +18,6 @@ import {
   operateSelf,
   operatingStatus,
   statusRefresh,
-  type OperatingContext,
   type Runtime,
 } from '@altumstack/sii-core';
 import { toolText } from './tool-helpers.js';
@@ -27,13 +27,6 @@ import { registerF22Tools } from './tools/f22.js';
 import { registerF29Tools } from './tools/f29.js';
 import { registerDteTools } from './tools/dte.js';
 import { registerBteTools } from './tools/bte.js';
-
-const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
-
-function describeOperating(ctx: OperatingContext): string {
-  if (ctx.isSelf) return `Operando como tú mismo: ${fmt(ctx.operatingRut)}.`;
-  return `Operando como ${fmt(ctx.operatingRut)}${ctx.razonSocial ? ` (${ctx.razonSocial})` : ''}.`;
-}
 
 const jsonResource = (uri: URL, value: unknown) => ({
   contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value, null, 2) }],
@@ -180,7 +173,7 @@ export function buildServer(runtime: Runtime): McpServer {
         }
         if (self) {
           const r = await operateSelf(runtime);
-          return `Operando como tú mismo: ${fmt(r.context.selfRut)}.`;
+          return describeOperating(r.context);
         }
         if (rut) return describeOperating((await operate(runtime, rut)).context);
         const ctx = await operatingStatus(runtime);

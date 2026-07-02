@@ -15,7 +15,7 @@ export type {
 } from './tasks/auth.js';
 export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';
 export type { OperateResult, OperableList } from './tasks/operate.js';
-export { formatOperableEntry } from './identity/index.js';
+export { describeOperating, formatOperableEntry } from './identity/index.js';
 export type { OperatingContext, OperableEntry } from './identity/index.js';
 export { rcvSummary, rcvList } from './tasks/rcv.js';
 export type { RcvResumen, RcvResumenRow, RcvDetalle, RcvDetalleDoc, RcvSide } from './tasks/rcv.js';
@@ -68,6 +68,7 @@ export type {
 
 // --- shared primitives ---
 export { Rut } from './rut/index.js';
+export { formatMoney, formatRut } from './format/index.js';
 export { Periodo, Anio } from './periodo/index.js';
 export { HOSTS, LOGIN_HOST } from './config/index.js';
 export * from './errors/index.js';

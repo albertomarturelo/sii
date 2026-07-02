@@ -43,6 +43,11 @@ pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 - The Node default adapters are exported from `./node`: `SystemClock`,
   `FileKeyValueStore`, `FileAuditSink`, `PlaywrightPortalDriver`, `SII_DIR`.
 - `sideEffects: false` — the package is tree-shakeable.
+- **`format` helpers** — `formatMoney` (es-CL thousands, `—` for null) and
+  `formatRut` (canonical → dotted display form), plus `describeOperating`
+  (the shared `Operando como …` line, next to `formatOperableEntry`). The CLI
+  and MCP consumed verbatim private copies of all three; now every consumer
+  shares one rendering.
 
 ## 0.1.0 — 2026-06-30
 

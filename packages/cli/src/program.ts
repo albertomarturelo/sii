@@ -6,7 +6,9 @@ import {
   LoginFailedError,
   Rut,
   authStatus,
+  describeOperating,
   formatOperableEntry,
+  formatRut as fmt,
   listOperable,
   login,
   logout,
@@ -28,13 +30,6 @@ import { registerF22 } from './commands/f22.js';
 import { registerF29 } from './commands/f29.js';
 import { registerDte } from './commands/dte.js';
 import { registerBte } from './commands/bte.js';
-
-const fmt = (canonicalRut: string): string => Rut.parse(canonicalRut).formatted;
-
-function describeOperating(rut: string, isSelf: boolean, razonSocial: string | null): string {
-  if (isSelf) return `Operando como tú mismo: ${fmt(rut)}.`;
-  return `Operando como ${fmt(rut)}${razonSocial ? ` (${razonSocial})` : ''}.`;
-}
 
 export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompters): Command {
   const program = new Command();
@@ -118,8 +113,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
           return;
         }
         out(`Autenticado (sesión local) como ${fmt(status.rut)}.`);
-        if (ctx && !ctx.isSelf)
-          out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
+        if (ctx && !ctx.isSelf) out(describeOperating(ctx));
       });
     });
 
@@ -157,13 +151,12 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
       }
       if (opts.self) {
         const result = await operateSelf(runtime);
-        emit(result.context, () => out(describeOperating(result.context.selfRut, true, null)));
+        emit(result.context, () => out(describeOperating(result.context)));
         return;
       }
       if (rutArg) {
         const result = await operate(runtime, rutArg);
-        const { operatingRut, isSelf, razonSocial } = result.context;
-        emit(result.context, () => out(describeOperating(operatingRut, isSelf, razonSocial)));
+        emit(result.context, () => out(describeOperating(result.context)));
         return;
       }
       // No argument: report the current operating context.
@@ -173,7 +166,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
           out('No hay sesión activa. Ejecuta `sii auth login`.');
           return;
         }
-        out(describeOperating(ctx.operatingRut, ctx.isSelf, ctx.razonSocial));
+        out(describeOperating(ctx));
       });
     });
 
