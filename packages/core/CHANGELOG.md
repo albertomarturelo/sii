@@ -20,6 +20,22 @@ pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
   own `PortalDriver`, you no longer need bundler stubs or
   `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD`.
 
+### Fixed
+
+- `f29Overview` with no arguments no longer fails with a cryptic
+  `ValidationError` (the MCP `f29_overview` tool used to send empty strings):
+  it now defaults to the current calendar year to date, resolved through the
+  injected `Clock`.
+
+### Changed
+
+- **`f29Overview` owns the range policy** (`{ desde?, hasta?, anio? }`): `anio`
+  — or a bare-`YYYY` `desde` — means the whole calendar year (an explicit
+  `hasta` may narrow it); `desde` (YYYY-MM) alone means that single month;
+  nothing means the current year to date. The CLI and MCP pass their raw
+  arguments through, so both surfaces share one semantics. Existing
+  `{ desde, hasta }` calls behave as before.
+
 ### Added
 
 - `createNodeRuntime(overrides?: Partial<Runtime>)` — any seam replaceable

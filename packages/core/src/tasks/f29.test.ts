@@ -150,6 +150,50 @@ describe('f29 tasks (fakes, no SII)', () => {
     expect(entries(rt).at(-1)).toMatchObject({ action: 'f29_overview', result: 'ok', rut: SELF });
   });
 
+  it('f29Overview resolves `anio` (and a bare-YYYY `desde`) to the whole calendar year', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const porAnio = await f29Overview(rt, { anio: '2026' });
+    expect(porAnio).toMatchObject({ desde: '2026-01', hasta: '2026-12' });
+    expect(porAnio.meses).toHaveLength(12);
+
+    // The CLI's positional shorthand — a bare YYYY in `desde` — means the same.
+    const porDesde = await f29Overview(rt, { desde: '2026' });
+    expect(porDesde).toMatchObject({ desde: '2026-01', hasta: '2026-12' });
+
+    // An explicit `hasta` narrows the year.
+    const acotado = await f29Overview(rt, { anio: '2026', hasta: '2026-03' });
+    expect(acotado).toMatchObject({ desde: '2026-01', hasta: '2026-03' });
+    expect(acotado.meses).toHaveLength(3);
+  });
+
+  it('f29Overview with no args → the current calendar year to date (Clock seam)', async () => {
+    const rt = makeRuntime(); // FixedClock at 2026-06-27
+    await seed(rt);
+    const ov = await f29Overview(rt);
+    expect(ov).toMatchObject({ desde: '2026-01', hasta: '2026-06' });
+    expect(ov.meses).toHaveLength(6);
+  });
+
+  it('f29Overview with `desde` alone (YYYY-MM) → that single month', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const ov = await f29Overview(rt, { desde: '2026-05' });
+    expect(ov).toMatchObject({ desde: '2026-05', hasta: '2026-05' });
+    expect(ov.meses).toHaveLength(1);
+    expect(slept(rt)).toEqual([]); // single POST, no pacing gap
+  });
+
+  it('f29Overview rejects ambiguous/malformed range args (no session)', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    await expect(f29Overview(rt, { anio: '2026', desde: '2026-01' })).rejects.toBeInstanceOf(
+      ValidationError,
+    ); // anio XOR desde
+    await expect(f29Overview(rt, { anio: '26' })).rejects.toBeInstanceOf(ValidationError);
+    expect(entries(rt).some((e) => String(e.action).startsWith('f29_'))).toBe(false);
+  });
+
   it('f29Overview rejects an inverted range and an over-wide range (no session)', async () => {
     const rt = makeRuntime();
     await seed(rt);

@@ -32,7 +32,8 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
       description:
         'Posición de IVA por mes en un rango: por cada mes, estado, folio, fecha y el total a ' +
         'pagar declarado ("lo que pagué"). Indica el rango con `desde`/`hasta` (YYYY-MM) o con ' +
-        '`anio` (YYYY) para el año completo. Session-keyed: lee tu propio F29.',
+        '`anio` (YYYY) para el año completo; sin argumentos, el año en curso a la fecha. ' +
+        'Session-keyed: lee tu propio F29.',
       inputSchema: {
         desde: z.string().optional(),
         hasta: z.string().optional(),
@@ -41,14 +42,11 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
       annotations: { readOnlyHint: true },
     },
     ({ desde, hasta, anio }) =>
-      toolText(async () => {
-        // `anio` is a shortcut for the whole calendar year; else an explicit desde/hasta range.
-        const range =
-          anio !== undefined
-            ? { desde: `${anio}-01`, hasta: `${anio}-12` }
-            : { desde: desde ?? '', hasta: hasta ?? desde ?? '' };
-        return JSON.stringify(await f29Overview(runtime, range), null, 2);
-      }),
+      // Range semantics live in the task (one policy for CLI + MCP): `anio` → whole
+      // year; `desde` alone → that month; nothing → current calendar year to date.
+      toolText(async () =>
+        JSON.stringify(await f29Overview(runtime, { desde, hasta, anio }), null, 2),
+      ),
   );
 
   server.registerTool(
