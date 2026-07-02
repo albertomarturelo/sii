@@ -20,3 +20,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 013 | [F29 read surface — phased; robust SDI-JSON now, GWT-RPC presented form deferred](013-f29-phased-read-gwt-rpc-deferred.md) | Accepted | 2026-06-29 |
 | 014 | [Unauthenticated `PortalDriver.requestPublic` seam for public login-free consultas](014-public-consulta-seam.md) | Accepted | 2026-06-29 |
 | 015 | [Publish `@altumstack/sii-core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
+| 016 | [Embeddable core — pure main barrel, `./node` composition subpath, optional Playwright peer](016-embeddable-core-node-subpath.md) | Accepted | 2026-07-02 |
