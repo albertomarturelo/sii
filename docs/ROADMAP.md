@@ -36,6 +36,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | ✅ | Install + build green | `pnpm install` + `tsc -b` (strict) + eslint + prettier + 39 vitest tests, all green | ADR-002 |
 | ✅ | NodeNext build | `module`/`moduleResolution` → NodeNext; `.js` on relative imports; `tsc -b` output runs directly on Node (no bundler), verified via the built `sii` binary | ADR-009 |
 | ✅ | Seams spine | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` interfaces + Node defaults + in-memory fakes | ADR-003 |
+| ✅ | Embeddable core (0.2.0) | Pure main barrel (no `node:*`/playwright at import time); `./node` subpath = composition root (`createNodeRuntime(overrides?)` + Node adapters); playwright OPTIONAL peer, lazy-loaded. Verified with an external npm consumer without playwright. | ADR-016 |
 | ✅ | `rut` + `config` + `audit` | Pure-core modules: Mod-11 RUT, prod hostnames, secret-dropping audit | ADR-004 |
 | ✅ | Output contract — JSON by default | `@altumstack/sii-core` returns JSON-serializable objects (the library contract); the CLI emits them as JSON by default (`--human` for text) via the shared `emit(data, humanFn)`; MCP already JSON. STDOUT pure (pipeable to `jq`), header/diagnostics STDERR human-only. (#35) | ADR-012 |
 | 🚧 | auth + identity base | core logic + Playwright driver + CLI surface landed & tested; **CLI real-SII validated (#5)** — login/status/--refresh/logout; MCP next | ADR-005, ADR-006 |
