@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last updated: 2026-06-30 (session close) — `@altumstack/sii-core@0.1.0` PUBLISHED (ADR-015, PR #47); `main` branch protection + CODEOWNERS landed (PR #48)
+Last updated: 2026-07-02 — embeddable core (ADR-016, #55) + f29-range fix (#56) + shared helpers (#57) + f22/test splits (#58) + `0.2.0` release (#59); tag `v0.2.0` publishes on merge
 
 ## In Progress
 
@@ -16,6 +16,28 @@ Last updated: 2026-06-30 (session close) — `@altumstack/sii-core@0.1.0` PUBLIS
 
 ## Recently Completed
 
+- [x] **Embeddable core → `@altumstack/sii-core@0.2.0` (ADR-016; PRs #55/#56/#57/#58/#59,
+  issues #50–#54).** Driven by the first EXTERNAL consumer (OCSI's `sii-cl` connector, which
+  injects its own `PortalDriver` and had to stub playwright at bundle time). (1) **Pure main
+  barrel** — `createNodeRuntime` moved to the new **`./node` subpath** (mirrors `./cli`); the
+  `.` entry's static graph has no `node:*`/playwright; `sideEffects:false`. (2)
+  **`createNodeRuntime(overrides?: Partial<Runtime>)`** + the concrete Node adapters exported
+  from `./node` — partial seam reuse is now a supported path. (3) **playwright = OPTIONAL peer**
+  (devDep in core for typecheck + workspace realpath resolution; cli/mcp declare it themselves),
+  lazy-loaded by the default driver with an actionable install error; verified with a real npm
+  consumer WITHOUT playwright (barrel import ✓, overrides ✓, no auto-install ✓, no stale
+  `dist/runtime.*` ✓ — `prepack` now rebuilds dist from scratch; `tsc -b --clean` left orphans).
+  (4) **CI boundary guard → allowlist** (`/node` both surfaces; `/cli` only from packages/cli —
+  ADR-006 tightened: MCP can no longer import `consoleLogin`). (5) **f29Overview owns the range
+  policy** (`{desde?,hasta?,anio?}` via the Clock seam) — fixes the MCP `f29_overview` no-args
+  crash (sent empty strings → cryptic ValidationError); CLI/MCP now share ONE semantics. (6)
+  **Shared es-CL format helpers** (`formatMoney`/`formatRut` in a new `format` module +
+  `describeOperating` in identity) — the copy-pasted surface helpers deleted, output
+  byte-identical. (7) **Splits**: `portal/f22.ts` (457) → `portal/f22/` per-view modules
+  (same-name barrel); `program.test.ts` (720) / `server.test.ts` (595) → per-command/per-tool
+  suites + `test-helpers` (excluded from dist). Test counts preserved exactly. 234/234 green.
+  **Post-merge:** push tag `v0.2.0` → CD publishes; OCSI can then drop its playwright esbuild
+  stub + `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` on upgrade.
 - [x] **`@altumstack/sii-core@0.1.0` PUBLISHED to GitHub Packages (ADR-015, PR #47) + repo
   governance (PR #48).** The shared core is now a private, installable package for an external
   (internal) project. **Rename** `@sii/core` → `@altumstack/sii-core` repo-wide (cli/mcp imports +
