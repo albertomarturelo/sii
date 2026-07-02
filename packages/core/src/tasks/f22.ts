@@ -18,8 +18,13 @@ import {
   fetchF22Observaciones,
   groupCodigos,
   pickVigenteFolio,
-} from '../portal/f22.js';
-import type { EventoF22, F22Declaraciones, F22Estado, ObservacionF22 } from '../portal/f22.js';
+} from '../portal/f22/index.js';
+import type {
+  EventoF22,
+  F22Declaraciones,
+  F22Estado,
+  ObservacionF22,
+} from '../portal/f22/index.js';
 import type { AuditEntry, Runtime } from '../seams/index.js';
 
 export type {
@@ -30,7 +35,7 @@ export type {
   F22Declaraciones,
   F22Estado,
   F22Grupos,
-} from '../portal/f22.js';
+} from '../portal/f22/index.js';
 
 const DEFAULT_OVERVIEW_YEARS = 5;
 const MAX_OVERVIEW_YEARS = 10;
