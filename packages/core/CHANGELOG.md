@@ -36,6 +36,12 @@ pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
   arguments through, so both surfaces share one semantics. Existing
   `{ desde, hasta }` calls behave as before.
 
+### Internal
+
+- `portal/f22` split into per-view modules (`declaraciones` / `grid` /
+  `observaciones` / `historial` over a `shared` wire layer); the module barrel
+  re-exports the same names, so the public surface is unchanged.
+
 ### Added
 
 - `createNodeRuntime(overrides?: Partial<Runtime>)` — any seam replaceable
