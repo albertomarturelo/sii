@@ -49,8 +49,9 @@ export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';
 export { bteList } from './tasks/bte.js';
 export type { BteMensual, BteBoleta, BteTotales, BteSide } from './tasks/bte.js';
 
-// --- runtime + seams: surfaces build adapters at their composition root ---
-export { createNodeRuntime } from './runtime.js';
+// --- seams: the injectable contract a consumer composes a Runtime from ---
+// The Node default adapters + `createNodeRuntime` live in the `./node` subpath
+// (ADR-016), so this barrel's static graph stays free of node:* and playwright.
 export type {
   AuditEntry,
   AuditSink,

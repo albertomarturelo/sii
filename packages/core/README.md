@@ -30,21 +30,29 @@ pnpm add @altumstack/sii-core
 # or: npm install @altumstack/sii-core
 ```
 
-`playwright` and `zod` come along as dependencies. The default `PortalDriver`
-drives a real browser against SII, so install the Chromium binary once:
+`zod` comes along as a dependency. **`playwright` is an OPTIONAL peer** (ADR-016):
+only the default `PortalDriver` (the `@altumstack/sii-core/node` subpath) needs it.
+If you use that default driver — i.e. you actually drive a real browser against
+SII — install it plus the Chromium binary once:
 
 ```bash
+pnpm add playwright
 pnpm exec playwright install chromium
 ```
+
+If you inject your own `PortalDriver` (or only use the tasks/primitives), skip
+this entirely — nothing in the main barrel imports playwright or `node:*`.
 
 ## Usage
 
 A consumer builds a `Runtime` (the composition root that wires the Node default
-adapters) and calls **tasks** — the public operations. Never reach past the task
-layer into a sub-module; that bypasses the guardrails (ADR-003).
+adapters, from the `./node` subpath) and calls **tasks** — the public operations.
+Never reach past the task layer into a sub-module; that bypasses the guardrails
+(ADR-003).
 
 ```ts
-import { createNodeRuntime, authStatus, rcvSummary } from '@altumstack/sii-core';
+import { authStatus, rcvSummary } from '@altumstack/sii-core';
+import { createNodeRuntime } from '@altumstack/sii-core/node';
 
 const runtime = createNodeRuntime();
 
@@ -62,12 +70,21 @@ live session or raise `NotAuthenticated`; only `login` mints one. Logging in ope
 a real browser where the user types their Clave (cookies-only; the password never
 crosses the library boundary — ADR-006).
 
-### Injecting your own seams (tests)
+### Injecting your own seams
 
 The external side-effects are interfaces (`PortalDriver`, `KeyValueStore`,
-`AuditSink`, `Clock`, …). In-memory fakes ship under `testing` so a consumer's
-tests never touch the real SII, keyring, or clock — assemble a `Runtime` from
-them:
+`AuditSink`, `Clock`, …). `createNodeRuntime` accepts a `Partial<Runtime>` of
+overrides, so partial reuse is a supported path — e.g. Node defaults with your
+own audit sink and portal driver (an embedding app's mediated browser):
+
+```ts
+import { createNodeRuntime } from '@altumstack/sii-core/node';
+
+const runtime = createNodeRuntime({ audit: myAuditSink, portal: myPortalDriver });
+```
+
+In-memory fakes ship under `testing` so a consumer's tests never touch the real
+SII, keyring, or clock — assemble a `Runtime` from them:
 
 ```ts
 import { testing, type Runtime } from '@altumstack/sii-core';

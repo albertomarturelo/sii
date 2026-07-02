@@ -6,8 +6,7 @@
 // LOGIN_HOST (zeusr.sii.cl) means not authenticated; any other host means we
 // reached the destination. The Clave is typed by the user into SII's own page —
 // it never crosses this boundary (cookies-only; ADR-006).
-import { chromium } from 'playwright';
-import type { Browser, BrowserContext, BrowserContextOptions, Page } from 'playwright';
+import type { Browser, BrowserContext, BrowserContextOptions, BrowserType, Page } from 'playwright';
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginError } from '../../auth/login-error.js';
@@ -21,6 +20,29 @@ import type {
   PublicRequest,
   PublicResponse,
 } from '../../seams/index.js';
+
+/** Lazy-load playwright — an OPTIONAL peer since ADR-016. Only the launch paths of
+ *  this default driver need it, so a consumer that injects its own PortalDriver (or
+ *  only uses the pure barrel) never pays the module. A missing install fails HERE,
+ *  at first actual use, with an actionable message — never at library import time.
+ *  Only the not-found case for 'playwright' itself is translated; any other failure
+ *  (a broken transitive import, etc.) propagates untouched. */
+async function loadChromium(): Promise<BrowserType> {
+  try {
+    return (await import('playwright')).chromium;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    const notFound = code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND';
+    if (notFound && err instanceof Error && err.message.includes('playwright')) {
+      throw new Error(
+        'El PortalDriver por defecto necesita `playwright` (peer opcional, ADR-016). ' +
+          'Instálalo en el proyecto consumidor: `npm i playwright` y luego ' +
+          '`npx playwright install chromium`.',
+      );
+    }
+    throw err;
+  }
+}
 
 /** Extract SII's verbatim login-error message from the failed-login page (rendered
  *  on zeusr.sii.cl at /cgi_AUT2000/CAutInicio.cgi). Observed 2026-06-28: the page
@@ -107,6 +129,7 @@ class PlaywrightPortalSession implements PortalSession {
 export class PlaywrightPortalDriver implements PortalDriver {
   async interactiveLogin(options: InteractiveLoginOptions): Promise<PortalSession> {
     // HEADED: the user must see and type into SII's real Clave Tributaria page.
+    const chromium = await loadChromium();
     const browser = await chromium.launch({ headless: false });
     try {
       const context = await browser.newContext();
@@ -134,6 +157,7 @@ export class PlaywrightPortalDriver implements PortalDriver {
     // are persisted by the caller. ONE attempt, never retried (account-lock safety,
     // ADR-004). Selectors observed 2026-06-28 (docs/sii-contract/auth-login.md):
     //   #rutcntr (full RUT, text) · #clave (password) · #bt_ingresar (submit).
+    const chromium = await loadChromium();
     const browser = await chromium.launch({ headless: true });
     try {
       const context = await browser.newContext();
@@ -167,6 +191,7 @@ export class PlaywrightPortalDriver implements PortalDriver {
 
   async restore(storageState: unknown): Promise<PortalSession> {
     // HEADLESS: cookies-only readback for liveness / portal reads. No UI.
+    const chromium = await loadChromium();
     const browser = await chromium.launch({ headless: true });
     try {
       const context = await browser.newContext({

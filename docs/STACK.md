@@ -28,6 +28,10 @@ These are intended choices; versions are pinned when first installed.
   (`@altumstack/sii-core` `adapters/node/portal.ts`): headed Chromium for `interactiveLogin`,
   headless cookies-only for `restore`. Tests inject a fake instead. Chromium binary
   via `pnpm --filter @altumstack/sii-core exec playwright install chromium`. (ADR-008)
+  **An OPTIONAL peer of `@altumstack/sii-core` since ADR-016** (lazy-loaded by the
+  `./node` subpath's default driver; core keeps it as a devDependency for typecheck +
+  in-workspace resolution); `@sii/cli` and `@sii/mcp` declare it as their own
+  dependency. An external consumer that injects its own `PortalDriver` never installs it.
 - **`commander`** `^12.1.0` — the CLI framework for `@sii/cli` (ADR-008). Nested
   subcommands (`sii auth login`, `sii operate`). Lives in `@sii/cli` only;
   `@altumstack/sii-core` never imports it.

@@ -22,18 +22,33 @@
     "./cli": {
       "types": "./dist/cli.d.ts",
       "default": "./dist/cli.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsc -b",
-    "prepack": "tsc -b"
+    "prepack": "rm -rf dist tsconfig.tsbuildinfo && tsc -b"
   },
   "dependencies": {
-    "playwright": "^1.49.0",
     "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "playwright": "^1.49.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
   }
 }
