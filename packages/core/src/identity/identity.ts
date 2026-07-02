@@ -107,6 +107,17 @@ export function operatingContext(state: OperateState): OperatingContext {
   };
 }
 
+/** Render the operating context as the shared `Operando como …` display line
+ *  (the CLI STDERR header / `operate` output and the MCP `sii://operating`
+ *  resource + `operate` tool used to carry verbatim copies of this). The razón
+ *  social only appears for a represented empresa — never for self (own-name PII
+ *  stays off the line). */
+export function describeOperating(ctx: OperatingContext): string {
+  if (ctx.isSelf) return `Operando como tú mismo: ${Rut.parse(ctx.operatingRut).formatted}.`;
+  const name = ctx.razonSocial ? ` (${ctx.razonSocial})` : '';
+  return `Operando como ${Rut.parse(ctx.operatingRut).formatted}${name}.`;
+}
+
 /** Render one operable entry as a single display line (shared by CLI `operate --list`
  *  and the MCP `operate list=true` tool, so the format stays in one place):
  *  `<rut>[ <razón social>][ (tú mismo, operando ahora)]`. Razón social falls back to

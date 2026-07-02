@@ -6,19 +6,17 @@
 //   - status <periodo> : el estado crudo de las declaraciones del mes.
 import type { Command } from 'commander';
 import {
-  Rut,
   f29Formulario,
   f29Overview,
   f29Status,
+  formatMoney as money,
+  formatRut as fmtRut,
   F29_GRUPO_LABELS,
   type F29Grupo,
   type LineaF29,
   type Runtime,
 } from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
-
-const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
-const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;
 
 const GROUP_ORDER: readonly F29Grupo[] = ['debitos', 'creditos', 'retenciones', 'otros', 'totales'];
 

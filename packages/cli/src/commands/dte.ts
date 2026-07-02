@@ -4,10 +4,8 @@
 //
 // `dte authorized` is the PUBLIC, login-free consulta (ADR-014): no session, any RUT.
 import type { Command } from 'commander';
-import { Rut, dteAuthorized, type Runtime } from '@altumstack/sii-core';
+import { dteAuthorized, formatRut as fmtRut, type Runtime } from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
-
-const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;
 
 export function registerDte(program: Command, runtime: Runtime): void {
   const dte = program.command('dte').description('Documentos Tributarios Electrónicos (DTE).');

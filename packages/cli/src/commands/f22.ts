@@ -3,20 +3,18 @@
 // a represented empresa's F22 is reached by logging in AS the empresa (logout→login).
 import type { Command } from 'commander';
 import {
-  Rut,
   ValidationError,
   f22Historial,
   f22Observaciones,
   f22Overview,
   f22Status,
+  formatMoney as money,
+  formatRut as fmtRut,
   type CodigoF22,
   type F22Grupos,
   type Runtime,
 } from '@altumstack/sii-core';
 import { emit, out } from '../io.js';
-
-const money = (n: number | null): string => (n === null ? '—' : n.toLocaleString('es-CL'));
-const fmtRut = (canonical: string): string => Rut.parse(canonical).formatted;
 
 const printCodigos = (codigos: readonly CodigoF22[]): void => {
   for (const c of codigos) out(`  ${c.codigo}  ${c.glosa ?? ''}  ${money(c.valor)}`);
