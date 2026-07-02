@@ -4,7 +4,7 @@ All notable changes to `@altumstack/sii-core` are documented here. The format is
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
-## 0.2.0 — Unreleased
+## 0.2.0 — 2026-07-02
 
 ### Breaking
 
