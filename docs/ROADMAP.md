@@ -73,7 +73,9 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | Status | Surface | Notes |
 |---|---|---|
 | 🔒 | `f29 submit` / `f22 submit` | File monthly/annual returns. |
-| 🔒 | `bte emit` / `dte emit` / `dte accept` | Issue boletas / DTEs; DTE accept per Ley 19.983. DTE emit also blocked on the cert auth layer. |
+| 🚧 | `sii bte emit` (#60) / `bte_emit`+`bte_emit_preview` | **First WRITE surface — MERGED (ADR-017, PR #61).** Issue a BHE via the `TMBECN_*` form-POST flow (Clave, no cert; session-keyed). CLI `--dry-run`/`--confirm`; MCP `bte_emit` (the first `destructiveHint`) + `bte_emit_preview`. **Preview LIVE-VALIDATED** (both retención modes); the ISSUE step (step 4) is coded to the 2026-07-02 capture but its live validation + the `v0.3.0` tag are **#62** (next month). Retención server-side; audit = folio only. |
+| 🔒 | `dte emit` / `dte accept` | Issue DTEs; accept per Ley 19.983. Blocked on the cert auth layer. |
+| 🔒 | `bte anular` (#63) | Annul an issued BHE — needs its own live capture (follow-up to `bte emit`). |
 
 ## MCP-specific structure (best practices — ADR-003)
 
