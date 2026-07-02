@@ -177,6 +177,15 @@ drop `raw` when the non-curated data is PII).
 
 ## Emisión (write) — the `TMBECN_*` flow (observed 2026-07-02, prod)
 
+> **Dry-run live-validated 2026-07-02** (TS, own session): steps 1–3 (…→ ConfirmaTimbrajeContrib)
+> return the correct total/retención (15,25% vigente)/líquido without issuing. Two corrections vs
+> the initial capture surfaced and are folded in below: (a) the **from-scratch (modo=1) step-2
+> body** is `{rut_arrastre, dv_arrastre, sin_destinatario, OptTipoRetencion}` — NOT the modo=2
+> prefill body `{prellenar, ult_boleta, boleta}`; (b) some `xml_values` are **double-quoted**
+> (`iddir1`, `PorcentajeRetencion`), and the emisor domicilio id (`cbo_domicilio`) is read from
+> `xml_values['iddir1']` (the address `<select>` is JS-built, not static `<option>`s). The final
+> ISSUE step 4 is coded to the capture but not yet TS-live-validated (#62, next month).
+
 Host `loa.sii.cl/cgi_IMT/`; the client logic lives in `loa.sii.cl/IMT/js/TMBECN_Emision.js`
 (function `presionaBoton(boton)` is the state machine — each POST carries an `origen` marker).
 The `.sii.cl` session cookie SSO-carries here (same as the read CGIs). **All values below are
@@ -196,6 +205,15 @@ synthetic placeholders — no real PII.**
 `tipo_retencion` / `consulta_destinatario` buttons re-POST `TMBECN_PresentaDatosBoleta.cgi`
 (reload the form: recompute retención / look up the receptor). Guard (JS): cannot emit to
 oneself (`rut_arrastre == txt_rut_destinatario`).
+
+### Step 2 — `POST TMBECN_PresentaDatosBoleta.cgi` (get the blank emisor form)
+
+From scratch (after `GET …ValidaTimbrajeContrib.cgi?modo=1`): body
+`{rut_arrastre, dv_arrastre, sin_destinatario='NO', OptTipoRetencion=<RETRECEPTOR|RETCONTRIBUYENTE>}`.
+The response is the emisor form; read the emisor context from its `xml_values`: `glosa_actividad`
+(→ `hdn_glosa_actividad`), `comuna_ctr` (→ `txt_comuna`), `fono_ctr` (→ `txt_telefono`),
+`dia_actual`/`mes_actual`/`anio_actual`, and **`iddir1`** (double-quoted; the first/default
+domicilio id → `cbo_domicilio`; `CantidadDirecciones` counts the emisor's addresses).
 
 ### Emit payload — `TMBECN_BoletaHonorariosElectronica.cgi` (24 fields)
 
