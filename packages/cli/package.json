@@ -9,7 +9,8 @@
   },
   "dependencies": {
     "@altumstack/sii-core": "workspace:*",
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "playwright": "^1.49.0"
   },
   "scripts": {
     "build": "tsc -b"

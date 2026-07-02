@@ -4,6 +4,30 @@ All notable changes to `@altumstack/sii-core` are documented here. The format is
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.2.0 — Unreleased
+
+### Breaking
+
+- **`createNodeRuntime` moved to the `@altumstack/sii-core/node` subpath**
+  (ADR-016). The main barrel is now statically pure — importing it evaluates
+  no `node:*` module and no playwright, so tasks/primitives work in any
+  bundled/sandboxed context. Update:
+  `import { createNodeRuntime } from '@altumstack/sii-core/node'`.
+- **`playwright` is now an OPTIONAL peer dependency** (was a hard dependency).
+  Only the default `PortalDriver` needs it, and it is loaded lazily on first
+  use. If you drive the default driver, install it yourself
+  (`npm i playwright` + `npx playwright install chromium`); if you inject your
+  own `PortalDriver`, you no longer need bundler stubs or
+  `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD`.
+
+### Added
+
+- `createNodeRuntime(overrides?: Partial<Runtime>)` — any seam replaceable
+  while keeping the other Node defaults.
+- The Node default adapters are exported from `./node`: `SystemClock`,
+  `FileKeyValueStore`, `FileAuditSink`, `PlaywrightPortalDriver`, `SII_DIR`.
+- `sideEffects: false` — the package is tree-shakeable.
+
 ## 0.1.0 — 2026-06-30
 
 Initial published release (private, GitHub Packages). Renamed from the in-repo

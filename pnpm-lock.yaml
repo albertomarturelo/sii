@@ -35,15 +35,19 @@ importers:
       commander:
         specifier: ^12.1.0
         version: 12.1.0
-
-  packages/core:
-    dependencies:
       playwright:
         specifier: ^1.49.0
         version: 1.61.1
+
+  packages/core:
+    dependencies:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+    devDependencies:
+      playwright:
+        specifier: ^1.49.0
+        version: 1.61.1
 
   packages/mcp:
     dependencies:
@@ -53,6 +57,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.0.0
         version: 1.29.0(zod@4.4.3)
+      playwright:
+        specifier: ^1.49.0
+        version: 1.61.1
       zod:
         specifier: ^4.4.3
         version: 4.4.3
