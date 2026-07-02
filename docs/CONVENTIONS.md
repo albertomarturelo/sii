@@ -97,6 +97,24 @@ Python `sii-cli`, adapted to TypeScript.
   login-free CGI (DTE-authorized) is a cold, session-less, browser-free HTTP request
   (Node `fetch`, charset-aware) — not a `PortalSession`. Still a task + seam (audited),
   never a bespoke client in the facade. (ADR-014)
+- **Authenticated HTML form-POST write flows go through `PortalSession.requestForm`.** The
+  legacy `loa.sii.cl/cgi_IMT/` `TMBECN_*` CGIs (BHE emission) take `x-www-form-urlencoded`
+  POSTs and return HTML, so they use `requestForm` (authenticated peer of `requestPublic.form`),
+  NOT `requestJson` (JSON-only, treats HTML as a login wall). The login-wall check is URL-based
+  (landing on `LOGIN_HOST`) since an HTML body is expected. Parse the response's inline
+  `xml_values` with in-house helpers (single- AND double-quoted; `formatMiles("<n>")` amounts);
+  read JS-built `<select>` values from their backing map (`iddir1`), never from the static HTML.
+  (ADR-017)
+- **Write surfaces are two-phase, session-keyed, confirm-gated, PII-free in the audit (ADR-017).**
+  A state-changing op (first: `bte emit`) exposes a non-mutating PREVIEW (server computes the
+  result without committing) split from the ISSUE step. The CLI defaults to the preview; the real
+  write needs an explicit `--confirm <echo>` (double-entry of a load-bearing value, e.g. the gross
+  total). The MCP `*_emit` tool carries `destructiveHint: true` + an explicit `confirmar` + amount
+  echo, with an honest "issues a legally-binding document" description. Audit every attempt with
+  the result id (folio) only — never the counterparty / amount / free-text (PII/business data).
+  **Never retry a write after a SII error.** Server-computed values (retención rate) are READ from
+  the form, never hardcoded. Live-validate the ISSUE path against a real (needed) document — never
+  a throwaway.
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
