@@ -6,9 +6,10 @@ operational guardrail (throttling, audit, credential handling, the operate-centr
 identity model) lives here, so a consumer that codes against the task layer gets
 the same rails the first-party surfaces do.
 
-> **Private package.** Published to GitHub Packages under the `AltumStack` org for
-> internal use only (`license: UNLICENSED`). Access is limited to org members with
-> read on the repo. See [ADR-015](../../docs/decisions/015-publish-core-github-packages.md).
+> **Open source (MIT).** See [ADR-018](../../docs/decisions/018-public-release-mit-license.md).
+> Previously distributed as a private GitHub Packages release under the `AltumStack`
+> org (ADR-015); the public republish target (public npm vs GitHub Packages) is being
+> finalized — the install steps below describe the current GitHub Packages path.
 
 ## Install
 
