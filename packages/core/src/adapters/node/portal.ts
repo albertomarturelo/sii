@@ -10,9 +10,10 @@ import type { Browser, BrowserContext, BrowserContextOptions, BrowserType, Page 
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginError } from '../../auth/login-error.js';
-import { charsetOf, nonJsonResponseError } from './response.js';
+import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
 import type {
   CredentialLoginOptions,
+  FormRequest,
   InteractiveLoginOptions,
   JsonRequest,
   PortalDriver,
@@ -107,6 +108,25 @@ class PlaywrightPortalSession implements PortalSession {
         response.status(),
       );
     }
+  }
+
+  async requestForm(url: string, options: FormRequest = {}): Promise<PublicResponse> {
+    // Authenticated x-www-form-urlencoded POST from the browser's APIRequestContext,
+    // so the session cookies ride along (the legacy TMBECN_* emit CGIs on loa.sii.cl
+    // authorize by the SSO cookie). The response is HTML by design, so — unlike
+    // requestJson — a non-JSON body is NOT a login wall; a dead session is detected
+    // URL-based (the request bounced to LOGIN_HOST). `form` sets the urlencoded body
+    // + content-type automatically (Playwright).
+    const response = await this.context.request.fetch(url, {
+      method: options.method ?? 'POST',
+      ...(options.headers ? { headers: options.headers } : {}),
+      ...(options.form ? { form: options.form } : {}),
+    });
+    const wall = formLoginWallError(response.url());
+    if (wall) throw wall;
+    const buffer = await response.body();
+    const text = new TextDecoder(charsetOf(response.headers()['content-type'])).decode(buffer);
+    return { status: response.status(), body: text };
   }
 
   async cookie(url: string, name: string): Promise<string | null> {

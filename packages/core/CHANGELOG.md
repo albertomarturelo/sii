@@ -4,6 +4,16 @@ All notable changes to `@altumstack/sii-core` are documented here. The format is
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.3.0 — Unreleased
+
+### Added
+
+- **`PortalSession.requestForm`** — an authenticated `x-www-form-urlencoded` POST
+  from the logged-in session (cookies ride along), returning the decoded text body.
+  The primitive behind the legacy HTML write flows (BHE emission, ADR-017); the
+  authenticated peer of `PublicRequest.form`. Login-wall detection is URL-based
+  (landing on `LOGIN_HOST` → `SessionExpiredError`), since an HTML body is expected.
+
 ## 0.2.0 — 2026-07-02
 
 ### Breaking

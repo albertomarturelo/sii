@@ -4,6 +4,7 @@ import type {
   AuditSink,
   Clock,
   CredentialLoginOptions,
+  FormRequest,
   InteractiveLoginOptions,
   JsonRequest,
   KeyValueStore,
@@ -58,6 +59,9 @@ export interface FakeSessionScript {
   evaluate?: (expression: string) => unknown;
   /** Result for `requestJson(url, options)` — the SDI facade JSON envelope. */
   requestJson?: (url: string, options?: JsonRequest) => unknown;
+  /** Result for `requestForm(url, options)` — an authenticated form-POST (BHE emit,
+   *  ADR-017). Return the decoded body string (status 200) or a full PublicResponse. */
+  requestForm?: (url: string, options?: FormRequest) => PublicResponse | string;
   /** Cookie name → value map for `cookie(url, name)`. */
   cookies?: Record<string, string>;
   storageState?: unknown;
@@ -81,6 +85,14 @@ export class FakePortalSession implements PortalSession {
   async requestJson(url: string, options?: JsonRequest): Promise<unknown> {
     this.lastRequest = options ? { url, options } : { url };
     return this.script.requestJson?.(url, options) ?? null;
+  }
+  /** The last requestForm call — lets a test assert the emit form fields sent to SII. */
+  lastFormRequest: { url: string; options?: FormRequest } | null = null;
+  async requestForm(url: string, options?: FormRequest): Promise<PublicResponse> {
+    this.lastFormRequest = options ? { url, options } : { url };
+    const r = this.script.requestForm?.(url, options);
+    if (r === undefined) return { status: 200, body: '' };
+    return typeof r === 'string' ? { status: 200, body: r } : r;
   }
   async cookie(_url: string, name: string): Promise<string | null> {
     return this.script.cookies?.[name] ?? null;

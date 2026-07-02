@@ -17,6 +17,17 @@ export function nonJsonResponseError(finalUrl: string, contentType: string, stat
   return new Error(`Respuesta no-JSON de SII (HTTP ${status}, ${ct || 'sin content-type'}).`);
 }
 
+/** Login-wall detection for an authenticated FORM POST (ADR-017). Unlike `requestJson`,
+ *  an HTML body is EXPECTED (the `TMBECN_*` emit CGIs render HTML), so the content-type
+ *  heuristic can't apply — a dead session is detected purely by the response landing on
+ *  `LOGIN_HOST` (URL-based, ADR-009). Returns an actionable `SessionExpiredError`, else
+ *  null. Pure → unit-tested without a browser. */
+export function formLoginWallError(finalUrl: string): Error | null {
+  return new URL(finalUrl).hostname === LOGIN_HOST
+    ? new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.')
+    : null;
+}
+
 /** Extract the charset label from a `Content-Type` header for decoding a public
  *  (unauthenticated) response body (ADR-014). SII's palena reports declare
  *  `text/html; charset=ISO-8859-1`, so a UTF-8 decode would mangle accents (ó, é,
