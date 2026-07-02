@@ -49,6 +49,16 @@ export interface JsonRequest {
   readonly body?: unknown;
 }
 
+/** An AUTHENTICATED `x-www-form-urlencoded` request from the session (cookies ride
+ *  along). The primitive behind the legacy HTML form-POST write flows — BHE emission
+ *  (`loa.sii.cl` `TMBECN_*` CGIs, ADR-017) — which return HTML, not JSON. The
+ *  authenticated peer of `PublicRequest.form` (which is session-less). */
+export interface FormRequest {
+  readonly method?: 'GET' | 'POST';
+  readonly headers?: Record<string, string>;
+  readonly form?: Record<string, string>;
+}
+
 export interface PortalSession {
   /** Navigate; returns the URL actually landed on (for URL-based auth detection). */
   goto(url: string): Promise<string>;
@@ -59,6 +69,12 @@ export interface PortalSession {
    *  JSON facades (the `www4.sii.cl` SDI endpoints — RCV, representación, …).
    *  Resolves the parsed JSON body; rejects on a non-JSON response. */
   requestJson(url: string, options?: JsonRequest): Promise<unknown>;
+  /** Issue an authenticated FORM POST (`x-www-form-urlencoded`) from the session and
+   *  return the decoded text body (charset-aware). The primitive behind the legacy
+   *  HTML write flows — BHE emission (ADR-017) — where the CGI returns HTML, not JSON.
+   *  Login-wall detection is URL-based (landing on `LOGIN_HOST`) → `SessionExpiredError`,
+   *  since an HTML body is EXPECTED here (unlike `requestJson`). */
+  requestForm(url: string, options?: FormRequest): Promise<PublicResponse>;
   /** Value of a cookie visible to `url` (e.g. the SPA conversation `TOKEN`), or
    *  null. Used to seed SDI request metadata. */
   cookie(url: string, name: string): Promise<string | null>;
