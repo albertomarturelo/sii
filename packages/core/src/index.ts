@@ -47,8 +47,19 @@ export type {
 } from './tasks/f29.js';
 export { dteAuthorized } from './tasks/dte.js';
 export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';
-export { bteList } from './tasks/bte.js';
-export type { BteMensual, BteBoleta, BteTotales, BteSide } from './tasks/bte.js';
+export { bteList, bteEmitPreview, bteEmit } from './tasks/bte.js';
+export type {
+  BteMensual,
+  BteBoleta,
+  BteTotales,
+  BteSide,
+  BteEmitArgs,
+  BteEmitResult,
+  BteEmitida,
+  BtePreview,
+  BteRetiene,
+  BteLineaEmision,
+} from './tasks/bte.js';
 
 // --- seams: the injectable contract a consumer composes a Runtime from ---
 // The Node default adapters + `createNodeRuntime` live in the `./node` subpath
