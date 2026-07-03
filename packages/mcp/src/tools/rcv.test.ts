@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, datos, toolText } from '../test-helpers.js';
 
-describe('@sii/mcp rcv tools (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp rcv tools (in-memory client, fake runtime, no SII)', () => {
   it('rcv_summary returns the curated resumen as JSON (body-RUT, read-only)', async () => {
     const env = {
       respEstado: { codRespuesta: 0 },

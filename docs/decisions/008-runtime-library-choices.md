@@ -8,7 +8,7 @@ per ADR-001 (decisions before implementation).
 ## Context
 
 The login/logout/operate base is the first real code. It needs a CLI framework
-for `@sii/cli` and a decision on which auth path(s) to build first (which in turn
+for `@albertomarturelo/sii-cli` and a decision on which auth path(s) to build first (which in turn
 decides whether a keyring library is needed now). These choices pervade the
 codebase, so they get an ADR before the code lands.
 
@@ -16,7 +16,7 @@ codebase, so they get an ADR before the code lands.
 
 - **CLI framework: `commander`.** Ubiquitous, simple, first-class nested
   subcommands (`sii auth login`, `sii operate`), good TS support, minimal
-  ceremony. Lives in `@sii/cli` only; `@altumstack/sii-core` never imports it.
+  ceremony. Lives in `@albertomarturelo/sii-cli` only; `@altumstack/sii-core` never imports it.
 - **Auth base is browser cookies-only first** (ADR-006 default path). `auth login`
   opens a headed browser at SII's login page; the user types the Clave; we
   persist cookies-only via the `SessionStore` (a `KeyValueStore` key). This is the

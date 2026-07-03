@@ -1,18 +1,52 @@
 {
-  "name": "@sii/cli",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@albertomarturelo/sii-cli",
+  "version": "0.5.0",
   "type": "module",
-  "description": "Human-facing CLI. Each command is a thin call into @albertomarturelo/sii-core tasks (ADR-003).",
+  "description": "CLI for Chile's SII (tax authority): authenticated reads of RCV, F29, F22, boletas de honorarios, DTE-authorized, and peticiones administrativas. Each command is a thin call into @albertomarturelo/sii-core tasks (ADR-003).",
+  "keywords": [
+    "sii",
+    "chile",
+    "impuestos",
+    "sii-cl",
+    "tax",
+    "cli",
+    "rcv",
+    "f29",
+    "f22",
+    "dte"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/albertomarturelo/sii#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/albertomarturelo/sii.git",
+    "directory": "packages/cli"
+  },
+  "bugs": {
+    "url": "https://github.com/albertomarturelo/sii/issues"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
   "bin": {
     "sii": "./dist/main.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
-    "@albertomarturelo/sii-core": "workspace:*",
+    "@albertomarturelo/sii-core": "workspace:^",
     "commander": "^12.1.0",
     "playwright": "^1.49.0"
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "prepack": "rm -rf dist tsconfig.tsbuildinfo && tsc -b"
   }
 }

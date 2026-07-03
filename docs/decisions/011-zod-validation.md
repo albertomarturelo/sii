@@ -17,7 +17,7 @@ boundary when read surfaces land (curated typed shape + `raw`, ADR-004).
 ## Decision
 
 - Adopt **zod** as the project's boundary-validation library. Direct dependency
-  of `@sii/mcp`, pinned to **v4** (`^4`) to match the SDK's peer — current
+  of `@albertomarturelo/sii-mcp`, pinned to **v4** (`^4`) to match the SDK's peer — current
   `@modelcontextprotocol/sdk@1.29` resolves `zod@4.4.3`.
 - MCP tools use the SDK's high-level `registerTool({ inputSchema: <ZodRawShape> })`;
   the SDK emits the protocol JSON Schema. No hand-written JSON Schema, no manual

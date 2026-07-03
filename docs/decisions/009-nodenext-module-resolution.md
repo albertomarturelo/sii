@@ -10,8 +10,8 @@ The bootstrap toolchain (ADR-002) set `module: "ESNext"` +
 `moduleResolution: "Bundler"` in `tsconfig.base.json`. With no bundler in the
 stack, `tsc` emits **extensionless** relative imports (e.g.
 `from './tasks/auth'`). Node's native ESM loader requires explicit `.js`
-extensions, so the shipped artifacts cannot run under Node: `@sii/cli`'s `bin`
-(`./dist/main.js`, executed directly via its shebang) and `@sii/mcp`'s stdio
+extensions, so the shipped artifacts cannot run under Node: `@albertomarturelo/sii-cli`'s `bin`
+(`./dist/main.js`, executed directly via its shebang) and `@albertomarturelo/sii-mcp`'s stdio
 server both fail with `ERR_MODULE_NOT_FOUND`. The vitest suite stayed green
 because esbuild's resolver is more lenient than Node's, hiding the gap until the
 first real binary run (surfaced wiring the CLI). This contradicts the core
@@ -52,6 +52,6 @@ zero-error strict gate (ADR-002).
   contract actually holds; forgetting an extension is a compile error, not a
   latent prod break.
 - Obligation: every relative import — existing and new — must end in `.js`.
-  One-time mechanical migration across `@altumstack/sii-core` + `@sii/cli`; new code follows
+  One-time mechanical migration across `@altumstack/sii-core` + `@albertomarturelo/sii-cli`; new code follows
   the convention (recorded in CONVENTIONS.md). Editor/test tooling already
   resolves NodeNext, so no fixture churn.

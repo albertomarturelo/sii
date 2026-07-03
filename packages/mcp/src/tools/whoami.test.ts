@@ -25,7 +25,7 @@ function makeRuntime(): Runtime {
   };
 }
 
-describe('@sii/mcp whoami tool (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp whoami tool (in-memory client, fake runtime, no SII)', () => {
   it('whoami returns the authenticated principal identity + email as JSON', async () => {
     const client = await connect(makeRuntime());
     await client.callTool({ name: 'auth_login', arguments: {} }); // seed the session

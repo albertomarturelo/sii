@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, datos, isError, makeRuntime, toolText } from '../test-helpers.js';
 
-describe('@sii/mcp f22 tools (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp f22 tools (in-memory client, fake runtime, no SII)', () => {
   it('f22_status returns the curated F22 estado as JSON (session-keyed, no PII códigos)', async () => {
     const busca = {
       metaData: { errors: [] },

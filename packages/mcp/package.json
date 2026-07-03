@@ -1,19 +1,53 @@
 {
-  "name": "@sii/mcp",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@albertomarturelo/sii-mcp",
+  "version": "0.5.0",
   "type": "module",
-  "description": "MCP server (stdio). Each tool/resource/prompt is a thin call into @albertomarturelo/sii-core tasks (ADR-003). Mirrors the CLI surface by default.",
+  "description": "MCP (stdio) server for Chile's SII (tax authority): exposes authenticated reads — RCV, F29, F22, boletas de honorarios, DTE-authorized, peticiones administrativas — as tools/resources for Claude Desktop and Claude Code. Each tool is a thin call into @albertomarturelo/sii-core tasks (ADR-003).",
+  "keywords": [
+    "sii",
+    "chile",
+    "impuestos",
+    "sii-cl",
+    "tax",
+    "mcp",
+    "model-context-protocol",
+    "claude",
+    "rcv",
+    "f29"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/albertomarturelo/sii#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/albertomarturelo/sii.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/albertomarturelo/sii/issues"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
   "bin": {
     "sii-mcp": "./dist/main.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
-    "@albertomarturelo/sii-core": "workspace:*",
+    "@albertomarturelo/sii-core": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "playwright": "^1.49.0",
     "zod": "^4.4.3"
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "prepack": "rm -rf dist tsconfig.tsbuildinfo && tsc -b"
   }
 }

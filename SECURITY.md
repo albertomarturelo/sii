@@ -23,7 +23,7 @@ rather than bound by an SLA.
 
 ## Scope
 
-In scope: the `@albertomarturelo/sii-core` library, the `@sii/cli`, and the `@sii/mcp`
+In scope: the `@albertomarturelo/sii-core` library, the `@albertomarturelo/sii-cli`, and the `@albertomarturelo/sii-mcp`
 server in this repository — in particular anything touching credential handling,
 session storage, the audit log, or PII exposure across a surface.
 

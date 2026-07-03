@@ -37,16 +37,16 @@ This shapes every architectural decision — internalize before writing code.
 sii-new/                      # pnpm workspaces, TypeScript project references
 ├── packages/
 │   ├── core/  (@albertomarturelo/sii-core)    # All domain logic. A Node library. Thin surfaces call its tasks.
-│   ├── cli/   (@sii/cli)     # Human CLI (terminal). Also what Claude Code drives via Bash.
-│   └── mcp/   (@sii/mcp)     # MCP stdio server. The integration point for Claude Code AND Claude Desktop.
+│   ├── cli/   (@albertomarturelo/sii-cli)     # Human CLI (terminal). Also what Claude Code drives via Bash.
+│   └── mcp/   (@albertomarturelo/sii-mcp)     # MCP stdio server. The integration point for Claude Code AND Claude Desktop.
 ├── docs/                     # CFD context layer (this file lives here)
 └── .claude/commands/         # CFD slash commands
 ```
 
-- **`@sii/cli`** — the human terminal surface. Claude Code can also invoke it
+- **`@albertomarturelo/sii-cli`** — the human terminal surface. Claude Code can also invoke it
   directly through its Bash tool, so the CLI doubles as an AI-usable surface
   inside Claude Code.
-- **`@sii/mcp`** — a stdio MCP server. Both **Claude Desktop** (via
+- **`@albertomarturelo/sii-mcp`** — a stdio MCP server. Both **Claude Desktop** (via
   `claude_desktop_config.json`) and **Claude Code** (via `.mcp.json` /
   `claude mcp add`) consume stdio MCP servers, so this one package makes the
   same operations available to AI assistants in both clients. The Clave never

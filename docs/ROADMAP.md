@@ -8,8 +8,8 @@ is implemented yet — this repo is at the CFD scaffolding stage.
 
 One `@albertomarturelo/sii-core` engine, two surfaces:
 
-- **`@sii/cli`** — the terminal surface (and what Claude Code drives via Bash).
-- **`@sii/mcp`** — a stdio MCP server, the integration point for **Claude Code**
+- **`@albertomarturelo/sii-cli`** — the terminal surface (and what Claude Code drives via Bash).
+- **`@albertomarturelo/sii-mcp`** — a stdio MCP server, the integration point for **Claude Code**
   AND **Claude Desktop** (both connect to stdio MCP servers).
 
 Together they cover the day-to-day a Chilean contador or single taxpayer
@@ -82,7 +82,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 
 The MCP server is the surface that lands the project in Claude Code and Claude
 Desktop, so structure it to the spec. The stdio server is built
-(`@sii/mcp`, `buildServer(runtime)` + stdio `main`), tested with an in-memory
+(`@albertomarturelo/sii-mcp`, `buildServer(runtime)` + stdio `main`), tested with an in-memory
 client (no SII), and binary-smoke-validated (`initialize` handshake):
 
 - **Resources** (read-only context): ✅ `sii://session`, `sii://operating`,

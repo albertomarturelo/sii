@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// @sii/cli — entry point. Thin surface over @albertomarturelo/sii-core tasks (ADR-003): build the
+// @albertomarturelo/sii-cli — entry point. Thin surface over @albertomarturelo/sii-core tasks (ADR-003): build the
 // command tree against the Node runtime and parse argv. Domain errors map to the
 // documented exit codes; their Spanish messages pass through unchanged.
 import { createNodeRuntime } from '@albertomarturelo/sii-core/node';

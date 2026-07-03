@@ -3,6 +3,7 @@
 // this boundary: auth_login delegates to the browser flow and takes no password
 // argument (ADR-006). consoleLogin is deliberately unreachable here — it lives in
 // the CLI-only `@albertomarturelo/sii-core/cli` subpath, which this package never imports.
+import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
@@ -34,9 +35,14 @@ const jsonResource = (uri: URL, value: unknown) => ({
   contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value, null, 2) }],
 });
 
+// The published version, read from this package's own package.json at runtime (one
+// level up from dist/) so the MCP handshake reports the real release, never drifting.
+const pkgVersion = (createRequire(import.meta.url)('../package.json') as { version: string })
+  .version;
+
 /** Build the MCP server over an injected Runtime (tests pass fakes; no SII). */
 export function buildServer(runtime: Runtime): McpServer {
-  const server = new McpServer({ name: 'sii', version: '0.0.0' });
+  const server = new McpServer({ name: 'sii', version: pkgVersion });
 
   // --- Resources: read-only context the model reads to orient (ROADMAP) ---
   server.registerResource(

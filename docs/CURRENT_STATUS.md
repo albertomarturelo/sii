@@ -100,7 +100,7 @@ Last updated: 2026-07-03 — **`peticiones` read surface built + live-validated 
   governance (PR #48).** The shared core is now a private, installable package for an external
   (internal) project. **Rename** `@sii/core` → `@altumstack/sii-core` repo-wide (cli/mcp imports +
   `workspace:*` keys, core src comments, the `ci.yml` ADR-003 boundary guard, all docs/ADRs;
-  `@sii/cli`/`@sii/mcp` untouched — not published). **Publishable** `packages/core`: version 0.1.0,
+  `@albertomarturelo/sii-cli`/`@albertomarturelo/sii-mcp` untouched — not published). **Publishable** `packages/core`: version 0.1.0,
   drop `private`, `license:UNLICENSED`, `repository`+`directory`, `publishConfig`→npm.pkg.github.com,
   `files:[dist,CHANGELOG.md]`, `prepack:tsc -b`; new LICENSE (proprietary) + CHANGELOG + README
   (consumer how-to: `.npmrc` + `read:packages` token, task-layer + `createNodeRuntime` usage, fake
@@ -278,7 +278,7 @@ Last updated: 2026-07-03 — **`peticiones` read surface built + live-validated 
   primitives; `statusRefresh`/`probeLive` reuse it (no behavior change). The reusable
   basis every domain read surface (rcv/f29/bte) wraps its facade call in. 4 new tests vs
   fakes (no SII), 84/84 green.
-- [x] **MCP `auth_logout` tool (#11).** Added `auth_logout` to `@sii/mcp` — a thin
+- [x] **MCP `auth_logout` tool (#11).** Added `auth_logout` to `@albertomarturelo/sii-mcp` — a thin
   call into the existing `logout` task (best-effort server-side close + local cookie
   wipe), no input args. Logout carries no secret, so ADR-006 doesn't bar it from MCP;
   switching accounts stays logout→login (ADR-005). Mirrors the CLI logout messages.
@@ -299,7 +299,7 @@ Last updated: 2026-07-03 — **`peticiones` read surface built + live-validated 
 - [x] **Surface operable** — `sii operate --list` (operable set with self/current
   markers) + the MCP `sii://operable` resource + a `listOperable` task; fixed the
   dangling operate-rejection hint to point at `sii operate --list`. (PR #10, merged.)
-- [x] **MCP stdio surface (ADR-011 — zod adopted).** `@sii/mcp` server built over
+- [x] **MCP stdio surface (ADR-011 — zod adopted).** `@albertomarturelo/sii-mcp` server built over
   `@altumstack/sii-core` tasks (thin, ADR-003): Tools `auth_login` (NO password arg —
   delegates to the browser flow, ADR-006), `auth_logout` (no args, #11),
   `auth_status` (`refresh`), `operate` (`rut`/`self`); Resources `sii://session`,
@@ -358,7 +358,7 @@ Last updated: 2026-07-03 — **`peticiones` read surface built + live-validated 
   `NodeNext`; all relative imports carry `.js`. `tsc -b` output now runs directly
   on Node (no bundler) — the prior extensionless-ESM output couldn't. Verified by
   running the built `sii` binary.
-- [x] **`@sii/cli` (commander) surface** — `program.ts` command tree, thin calls
+- [x] **`@albertomarturelo/sii-cli` (commander) surface** — `program.ts` command tree, thin calls
   into `@altumstack/sii-core` tasks (ADR-003): `auth login|status [--refresh]|logout`,
   `operate [rut]|--self`. Always-visible `operating as:` STDERR header (ADR-005);
   error→exit-code mapping (NotAuthenticated 2 / LoginFailed 3 / RateLimit 4). Runs
