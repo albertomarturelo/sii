@@ -25,6 +25,7 @@ import { emit, out, setOutputMode, withOutputFlags } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
 // Domain read surfaces — each module owns a commands/<mod>.ts register fn (append-only).
+import { registerWhoami } from './commands/whoami.js';
 import { registerRcv } from './commands/rcv.js';
 import { registerF22 } from './commands/f22.js';
 import { registerF29 } from './commands/f29.js';
@@ -171,6 +172,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     });
 
   // --- domain read surfaces (one register call per module — append-only) ---
+  registerWhoami(program, runtime);
   registerRcv(program, runtime);
   registerF22(program, runtime);
   registerF29(program, runtime);

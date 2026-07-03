@@ -22,6 +22,7 @@ import {
 } from '@albertomarturelo/sii-core';
 import { toolText } from './tool-helpers.js';
 // Domain read surfaces — each module owns a tools/<mod>.ts register fn (append-only).
+import { registerWhoamiTools } from './tools/whoami.js';
 import { registerRcvTools } from './tools/rcv.js';
 import { registerF22Tools } from './tools/f22.js';
 import { registerF29Tools } from './tools/f29.js';
@@ -182,6 +183,7 @@ export function buildServer(runtime: Runtime): McpServer {
   );
 
   // --- domain read surfaces (one register call per module — append-only) ---
+  registerWhoamiTools(server, runtime);
   registerRcvTools(server, runtime);
   registerF22Tools(server, runtime);
   registerF29Tools(server, runtime);

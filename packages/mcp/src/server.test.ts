@@ -28,6 +28,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'operate',
       'rcv_list',
       'rcv_summary',
+      'whoami',
     ]);
 
     // ADR-006: no tool INPUT FIELD accepts a password (descriptions may mention

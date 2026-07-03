@@ -6,12 +6,13 @@
 // NOTE: `consoleLogin` (takes a Clave) is intentionally NOT here — it lives in the
 // CLI-only subpath `@albertomarturelo/sii-core/cli`, so the MCP server (which imports this barrel)
 // cannot wire a password-taking task (ADR-006).
-export { login, logout, authStatus, statusRefresh } from './tasks/auth.js';
+export { login, logout, authStatus, statusRefresh, whoami } from './tasks/auth.js';
 export type {
   AuthIdentity,
   AuthLoginResult,
   AuthLogoutResult,
   AuthStatusLocal,
+  AuthWhoami,
 } from './tasks/auth.js';
 export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';
 export type { OperateResult, OperableList } from './tasks/operate.js';
