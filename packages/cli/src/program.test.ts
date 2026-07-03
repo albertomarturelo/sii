@@ -6,7 +6,7 @@ import {
   NotAuthenticatedError,
   RateLimitError,
   SessionExpiredError,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { exitCodeFor } from './io.js';
 
 describe('exit-code mapping (errors.ts contract)', () => {

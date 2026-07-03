@@ -19,7 +19,7 @@ boilerplate, it is how the project stays coherent.
 
 - **Decisions get an ADR before implementation.** Adding a dependency, moving a
   layer boundary, or choosing between plausible patterns? Propose an ADR first.
-- **Surfaces call `@altumstack/sii-core` tasks only.** The CLI and MCP never reach
+- **Surfaces call `@albertomarturelo/sii-core` tasks only.** The CLI and MCP never reach
   past the task layer into a portal/DTE facade — that bypasses the guardrails
   (ADR-003). CI enforces this boundary.
 - **No third-party SII libraries.** Every selector, endpoint, and payload constant
@@ -53,7 +53,7 @@ pnpm lint             # eslint
 pnpm format           # prettier --write
 
 # one package only
-pnpm --filter @altumstack/sii-core test
+pnpm --filter @albertomarturelo/sii-core test
 ```
 
 Node `>=20` and the pinned pnpm from `package.json` `packageManager` are required.

@@ -7,7 +7,7 @@
 A TypeScript monorepo that automates routine interactions with Chile's tax
 authority (SII — Servicio de Impuestos Internos) for a single user acting on
 their own RUT, plus the empresas that user is authorized to represent. One
-shared domain core (`@altumstack/sii-core`) backs two surfaces: a human **CLI** and an
+shared domain core (`@albertomarturelo/sii-core`) backs two surfaces: a human **CLI** and an
 **MCP** server. The MCP server (stdio) is the integration point for both
 **Claude Code** and **Claude Desktop**; the CLI serves the terminal and is also
 what Claude Code can drive via Bash. The core holds every legal and operational
@@ -47,13 +47,13 @@ hard-won SII wire knowledge and guardrails are PORTED, the code is not.
 - Typecheck: `pnpm typecheck`
 - Test: `pnpm test` (vitest)
 - Lint / format: `pnpm lint` / `pnpm format`
-- One package: `pnpm --filter @altumstack/sii-core <script>`
+- One package: `pnpm --filter @albertomarturelo/sii-core <script>`
 
 ## Critical Rules
 
-- **Never hard-code a SII hostname.** Read from `@altumstack/sii-core` config. Prod is the
+- **Never hard-code a SII hostname.** Read from `@albertomarturelo/sii-core` config. Prod is the
   only target; there is no env switch (ported from sii-py ADR-016). (ADR-004)
-- **Surfaces call `@altumstack/sii-core` tasks only.** The CLI and MCP NEVER reach past the
+- **Surfaces call `@albertomarturelo/sii-core` tasks only.** The CLI and MCP NEVER reach past the
   task layer into the portal/DTE facades — that bypasses throttling, the audit
   log, and credential handling. (ADR-003)
 - **External dependencies go through injectable seams.** The SII portal driver,

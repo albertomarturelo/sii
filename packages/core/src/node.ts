@@ -1,4 +1,4 @@
-// Composition subpath `@altumstack/sii-core/node` (ADR-016): the Node default
+// Composition subpath `@albertomarturelo/sii-core/node` (ADR-016): the Node default
 // adapters plus the composition root. Kept OFF the main barrel so importing the
 // library's tasks/primitives never evaluates node:* or playwright — a consumer
 // that injects its own seams (ADR-003) stays free of them entirely.

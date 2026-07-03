@@ -23,7 +23,7 @@ checklist with PASS / WARN / FAIL per item:
    patterns match `docs/CONVENTIONS.md`? If not, propose updates to
    CONVENTIONS.md (do not auto-apply).
 7. **Surface boundary (ADR-003)**: spot-check that `packages/cli` and
-   `packages/mcp` import only `@altumstack/sii-core`'s task layer (+ port
+   `packages/mcp` import only `@albertomarturelo/sii-core`'s task layer (+ port
    interfaces), never a portal/dte/auth/storage facade directly. Flag any
    reach-past — it bypasses the throttling / audit / credential rails.
 8. **Language check**: any `docs/**/*.md` file written in a non-English

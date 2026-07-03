@@ -6,7 +6,7 @@ is implemented yet — this repo is at the CFD scaffolding stage.
 
 ## Where we're going
 
-One `@altumstack/sii-core` engine, two surfaces:
+One `@albertomarturelo/sii-core` engine, two surfaces:
 
 - **`@sii/cli`** — the terminal surface (and what Claude Code drives via Bash).
 - **`@sii/mcp`** — a stdio MCP server, the integration point for **Claude Code**
@@ -38,7 +38,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | ✅ | Seams spine | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` interfaces + Node defaults + in-memory fakes | ADR-003 |
 | ✅ | Embeddable core (0.2.0) | Pure main barrel (no `node:*`/playwright at import time); `./node` subpath = composition root (`createNodeRuntime(overrides?)` + Node adapters); playwright OPTIONAL peer, lazy-loaded. Verified with an external npm consumer without playwright. | ADR-016 |
 | ✅ | `rut` + `config` + `audit` | Pure-core modules: Mod-11 RUT, prod hostnames, secret-dropping audit | ADR-004 |
-| ✅ | Output contract — JSON by default | `@altumstack/sii-core` returns JSON-serializable objects (the library contract); the CLI emits them as JSON by default (`--human` for text) via the shared `emit(data, humanFn)`; MCP already JSON. STDOUT pure (pipeable to `jq`), header/diagnostics STDERR human-only. (#35) | ADR-012 |
+| ✅ | Output contract — JSON by default | `@albertomarturelo/sii-core` returns JSON-serializable objects (the library contract); the CLI emits them as JSON by default (`--human` for text) via the shared `emit(data, humanFn)`; MCP already JSON. STDOUT pure (pipeable to `jq`), header/diagnostics STDERR human-only. (#35) | ADR-012 |
 | 🚧 | auth + identity base | core logic + Playwright driver + CLI surface landed & tested; **CLI real-SII validated (#5)** — login/status/--refresh/logout; MCP next | ADR-005, ADR-006 |
 | ✅ | Node Playwright `PortalDriver` | Headed login / headless cookies-only restore wired into `createNodeRuntime`; **real-SII login validated (#5)** — landed on Mi-SII off `zeusr.sii.cl`, cookies-only restore + `DatosCntrNow` read confirmed | ADR-006, ADR-008 |
 | ✅ | Operate reach (representación) | Spike #15 RESOLVED: **RCV = body-RUT** (`--rut` reaches a representada); **F22 / F29 / BHE = session-keyed** (authorize by the principal — represented RUT does NOT reach; read self, no `--rut`). BHE re-confirmed TS-live 2026-06-30 (#20). | ADR-005 |
@@ -95,7 +95,7 @@ client (no SII), and binary-smoke-validated (`initialize` handshake):
   (session-keyed, #18 Fase 1) + `dte_authorized` (`rut`, PUBLIC/login-free, #21) +
   `bte_list` (`periodo`/`recibidas`, session-keyed BHE, #20), all
   `readOnlyHint`. Each is a
-  thin call into a `@altumstack/sii-core` task; future writes get `destructiveHint`.
+  thin call into a `@albertomarturelo/sii-core` task; future writes get `destructiveHint`.
   `auth_logout` is MCP-eligible because it carries no secret (ADR-006). New modules
   register their tools via `tools/<mod>.ts` (`register<Mod>Tools`) — append-only.
 - **Prompts** (workflow templates): 📋 "revisar IVA del mes", "preparar renta",

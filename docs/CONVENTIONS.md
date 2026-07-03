@@ -14,18 +14,18 @@ Python `sii-cli`, adapted to TypeScript.
   invariants. Never restate the code.
 - ESM only (`"type": "module"`). Named exports; avoid default exports.
 - **NodeNext modules: relative imports end in `.js`** (e.g. `from './rut/index.js'`)
-  so the compiled output runs directly on Node; bare specifiers (`@altumstack/sii-core`,
+  so the compiled output runs directly on Node; bare specifiers (`@albertomarturelo/sii-core`,
   `commander`) stay extensionless. `tsc` errors on a missing extension. (ADR-009)
 
 ## Architecture patterns
 
 - **Single-env (prod) is the contract.** No `SII_ENV` switch. Hostnames are
-  constants in `@altumstack/sii-core` config; never hard-code a SII hostname anywhere else.
-- **Surfaces call `@altumstack/sii-core` tasks only.** CLI and MCP never reach past the
+  constants in `@albertomarturelo/sii-core` config; never hard-code a SII hostname anywhere else.
+- **Surfaces call `@albertomarturelo/sii-core` tasks only.** CLI and MCP never reach past the
   task layer into a portal/DTE facade — that bypasses throttling, audit log, and
   credential handling. (ADR-003)
 - **The core is the data layer; surfaces present. JSON is the default output.**
-  `@altumstack/sii-core` tasks return plain, JSON-serializable objects (no `Date`/`Map`/`Set`,
+  `@albertomarturelo/sii-core` tasks return plain, JSON-serializable objects (no `Date`/`Map`/`Set`,
   no human formatting) — that is the library/integration contract. The MCP surface
   emits `JSON.stringify`; the CLI emits JSON by DEFAULT (`--human` for the readable
   rendering, `--json` is the explicit default). A command computes its result object
@@ -34,7 +34,7 @@ Python `sii-cli`, adapted to TypeScript.
   `operating as:` header + diagnostics go to STDERR and are human-mode-only. (ADR-012)
 - **External dependencies sit behind injectable seams.** `PortalDriver`,
   `SecretStore`, `SessionStore`, `AuditSink`, `Clock` are interfaces in
-  `@altumstack/sii-core` with Node default implementations; tests inject fakes so they
+  `@albertomarturelo/sii-core` with Node default implementations; tests inject fakes so they
   never touch the real SII / keyring / clock. The core is otherwise a normal
   Node library (it may use Node APIs directly). (ADR-003)
 - **Authentication is an explicit verb, not a side-effect.** Domain tasks never
@@ -62,7 +62,7 @@ Python `sii-cli`, adapted to TypeScript.
   same value-domain (the operable set), not a separate concept.
 - **Validate external inputs at the boundary with `zod` (ADR-011).** MCP tool
   inputs (the SDK derives the protocol JSON Schema from the zod shape) and, later,
-  SII wire payloads in `@altumstack/sii-core`. Validation stays at the boundary — internal
+  SII wire payloads in `@albertomarturelo/sii-core`. Validation stays at the boundary — internal
   domain invariants are plain TypeScript types, never zod.
 
 ## SII domain rules
@@ -195,7 +195,7 @@ Python `sii-cli`, adapted to TypeScript.
   the Clave as a CLI flag, env var, or argument (no shell-history / argv /
   process-list leak). It is held in memory for one attempt, then discarded; only
   cookies persist. A task that takes a Clave (`consoleLogin`) is exported from the
-  CLI-only `@altumstack/sii-core/cli` subpath, NOT the main barrel, so the MCP server cannot
+  CLI-only `@albertomarturelo/sii-core/cli` subpath, NOT the main barrel, so the MCP server cannot
   wire it. (ADR-006 / ADR-010)
 - **Never commit** `*.pfx`, `*.p12`, `.env`, or anything under `.sii/`. Sessions
   are cookies-only; `.gitignore` blocks them — re-verify before any `git add`.

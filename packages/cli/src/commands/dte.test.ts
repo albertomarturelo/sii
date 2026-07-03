@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { testing, type Runtime } from '@altumstack/sii-core';
+import { testing, type Runtime } from '@albertomarturelo/sii-core';
 import { run, runJson } from '../test-helpers.js';
 
 describe('sii dte command (fake runtime, no SII)', () => {

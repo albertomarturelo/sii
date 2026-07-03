@@ -1,5 +1,5 @@
 // The `sii` command tree (commander, ADR-008). Every action is a thin call into a
-// @altumstack/sii-core task — the CLI never reaches past the task layer (ADR-003). The Runtime
+// @albertomarturelo/sii-core task — the CLI never reaches past the task layer (ADR-003). The Runtime
 // is injected so tests drive the whole tree against fakes (no SII touched).
 import { Command } from 'commander';
 import {
@@ -17,10 +17,10 @@ import {
   operatingStatus,
   statusRefresh,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 // CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
 // can't wire it (ADR-006 / ADR-010).
-import { consoleLogin } from '@altumstack/sii-core/cli';
+import { consoleLogin } from '@albertomarturelo/sii-core/cli';
 import { emit, out, setOutputMode, withOutputFlags } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
@@ -37,7 +37,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .name('sii')
     .description('CLI para automatizar trámites del SII (Chile).')
     .version('0.0.0');
-  // Output is JSON by default (the @altumstack/sii-core data contract); `--human` for readable text.
+  // Output is JSON by default (the @albertomarturelo/sii-core data contract); `--human` for readable text.
   // Declared on the root so `sii --human <cmd>` parses; `withOutputFlags` adds them to each
   // leaf too so `sii <cmd> --human` parses as well.
   withOutputFlags(program);

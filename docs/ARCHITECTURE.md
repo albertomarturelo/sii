@@ -21,7 +21,7 @@ This shapes every architectural decision — internalize before writing code.
      retry blindly.
    - **Clave Única (gob.cl)** — federated OAuth/OpenID. Future.
 
-3. **Production-only.** SII hostnames are constants in `@altumstack/sii-core` config;
+3. **Production-only.** SII hostnames are constants in `@albertomarturelo/sii-core` config;
    never hard-code one elsewhere. No `SII_ENV` switch (sii-py ADR-016).
 
 4. **Session-keyed vs body-RUT surfaces.** Some facades authorize by the body's
@@ -36,7 +36,7 @@ This shapes every architectural decision — internalize before writing code.
 ```text
 sii-new/                      # pnpm workspaces, TypeScript project references
 ├── packages/
-│   ├── core/  (@altumstack/sii-core)    # All domain logic. A Node library. Thin surfaces call its tasks.
+│   ├── core/  (@albertomarturelo/sii-core)    # All domain logic. A Node library. Thin surfaces call its tasks.
 │   ├── cli/   (@sii/cli)     # Human CLI (terminal). Also what Claude Code drives via Bash.
 │   └── mcp/   (@sii/mcp)     # MCP stdio server. The integration point for Claude Code AND Claude Desktop.
 ├── docs/                     # CFD context layer (this file lives here)
@@ -52,13 +52,13 @@ sii-new/                      # pnpm workspaces, TypeScript project references
   same operations available to AI assistants in both clients. The Clave never
   reaches the model — login delegates to a browser flow (ADR-006).
 
-Both surfaces are thin: each command / tool is a call into a `@altumstack/sii-core` task.
+Both surfaces are thin: each command / tool is a call into a `@albertomarturelo/sii-core` task.
 Neither reaches past the task layer into a portal/DTE facade — that is where the
 throttling, audit, and credential rails live (ADR-003).
 
 ## The core — a Node library with injectable seams
 
-`@altumstack/sii-core` is a normal Node library: it MAY use Node APIs (fs, keyring,
+`@albertomarturelo/sii-core` is a normal Node library: it MAY use Node APIs (fs, keyring,
 Playwright). It does NOT need to be runtime-agnostic — both surfaces run on
 Node (the embedded-plugin idea was dropped). What it DOES keep is a small set of
 **injectable seams** so unit tests never touch the real SII, the real keyring,
@@ -78,7 +78,7 @@ helper; a surface can override any seam (mainly tests do). This is dependency
 injection where it pays — testing + centralizing the guardrails — not full
 hexagonal ceremony (ADR-003).
 
-## Planned `@altumstack/sii-core` module map (none implemented yet)
+## Planned `@albertomarturelo/sii-core` module map (none implemented yet)
 
 | Module | Purpose | Status |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ hexagonal ceremony (ADR-003).
 ## Why this split
 
 The guardrails (throttling, audit log, credential handling, the operate-centric
-auth model) live in `@altumstack/sii-core` and apply uniformly whether a human typed a CLI
+auth model) live in `@albertomarturelo/sii-core` and apply uniformly whether a human typed a CLI
 command, Claude Code ran the CLI via Bash, or an assistant invoked an MCP tool.
 A surface that reaches past the task layer loses those rails.
 
@@ -106,7 +106,7 @@ A surface that reaches past the task layer loses those rails.
 human (CLI) / Claude Code (CLI via Bash, or MCP) / Claude Desktop (MCP)
         │
         ▼
-  surface package  ──▶  @altumstack/sii-core tasks  ──▶  @altumstack/sii-core {auth, identity, portal, dte}
+  surface package  ──▶  @albertomarturelo/sii-core tasks  ──▶  @albertomarturelo/sii-core {auth, identity, portal, dte}
         │ (wires seams)                              │ (via seams)
         └──────────────▶ default / injected adapters ◀┘
                                 │

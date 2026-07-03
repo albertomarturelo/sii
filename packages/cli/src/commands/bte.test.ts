@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@altumstack/sii-core';
+import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { datos, run, runJson } from '../test-helpers.js';
 
 describe('sii bte command (fake runtime, no SII)', () => {

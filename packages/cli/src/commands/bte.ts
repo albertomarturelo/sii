@@ -1,4 +1,4 @@
-// `sii bte …` — Boletas de Honorarios Electrónicas. Thin calls into @altumstack/sii-core tasks
+// `sii bte …` — Boletas de Honorarios Electrónicas. Thin calls into @albertomarturelo/sii-core tasks
 // (ADR-003). Each domain module owns a `commands/<mod>.ts` exporting a
 // `register<Mod>(program, runtime)`; `program.ts` just calls it (append-only tree).
 //
@@ -14,7 +14,7 @@ import {
   type BteRetiene,
   type BteSide,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { emit, out } from '../io.js';
 
 const sideOf = (opts: { recibidas?: boolean }): BteSide =>

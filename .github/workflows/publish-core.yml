@@ -1,9 +1,10 @@
 name: Publish core
 
-# CD for @altumstack/sii-core → GitHub Packages, triggered by a `v*` git tag
-# (ADR-015). Bump packages/core/package.json `version`, merge, then push a tag
-# whose name matches (`v0.2.0` ⇒ version 0.2.0). GITHUB_TOKEN with packages:write
-# is enough to publish to this repo's registry — no PAT needed in CI.
+# CD for @albertomarturelo/sii-core → the PUBLIC npm registry, triggered by a
+# `v*` git tag (ADR-015 flow, registry changed by ADR-019). Bump
+# packages/core/package.json `version`, merge, then push a tag whose name matches
+# (`v0.3.0` ⇒ version 0.3.0). Needs an `NPM_TOKEN` repo secret — an npm
+# automation token with publish rights on the `@albertomarturelo` scope.
 
 on:
   push:
@@ -12,11 +13,10 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   publish:
-    name: Build + publish @altumstack/sii-core
+    name: Build + publish @albertomarturelo/sii-core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,8 +29,8 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          registry-url: https://npm.pkg.github.com
-          scope: '@altumstack'
+          registry-url: https://registry.npmjs.org
+          scope: '@albertomarturelo'
 
       - name: Install (frozen)
         run: pnpm install --frozen-lockfile
@@ -45,12 +45,12 @@ jobs:
           version=$(node -p "require('./packages/core/package.json').version")
           tag="${GITHUB_REF_NAME#v}"
           if [ "$version" != "$tag" ]; then
-            echo "::error::Tag '${GITHUB_REF_NAME}' does not match @altumstack/sii-core version '${version}'. Bump package.json or retag."
+            echo "::error::Tag '${GITHUB_REF_NAME}' does not match @albertomarturelo/sii-core version '${version}'. Bump package.json or retag."
             exit 1
           fi
           echo "Tag ${GITHUB_REF_NAME} matches version ${version}."
 
-      - name: Publish to GitHub Packages
-        run: pnpm --filter @altumstack/sii-core publish --no-git-checks
+      - name: Publish to public npm
+        run: pnpm --filter @albertomarturelo/sii-core publish --no-git-checks --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

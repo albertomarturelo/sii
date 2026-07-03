@@ -5,7 +5,7 @@ import {
   ValidationError,
   testing,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { datos, run, runJson } from '../test-helpers.js';
 
 describe('sii f22 command (fake runtime, no SII)', () => {

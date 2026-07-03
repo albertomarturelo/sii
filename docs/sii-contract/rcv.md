@@ -12,7 +12,7 @@ TypeScript port 2026-06-28** (persona-natural session, read-only): `getResumen`
 COMPRA returned curated rows with the alias keys below matching real data, and
 `getDetalle` parsed folios / canonical emisor RUT / ISO dates. See "Live findings".
 
-Surface: `@altumstack/sii-core` `portal/rcv.ts` (`fetchRcvResumen`, `fetchRcvDetalle`), called
+Surface: `@albertomarturelo/sii-core` `portal/rcv.ts` (`fetchRcvResumen`, `fetchRcvDetalle`), called
 by the `rcvSummary` / `rcvList` tasks under `withSession`. Uses the
 `PortalSession.requestJson` seam (authenticated JSON POST). The RCV portal is the
 Angular SPA at `https://www4.sii.cl/consdcvinternetui/`.

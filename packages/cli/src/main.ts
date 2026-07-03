@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// @sii/cli — entry point. Thin surface over @altumstack/sii-core tasks (ADR-003): build the
+// @sii/cli — entry point. Thin surface over @albertomarturelo/sii-core tasks (ADR-003): build the
 // command tree against the Node runtime and parse argv. Domain errors map to the
 // documented exit codes; their Spanish messages pass through unchanged.
-import { createNodeRuntime } from '@altumstack/sii-core/node';
+import { createNodeRuntime } from '@albertomarturelo/sii-core/node';
 import { buildProgram } from './program.js';
 import { err, exitCodeFor, isHumanMode, messageOf } from './io.js';
 

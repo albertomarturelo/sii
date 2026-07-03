@@ -1,8 +1,8 @@
 // The `sii` MCP stdio server (ADR-003): every Resource/Tool is a thin call into a
-// @altumstack/sii-core task — it never reaches past the task layer. The Clave NEVER crosses
+// @albertomarturelo/sii-core task — it never reaches past the task layer. The Clave NEVER crosses
 // this boundary: auth_login delegates to the browser flow and takes no password
 // argument (ADR-006). consoleLogin is deliberately unreachable here — it lives in
-// the CLI-only `@altumstack/sii-core/cli` subpath, which this package never imports.
+// the CLI-only `@albertomarturelo/sii-core/cli` subpath, which this package never imports.
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
@@ -19,7 +19,7 @@ import {
   operatingStatus,
   statusRefresh,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { toolText } from './tool-helpers.js';
 // Domain read surfaces — each module owns a tools/<mod>.ts register fn (append-only).
 import { registerRcvTools } from './tools/rcv.js';
@@ -83,7 +83,7 @@ export function buildServer(runtime: Runtime): McpServer {
     async (uri) => jsonResource(uri, HOSTS),
   );
 
-  // --- Tools: actions, each a thin call into a @altumstack/sii-core task ---
+  // --- Tools: actions, each a thin call into a @albertomarturelo/sii-core task ---
   // NOTE: auth_login can block up to the browser-login budget (~180s) while the
   // user types the Clave into SII's page. Some MCP clients enforce a shorter
   // tool-call timeout — confirm/tune the budget when live-validating in Claude

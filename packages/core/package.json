@@ -1,6 +1,6 @@
 {
-  "name": "@altumstack/sii-core",
-  "version": "0.2.0",
+  "name": "@albertomarturelo/sii-core",
+  "version": "0.3.0",
   "type": "module",
   "description": "Shared SII domain core: rut, config (prod hostnames), contracts, tasks, seams. A Node library; external side-effects (portal, secrets, audit, clock) are injected via seams (ADR-003).",
   "license": "MIT",
@@ -10,7 +10,8 @@
     "directory": "packages/core"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

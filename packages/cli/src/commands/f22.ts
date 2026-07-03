@@ -1,4 +1,4 @@
-// `sii f22 …` — Declaración Anual de Renta (estado). Thin calls into @altumstack/sii-core tasks
+// `sii f22 …` — Declaración Anual de Renta (estado). Thin calls into @albertomarturelo/sii-core tasks
 // (ADR-003). SESSION-KEYED (ADR-005): always reads the session principal — NO `--rut`;
 // a represented empresa's F22 is reached by logging in AS the empresa (logout→login).
 import type { Command } from 'commander';
@@ -13,7 +13,7 @@ import {
   type CodigoF22,
   type F22Grupos,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { emit, out } from '../io.js';
 
 const printCodigos = (codigos: readonly CodigoF22[]): void => {

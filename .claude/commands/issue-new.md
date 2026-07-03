@@ -11,7 +11,7 @@ Ask, in order, and confirm each answer before moving on:
 
 1. **Type.** `feature` | `fix` | `chore` | `docs` | `spike`
 2. **Title.** Imperative mood, ≤80 chars, English. e.g.
-   "Add rut parser + Mod-11 DV to @altumstack/sii-core".
+   "Add rut parser + Mod-11 DV to @albertomarturelo/sii-core".
 3. **Context.** 2–4 sentences: what is the trigger, what is the
    user-visible outcome.
 4. **Target location.** Concrete paths. For net-new, name the package +
@@ -27,7 +27,7 @@ Ask, in order, and confirm each answer before moving on:
 7. **Acceptance criteria (DoD).** Bulleted markdown `[ ]` items.
    Include all three of:
    - **Behavior** — what works at the end (concrete CLI/MCP/plugin output
-     or `@altumstack/sii-core` API).
+     or `@albertomarturelo/sii-core` API).
    - **Tests** — what tests exist (`<module>.test.ts`, vitest); state
      explicitly that fixtures are **synthetic** (no real PII).
    - **Documentation** — which of `CONVENTIONS.md`, `STACK.md`,

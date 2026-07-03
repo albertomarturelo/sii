@@ -10,6 +10,11 @@ mechanics (CD on a `v*` tag) are unchanged. The npm **republish target** (public
 npm vs GitHub Packages) is intentionally left to a follow-up — this ADR governs
 the license and the public posture, not where the artifact is hosted.
 
+> **Superseded in part by [ADR-019](019-publish-public-npm-personal-scope.md)
+> (2026-07-02):** this ADR's decision to *keep* the `@altumstack/sii-core` package
+> name is reversed — the package is renamed to `@albertomarturelo/sii-core` and
+> published to the public npm registry. The MIT/license decision here stands.
+
 ## Context
 
 The repository moved from the `AltumStack` GitHub org to the owner's personal

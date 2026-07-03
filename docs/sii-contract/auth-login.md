@@ -5,7 +5,7 @@ ADR-004). First-hand observation, no third-party library (ADR-004). All concrete
 values below are **redacted / synthetic** — the owner's real RUT, name, email,
 phone, and addresses are PII and MUST NOT land here (ADR-004, PII hygiene).
 
-Surface: `@altumstack/sii-core` `auth.login` / `auth.statusRefresh`
+Surface: `@albertomarturelo/sii-core` `auth.login` / `auth.statusRefresh`
 (`packages/core/src/auth/auth.ts`) over the Playwright `PortalDriver`
 (`packages/core/src/adapters/node/portal.ts`). CLI: `sii auth login`,
 `sii auth status [--refresh]`, `sii auth logout`.

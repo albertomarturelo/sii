@@ -1,10 +1,10 @@
-// `dte_*` MCP tools — Documentos Tributarios Electrónicos. Thin calls into @altumstack/sii-core
+// `dte_*` MCP tools — Documentos Tributarios Electrónicos. Thin calls into @albertomarturelo/sii-core
 // tasks (ADR-003), read-only. zod input schemas (ADR-011) — the SDK derives the protocol
 // JSON Schema. `dte_authorized` is the PUBLIC, login-free consulta (ADR-014): no session,
 // any RUT — it is not gated by an operate pointer and takes no `rut` override concept.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { dteAuthorized, type Runtime } from '@altumstack/sii-core';
+import { dteAuthorized, type Runtime } from '@albertomarturelo/sii-core';
 import { toolText } from '../tool-helpers.js';
 
 export function registerDteTools(server: McpServer, runtime: Runtime): void {

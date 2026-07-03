@@ -1,7 +1,7 @@
 // Shared fixture for the per-command CLI suites: fake runtime builders, output
 // capture, and run helpers. Fakes only — no SII, no keyring, no wall clock.
 import { vi } from 'vitest';
-import { HOSTS, testing, type Runtime } from '@altumstack/sii-core';
+import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { buildProgram } from './program.js';
 import type { Prompters } from './prompt.js';
 
