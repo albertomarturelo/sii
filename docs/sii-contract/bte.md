@@ -184,7 +184,7 @@ drop `raw` when the non-curated data is PII).
 > prefill body `{prellenar, ult_boleta, boleta}`; (b) some `xml_values` are **double-quoted**
 > (`iddir1`, `PorcentajeRetencion`), and the emisor domicilio id (`cbo_domicilio`) is read from
 > `xml_values['iddir1']` (the address `<select>` is JS-built, not static `<option>`s). The final
-> ISSUE step 4 is coded to the capture but not yet TS-live-validated (#62, next month).
+> ISSUE step 4 is coded to the capture but not yet TS-live-validated (#62).
 
 Host `loa.sii.cl/cgi_IMT/`; the client logic lives in `loa.sii.cl/IMT/js/TMBECN_Emision.js`
 (function `presionaBoton(boton)` is the state machine — each POST carries an `origen` marker).

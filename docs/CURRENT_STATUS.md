@@ -10,7 +10,7 @@ Last updated: 2026-07-02 — **`bte emit` — first WRITE surface MERGED (ADR-01
   confirma returns the correct total/retención 15,25%/líquido, no boleta issued; both retención
   modes — RETRECEPTOR/RETCONTRIBUYENTE — dry-run-validated). NOT yet TS-live-validated: the final
   ISSUE POST (`TMBECN_BoletaHonorariosElectronica.cgi`, step 4) + its `cod_barras` parse + the
-  optional email send — coded to the 2026-07-02 capture but exercised for real only next month
+  optional email send — coded to the 2026-07-02 capture but not yet exercised for real
   (#62), to avoid a throwaway legal document + manual anulación. **The `v0.3.0` tag waits on #62.**
   Annulment (`bte anular`) is a separate follow-up (#63; needs its own live capture).
   **ALSO deferred (ADR-013): #18 F29 Fase 2 — the PRESENTED form via GWT-RPC.** The filed
