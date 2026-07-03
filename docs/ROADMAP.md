@@ -52,7 +52,7 @@ sandbox; any code on third-party SII libraries (ADR-004); an embedded plugin
 | 🚧 | `sii auth status [--refresh]` | `auth_status` / Resource `sii://session` | **CLI real-SII validated (#5)**; **MCP tool + resource built + tested**. Local read (who am I, operating-as); `refresh=true` reads `DatosCntrNow` live. |
 | ✅ | `sii auth logout` | `auth_logout` | **Real-SII validated (#5)**: server-side close (best-effort, redirect off `autTermino.cgi`) + local wipe. **MCP tool built + tested** (#11) — no secret, so MCP-eligible (ADR-006); no input args. Switching accounts = logout→login. |
 | 🚧 | `sii operate <rut\|alias>` / `--self` / `--list` | `operate` (`rut`/`self`/`list`) / Resources `sii://operating`, `sii://operable` | CLI built + tested incl. **`--list`** (operable set with self/current markers); **MCP `operate` tool incl. `list=true` (#23)** + `sii://operable` resource. Validated against the operable set; always visible. Alias TBD. |
-| 📋 | `sii profile` | `profile` | Full contributor snapshot INCLUDING PII (opt-in name; states exposure). |
+| ✅ | `sii whoami` (fuller `profile` 📋) | `whoami` | **Built + live-validated (#70, CLI + MCP)** — the authenticated principal's own identity: razón social/nombre + email, on top of the RUT. **Session-keyed** (reads the login principal's `DatosCntrNow` live; ignores the operate pointer, no `--rut`). MCP `whoami` tool (`readOnly`) whose description **declares the PII exposure** to the model; audit records the read only (rut), never the values (ADR-006). **Follow-up:** domicilio (from `direcciones[]`, needs a live capture) + a fuller `profile` (`raw`). |
 
 ## Read surfaces
 
@@ -93,7 +93,9 @@ client (no SII), and binary-smoke-validated (`initialize` handshake):
   estado, session-keyed) + `f22_formulario` (`anio`/`folio`, the complete grouped
   form, #37) + `f22_observaciones` + `f29_formulario` / `f29_overview` / `f29_status`
   (session-keyed, #18 Fase 1) + `dte_authorized` (`rut`, PUBLIC/login-free, #21) +
-  `bte_list` (`periodo`/`recibidas`, session-keyed BHE, #20), all
+  `bte_list` (`periodo`/`recibidas`, session-keyed BHE, #20) + `whoami` (no args,
+  the authenticated account's razón social/nombre + email, session-keyed — #70;
+  description **declares the PII exposure** to the model), all
   `readOnlyHint`. Each is a
   thin call into a `@albertomarturelo/sii-core` task; future writes get `destructiveHint`.
   `auth_logout` is MCP-eligible because it carries no secret (ADR-006). New modules
