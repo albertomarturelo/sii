@@ -54,6 +54,14 @@ export class F29Error extends SiiError {}
  *  result). */
 export class BteError extends SiiError {}
 
+/** SII rejected a SISPAD peticiones (peticiones administrativas) GWT-RPC read, the
+ *  response was a `//EX[…]` business error (surfaced verbatim — ADR-004), or the GWT
+ *  object graph could not be decoded against the observed schema ("scraper roto", a loud
+ *  fail — the app was recompiled with changed types). Peticiones is BODY-RUT (validate
+ *  `--rut` vs the operable set, like RCV — ADR-005 / ADR-020). Never retried after a SII
+ *  error; a `LOGIN_HOST` bounce surfaces as `SessionExpiredError`, not this. */
+export class PeticionesError extends SiiError {}
+
 /** The public DTE-authorized consulta could not be completed for a non-user reason —
  *  the network/CGI failed, a non-200 came back, or the portal HTML changed shape
  *  ("scraper roto"). A RUT that is simply not a DTE emisor is NOT this error: it is a

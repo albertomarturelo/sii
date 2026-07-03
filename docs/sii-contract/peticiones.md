@@ -59,14 +59,18 @@ java.lang.Integer/3438268394|java.lang.String/2004016611|<TOKEN>|1|2|3|4|2|5|6|5
 
 ## Response wire shape (`//OK[…]`)
 
-A GWT object graph. Curated (NO `raw`), one row per `PeticionTo`:
+A GWT object graph. Curated (NO `raw`), one row per `PeticionTo`. The decoded field
+POSITIONS (observed 2026-07-03) — the wire has no field names, so these are the contract:
 
-| curated field | source in the graph | notes |
+| curated field | source in the decoded graph | notes |
 | --- | --- | --- |
-| `numero` | `PeticionTo` id | the petition number |
-| `materia` | `MateriaTo` glosa | free text (may embed a third-party RUT → treat as PII, allowlist) |
-| `estadoActual` | latest `EstadoPeticionTo` glosa | see lifecycle below |
-| `timeline[]` | `EstadoPeticionTo` list | `{ estado, fecha }` per transition, inline `java.sql.Timestamp` longs |
+| `numero` | `PeticionTo.field[12]` (boxed `Integer`) | the petition number |
+| `materia` | `PeticionTo.field[26]` (`MateriaTo`) `.field[10]` | free text (may embed a third-party RUT → PII) |
+| `estadoActual` | the timeline entry with the latest `fecha` | see lifecycle below |
+| `timeline[]` | `PeticionTo.field[21]` (`ArrayList<EstadoPeticionTo>`) | most-recent-first after sorting by `fecha` |
+| `timeline[].estado` | `EstadoPeticionTo.field[10]` | glosa; strip the `(Subrogancia … [NAME])` suffix |
+| `timeline[].fecha` | `EstadoPeticionTo.field[7]` (`java.sql.Timestamp`) | ISO-8601 |
+| `timeline[].mensaje` | `EstadoPeticionTo.field[9]` | SII's verbatim note to the taxpayer (what's pending / why), when present |
 
 Observed estado lifecycle glosas (SII labels, non-PII — the state machine):
 
@@ -94,13 +98,38 @@ And an `en espera de Antecedentes` state carries a **respuesta/observación free
 missing", e.g. a note naming a document + an empresa) — valuable to the user but may embed a
 RUT/nombre; surface it only after the same sanitization, or omit it in a first cut.
 
-**Decoding note:** a heuristic scan (collect glosas + timestamps by proximity) was tried and
-**rejected** — it can't count petitions (needs the real `ArrayList` size), confuses materia with
-the observación text, and doesn't pair estado↔fecha. A correct read needs a proper GWT
-client-stream reader (read the payload backward; `readObject` resolves a positive token as a
-1-based string-table type signature, a negative token as a back-reference, `0` as null; fields
-per type in generated-serializer order). Model the types the graph actually contains
-(`PeticionTo`, `EstadoPeticionTo`, `EstadoTo`, `DefinicionEstadosTo`, `MateriaTo`,
-`FuncionarioTo` + org TOs, `ContribuyenteTo`, `Timestamp`/`Date` longs, `ArrayList`/`Vector`,
-`Integer`/`Long`/`Short`), reverse-engineered from the captured samples and guarded by
-"scraper roto" on any desync. (#74)
+## Decoder — schema-driven, derived from the compiled permutation (ADR-020)
+
+Decoded in-house by `portal/gwt.ts` (no third-party GWT library — ADR-004). The reader
+walks the payload BACKWARD; each value is resolved by its position's DECLARED TYPE, never
+guessed (a sample-only heuristic was tried and **rejected** — GWT has no per-object framing,
+so a correct read needs the exact field layout of every type, and different petitions expose
+different types — `HojaTrabajoGeneralTo`, `AutorizacionSispadTo`, … — so samples alone can't
+be complete). Read primitives:
+
+- `readInt` → 1 token · `readLong` → **2 tokens, value = a + b** (GWT high·2³² + low) ·
+  `readString` → 1 token (`>0` ⇒ `stringTable[t-1]`, else null) · `readObject` → 1 token
+  (`0` null, `<0` back-ref, `>0` ⇒ a type signature: instantiate, add to the seen list BEFORE
+  its fields, then run that class's ops).
+- Boxed leaves: `Integer`/`Short`/`Boolean` = 1, `Long`/`java.util.Date`/`java.sql.Date` = 2,
+  **`Timestamp` = 3** (long ms + int nanos), `String` = a readString. `ArrayList`/`Vector` =
+  size + N `readObject`. Object arrays (`[L…;`) = size + N `readObject`; primitive arrays
+  (`[C`,`[I`,`[Z`,`[B`,`[S` = 1 token each; `[J` = 2; `[D`/`[F` = 1) by the `[` prefix.
+
+**The per-type field schema** (`portal/gwt-schema.ts`, 109 classes) is DERIVED first-hand from
+the compiled permutation's generated `FieldSerializer` deserialize functions (strong-name
+`A4775626553B7F6CC42EAB2808331B0E`, GWT 2.0.3), NOT hand-modeled — each field's op
+(`o`=readObject, `s`=readString, `i`=readInt/bool/short, `l`=readLong, `L`=collection) is read
+straight from the JS, superclass deserializers inlined in position. Keyed by **class name** (the
+per-type CRC in the wire sig rotates on recompile; the field layout does not) → a mere recompile
+still resolves; a class whose fields actually change ⇒ "scraper roto" (loud).
+
+**Regenerating the schema** (after a SII redeploy that changes types): fetch a permutation
+`.cache.html` (authenticated GET; the module bootstrap `sispadinternet.nocache.js` lists the
+strong-names) and re-run the extractor `peticiones-schema-extract.py` (this dir) against it →
+`gwt-schema.ts`. The serialization-policy hash (`POc='…'`) for the REQUEST is self-healed at
+runtime the same way (ADR-020).
+
+**Live-validated 2026-07-03** end-to-end (persona session, 4 real petitions + an empresa
+capture, 1): full-consume of both, correct números / materias / timelines / fechas / SII
+messages. (#73 / #74)

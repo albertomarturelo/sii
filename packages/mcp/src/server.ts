@@ -28,6 +28,7 @@ import { registerF22Tools } from './tools/f22.js';
 import { registerF29Tools } from './tools/f29.js';
 import { registerDteTools } from './tools/dte.js';
 import { registerBteTools } from './tools/bte.js';
+import { registerPeticionesTools } from './tools/peticiones.js';
 
 const jsonResource = (uri: URL, value: unknown) => ({
   contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value, null, 2) }],
@@ -189,6 +190,7 @@ export function buildServer(runtime: Runtime): McpServer {
   registerF29Tools(server, runtime);
   registerDteTools(server, runtime);
   registerBteTools(server, runtime);
+  registerPeticionesTools(server, runtime);
 
   return server;
 }

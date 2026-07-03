@@ -52,8 +52,24 @@ never flattened to "scraper roto" (reserved for an unparseable/changed shape).
 `portal/peticiones.ts` + `tasks/peticiones.ts` (`withSession`, **body-RUT** — resolve the
 operating RUT, validate `--rut` against the operable set via `resolveOperableTarget`, like
 RCV), audited **rut-only**. **No `raw`, tight allowlist** (número, materia glosa, estado,
-fechas): the payload mixes own-identity + SII-functionary + third-party PII. `//OK[]` empty ⇒
-legitimate "no petitions", never an error.
+fechas, + SII's verbatim note per estado): the payload mixes own-identity + SII-functionary +
+third-party PII. `//OK[]` empty ⇒ legitimate "no petitions", never an error.
+
+### Decoder: schema DERIVED from the permutation, not hand-modeled (implementation, 2026-07-03)
+
+GWT-RPC has no per-object framing, so decoding needs the exact field layout of EVERY type in
+the graph. Reverse-engineering it from response samples was **tried and rejected**: it can't be
+made complete (different petitions expose different types — `HojaTrabajoGeneralTo`,
+`AutorizacionSispadTo`, … — and raw unboxed primitives collide with string-table tokens), and a
+sample that omits a type silently mis-aligns. Instead the reader is **schema-directed**, and the
+per-type schema (`portal/gwt-schema.ts`, 109 classes) is **extracted first-hand from the
+compiled permutation's generated `FieldSerializer` deserialize functions** (still in-house,
+stdlib, no third-party GWT lib — ADR-004): each field's read op is read straight from the JS,
+superclass deserializers inlined. Keyed by **class name** (the per-type CRC in the wire sig
+rotates on recompile; the layout does not) — a recompile still resolves; a class whose fields
+change ⇒ "scraper roto". The extractor (`docs/sii-contract/peticiones-schema-extract.py`)
+regenerates the schema from a fresh permutation, the same JS the hash self-heal already fetches.
+Live-validated end-to-end 2026-07-03 (4 real petitions + 1 empresa capture, full-consume).
 
 ## Alternatives Considered
 
