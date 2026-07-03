@@ -12,6 +12,7 @@ import type {
   PortalSession,
   PublicRequest,
   PublicResponse,
+  TextRequest,
 } from '../../seams/index.js';
 
 export class FixedClock implements Clock {
@@ -62,6 +63,9 @@ export interface FakeSessionScript {
   /** Result for `requestForm(url, options)` — an authenticated form-POST (BHE emit,
    *  ADR-017). Return the decoded body string (status 200) or a full PublicResponse. */
   requestForm?: (url: string, options?: FormRequest) => PublicResponse | string;
+  /** Result for `requestText(url, options)` — an authenticated raw-body request (GWT-RPC
+   *  reads, ADR-020). Return the decoded body string (status 200) or a full PublicResponse. */
+  requestText?: (url: string, options?: TextRequest) => PublicResponse | string;
   /** Cookie name → value map for `cookie(url, name)`. */
   cookies?: Record<string, string>;
   storageState?: unknown;
@@ -91,6 +95,14 @@ export class FakePortalSession implements PortalSession {
   async requestForm(url: string, options?: FormRequest): Promise<PublicResponse> {
     this.lastFormRequest = options ? { url, options } : { url };
     const r = this.script.requestForm?.(url, options);
+    if (r === undefined) return { status: 200, body: '' };
+    return typeof r === 'string' ? { status: 200, body: r } : r;
+  }
+  /** The last requestText call — lets a test assert the GWT-RPC body/URL sent to SII. */
+  lastTextRequest: { url: string; options?: TextRequest } | null = null;
+  async requestText(url: string, options?: TextRequest): Promise<PublicResponse> {
+    this.lastTextRequest = options ? { url, options } : { url };
+    const r = this.script.requestText?.(url, options);
     if (r === undefined) return { status: 200, body: '' };
     return typeof r === 'string' ? { status: 200, body: r } : r;
   }

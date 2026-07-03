@@ -59,6 +59,18 @@ export interface FormRequest {
   readonly form?: Record<string, string>;
 }
 
+/** An AUTHENTICATED raw-body request from the session (cookies ride along). The primitive
+ *  behind GWT-RPC read facades (SISPAD peticiones, ADR-020): the body is an opaque string
+ *  (a `text/x-gwt-rpc` payload) and the response is text (`//OK[…]`), neither JSON nor
+ *  urlencoded/HTML. The authenticated, arbitrary-content-type peer of `requestPublic`. The
+ *  facade sets `Content-Type` (+ `X-GWT-Module-Base`) via `headers`. */
+export interface TextRequest {
+  readonly method?: 'GET' | 'POST';
+  readonly headers?: Record<string, string>;
+  /** Raw request body, sent verbatim (e.g. the GWT-RPC stream). Omit for GET. */
+  readonly body?: string;
+}
+
 export interface PortalSession {
   /** Navigate; returns the URL actually landed on (for URL-based auth detection). */
   goto(url: string): Promise<string>;
@@ -75,6 +87,12 @@ export interface PortalSession {
    *  Login-wall detection is URL-based (landing on `LOGIN_HOST`) → `SessionExpiredError`,
    *  since an HTML body is EXPECTED here (unlike `requestJson`). */
   requestForm(url: string, options?: FormRequest): Promise<PublicResponse>;
+  /** Issue an authenticated raw-body request from the session and return the decoded
+   *  text body (charset-aware). The primitive behind GWT-RPC read facades (SISPAD
+   *  peticiones, ADR-020) — a `text/x-gwt-rpc` POST returning `//OK[…]`. Login-wall
+   *  detection is URL-based (landing on `LOGIN_HOST`) → `SessionExpiredError`, since a
+   *  non-JSON body is EXPECTED (unlike `requestJson`). */
+  requestText(url: string, options?: TextRequest): Promise<PublicResponse>;
   /** Value of a cookie visible to `url` (e.g. the SPA conversation `TOKEN`), or
    *  null. Used to seed SDI request metadata. */
   cookie(url: string, name: string): Promise<string | null>;

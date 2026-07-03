@@ -20,6 +20,7 @@ import type {
   PortalSession,
   PublicRequest,
   PublicResponse,
+  TextRequest,
 } from '../../seams/index.js';
 
 /** Lazy-load playwright — an OPTIONAL peer since ADR-016. Only the launch paths of
@@ -121,6 +122,24 @@ class PlaywrightPortalSession implements PortalSession {
       method: options.method ?? 'POST',
       ...(options.headers ? { headers: options.headers } : {}),
       ...(options.form ? { form: options.form } : {}),
+    });
+    const wall = formLoginWallError(response.url());
+    if (wall) throw wall;
+    const buffer = await response.body();
+    const text = new TextDecoder(charsetOf(response.headers()['content-type'])).decode(buffer);
+    return { status: response.status(), body: text };
+  }
+
+  async requestText(url: string, options: TextRequest = {}): Promise<PublicResponse> {
+    // Authenticated raw-body request from the browser's APIRequestContext (the session
+    // cookies ride). The primitive behind GWT-RPC read facades (SISPAD peticiones, ADR-020):
+    // the body is an opaque string (a `text/x-gwt-rpc` stream) and the response is text
+    // (`//OK[…]`) — neither JSON nor urlencoded/HTML. Like `requestForm`, a non-JSON body is
+    // EXPECTED, so a dead session is detected URL-based (a bounce to `LOGIN_HOST`).
+    const response = await this.context.request.fetch(url, {
+      method: options.method ?? 'POST',
+      ...(options.headers ? { headers: options.headers } : {}),
+      ...(options.body !== undefined ? { data: options.body } : {}),
     });
     const wall = formLoginWallError(response.url());
     if (wall) throw wall;

@@ -19,6 +19,12 @@ export const HOSTS = {
    *  the SDI-JSON facade. The `.sii.cl` session cookie SSO-carries here (observed
    *  2026-06-30). Session-keyed (`rut_arrastre` = the principal). (#20 / ADR-004) */
   bheCgi: 'https://loa.sii.cl/cgi_IMT',
+  /** SISPAD — peticiones administrativas. A GWT-RPC app: `text/x-gwt-rpc` POST to
+   *  `/sispadinternet/peticion` returns a `//OK[…]` object graph; reached via
+   *  `PortalSession.requestText` (a cold authenticated POST), NOT the SDI-JSON facade.
+   *  The `.sii.cl` session cookie SSO-carries here (observed 2026-07-03). Body-RUT.
+   *  (#74 / ADR-020) */
+  sispad: 'https://www3.sii.cl/sispadinternet',
   /** Palena: DTE SOAP web services AND the public, login-free consulta CGIs
    *  (e.g. `/cvc_cgi/dte/ee_empresa_rut` — empresas autorizadas a emitir DTE, ADR-014). */
   dteWs: 'https://palena.sii.cl',
