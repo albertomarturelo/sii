@@ -32,13 +32,13 @@ Boletas de Honorarios Electrónicas). Ver el detalle en
 
 ```text
 packages/
-  core/   @altumstack/sii-core   Núcleo de dominio (librería Node). Las superficies llaman solo a sus tasks.
+  core/   @albertomarturelo/sii-core   Núcleo de dominio (librería Node). Las superficies llaman solo a sus tasks.
   cli/    @sii/cli     CLI humana (terminal). También lo que Claude Code corre vía Bash.
   mcp/    @sii/mcp     Servidor MCP (stdio). El punto de integración para Claude Code y Claude Desktop.
 docs/                  Capa de contexto CFD (ARCHITECTURE, CONVENTIONS, ADRs…).
 ```
 
-Un solo núcleo (`@altumstack/sii-core`) respalda ambas superficies, así que todos los
+Un solo núcleo (`@albertomarturelo/sii-core`) respalda ambas superficies, así que todos los
 guardrails legales y operativos (throttling, auditoría, manejo de credenciales,
 el modelo de identidad operate-céntrico) aplican sin importar la superficie.
 Las dependencias externas (driver del portal, secretos, sesión, auditoría,

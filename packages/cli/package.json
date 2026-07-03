@@ -3,12 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Human-facing CLI. Each command is a thin call into @altumstack/sii-core tasks (ADR-003).",
+  "description": "Human-facing CLI. Each command is a thin call into @albertomarturelo/sii-core tasks (ADR-003).",
   "bin": {
     "sii": "./dist/main.js"
   },
   "dependencies": {
-    "@altumstack/sii-core": "workspace:*",
+    "@albertomarturelo/sii-core": "workspace:*",
     "commander": "^12.1.0",
     "playwright": "^1.49.0"
   },

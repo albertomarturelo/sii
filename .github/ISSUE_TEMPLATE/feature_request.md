@@ -11,7 +11,7 @@ labels: feature
 
 ## Proposed solution
 
-<!-- What CLI command / MCP tool / @altumstack/sii-core behaviour would solve it? -->
+<!-- What CLI command / MCP tool / @albertomarturelo/sii-core behaviour would solve it? -->
 
 ## SII surface
 

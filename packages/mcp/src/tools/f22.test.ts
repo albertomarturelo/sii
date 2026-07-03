@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { HOSTS, testing, type Runtime } from '@altumstack/sii-core';
+import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, datos, isError, makeRuntime, toolText } from '../test-helpers.js';
 
 describe('@sii/mcp f22 tools (in-memory client, fake runtime, no SII)', () => {

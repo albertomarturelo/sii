@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { testing, type Runtime } from '@altumstack/sii-core';
+import { testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, toolText } from '../test-helpers.js';
 
 describe('@sii/mcp dte tools (in-memory client, fake runtime, no SII)', () => {

@@ -1,4 +1,4 @@
-# @altumstack/sii-core
+# @albertomarturelo/sii-core
 
 The shared SII (Servicio de Impuestos Internos, Chile) domain core — the engine
 behind the `sii` CLI and the `sii-mcp` server. A Node library: every legal and
@@ -6,33 +6,20 @@ operational guardrail (throttling, audit, credential handling, the operate-centr
 identity model) lives here, so a consumer that codes against the task layer gets
 the same rails the first-party surfaces do.
 
-> **Open source (MIT).** See [ADR-018](../../docs/decisions/018-public-release-mit-license.md).
-> Previously distributed as a private GitHub Packages release under the `AltumStack`
-> org (ADR-015); the public republish target (public npm vs GitHub Packages) is being
-> finalized — the install steps below describe the current GitHub Packages path.
+> **Open source (MIT).** See [ADR-018](../../docs/decisions/018-public-release-mit-license.md)
+> and [ADR-019](../../docs/decisions/019-publish-public-npm-personal-scope.md). Published to
+> the **public npm registry**. (Earlier `0.x` releases were private on GitHub Packages under
+> the `@altumstack` scope — ADR-015; superseded.)
 
 ## Install
 
-This package lives on **GitHub Packages**, not the public npm registry. Point the
-`@altumstack` scope at GitHub Packages and authenticate with a token that has
-`read:packages`.
-
-`.npmrc` (in the consuming project, or `~/.npmrc`):
-
-```ini
-@altumstack:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Then, with `GITHUB_TOKEN` set to a PAT (classic) carrying `read:packages`:
-
 ```bash
-pnpm add @altumstack/sii-core
-# or: npm install @altumstack/sii-core
+pnpm add @albertomarturelo/sii-core
+# or: npm install @albertomarturelo/sii-core
 ```
 
 `zod` comes along as a dependency. **`playwright` is an OPTIONAL peer** (ADR-016):
-only the default `PortalDriver` (the `@altumstack/sii-core/node` subpath) needs it.
+only the default `PortalDriver` (the `@albertomarturelo/sii-core/node` subpath) needs it.
 If you use that default driver — i.e. you actually drive a real browser against
 SII — install it plus the Chromium binary once:
 
@@ -52,8 +39,8 @@ Never reach past the task layer into a sub-module; that bypasses the guardrails
 (ADR-003).
 
 ```ts
-import { authStatus, rcvSummary } from '@altumstack/sii-core';
-import { createNodeRuntime } from '@altumstack/sii-core/node';
+import { authStatus, rcvSummary } from '@albertomarturelo/sii-core';
+import { createNodeRuntime } from '@albertomarturelo/sii-core/node';
 
 const runtime = createNodeRuntime();
 
@@ -79,7 +66,7 @@ overrides, so partial reuse is a supported path — e.g. Node defaults with your
 own audit sink and portal driver (an embedding app's mediated browser):
 
 ```ts
-import { createNodeRuntime } from '@altumstack/sii-core/node';
+import { createNodeRuntime } from '@albertomarturelo/sii-core/node';
 
 const runtime = createNodeRuntime({ audit: myAuditSink, portal: myPortalDriver });
 ```
@@ -88,7 +75,7 @@ In-memory fakes ship under `testing` so a consumer's tests never touch the real
 SII, keyring, or clock — assemble a `Runtime` from them:
 
 ```ts
-import { testing, type Runtime } from '@altumstack/sii-core';
+import { testing, type Runtime } from '@albertomarturelo/sii-core';
 
 const runtime: Runtime = {
   clock: new testing.FixedClock(new Date('2026-06-29T12:00:00Z')),

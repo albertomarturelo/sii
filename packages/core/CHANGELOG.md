@@ -1,10 +1,18 @@
 # Changelog
 
-All notable changes to `@altumstack/sii-core` are documented here. The format is
+All notable changes to `@albertomarturelo/sii-core` are documented here. The format is
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
 ## 0.3.0 — Unreleased
+
+### Changed
+
+- **Renamed `@altumstack/sii-core` → `@albertomarturelo/sii-core`, now MIT-licensed
+  and published to the public npm registry** (ADR-018, ADR-019). Consumers install
+  with a plain `npm install @albertomarturelo/sii-core` — no GitHub Packages token or
+  `.npmrc` scope mapping. The earlier `0.1.0` / `0.2.0` releases were private on GitHub
+  Packages under the old scope (ADR-015; superseded).
 
 ### Added
 

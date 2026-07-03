@@ -2,7 +2,7 @@
 // registered in server.ts itself (per-module tool suites live in tools/*.test.ts;
 // the shared fixture is test-helpers.ts). Fakes only — no SII.
 import { describe, it, expect } from 'vitest';
-import { HOSTS } from '@altumstack/sii-core';
+import { HOSTS } from '@albertomarturelo/sii-core';
 import { connect, isError, makeRuntime, propKeys, resourceText, toolText } from './test-helpers.js';
 
 describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {

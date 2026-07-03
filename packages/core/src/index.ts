@@ -1,10 +1,10 @@
-// Public API of @altumstack/sii-core. Surfaces (CLI, MCP) import ONLY from here — the task
+// Public API of @albertomarturelo/sii-core. Surfaces (CLI, MCP) import ONLY from here — the task
 // layer plus the seam interfaces + the runtime factory (ADR-003). Reaching into
 // a sub-module (auth/portal/identity internals) from a surface is forbidden.
 
 // --- tasks: the public operations ---
 // NOTE: `consoleLogin` (takes a Clave) is intentionally NOT here — it lives in the
-// CLI-only subpath `@altumstack/sii-core/cli`, so the MCP server (which imports this barrel)
+// CLI-only subpath `@albertomarturelo/sii-core/cli`, so the MCP server (which imports this barrel)
 // cannot wire a password-taking task (ADR-006).
 export { login, logout, authStatus, statusRefresh } from './tasks/auth.js';
 export type {

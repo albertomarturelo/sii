@@ -1,4 +1,4 @@
-// `f22_status` MCP tool — Declaración Anual de Renta (estado). Thin call into @altumstack/sii-core
+// `f22_status` MCP tool — Declaración Anual de Renta (estado). Thin call into @albertomarturelo/sii-core
 // (ADR-003), read-only. SESSION-KEYED (ADR-005): reads the session principal, NO `rut`
 // — a represented empresa's F22 needs the empresa's own session. zod input (ADR-011).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -10,7 +10,7 @@ import {
   f22Status,
   ValidationError,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { toolText } from '../tool-helpers.js';
 
 export function registerF22Tools(server: McpServer, runtime: Runtime): void {

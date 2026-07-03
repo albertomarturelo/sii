@@ -1,4 +1,4 @@
-// `sii f29 …` — Declaración Mensual de IVA. Thin calls into @altumstack/sii-core tasks (ADR-003).
+// `sii f29 …` — Declaración Mensual de IVA. Thin calls into @albertomarturelo/sii-core tasks (ADR-003).
 // SESSION-KEYED (ADR-005): always reads the session principal — NO `--rut`; a represented
 // empresa's F29 needs the empresa's own session (logout→login). Fase 1 (robusta, sin GWT-RPC):
 //   - formulario <periodo> : la propuesta de IVA, etiquetada + agrupada (fuente: propuesta).
@@ -15,7 +15,7 @@ import {
   type F29Grupo,
   type LineaF29,
   type Runtime,
-} from '@altumstack/sii-core';
+} from '@albertomarturelo/sii-core';
 import { emit, out } from '../io.js';
 
 const GROUP_ORDER: readonly F29Grupo[] = ['debitos', 'creditos', 'retenciones', 'otros', 'totales'];

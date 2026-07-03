@@ -89,7 +89,7 @@ jobs:
           done
           exit $fail
 
-      - name: Surface boundary (ADR-003 — surfaces call @altumstack/sii-core tasks only)
+      - name: Surface boundary (ADR-003 — surfaces call @albertomarturelo/sii-core tasks only)
         # ALLOWLIST: the only importable subpaths from a surface are `/node` (the
         # composition root, ADR-016) and — ONLY inside packages/cli — `/cli` (the
         # Clave-taking consoleLogin the MCP must never reach, ADR-006). Anything
@@ -97,12 +97,12 @@ jobs:
         # throttling / audit / credential rails.
         run: |
           set -euo pipefail
-          if git grep -nP "from ['\"]@altumstack/sii-core/(?!(cli|node)['\"])" -- 'packages/cli/**/*.ts' 'packages/mcp/**/*.ts'; then
-            echo "::error::A surface imports a @altumstack/sii-core internal subpath — ADR-003 forbids. Go through the task layer (allowed: /node; /cli only from packages/cli)."
+          if git grep -nP "from ['\"]@albertomarturelo/sii-core/(?!(cli|node)['\"])" -- 'packages/cli/**/*.ts' 'packages/mcp/**/*.ts'; then
+            echo "::error::A surface imports a @albertomarturelo/sii-core internal subpath — ADR-003 forbids. Go through the task layer (allowed: /node; /cli only from packages/cli)."
             exit 1
           fi
-          if git grep -nE "from ['\"]@altumstack/sii-core/cli['\"]" -- 'packages/mcp/**/*.ts'; then
-            echo "::error::The MCP package imports @altumstack/sii-core/cli (consoleLogin takes a Clave) — ADR-006 forbids."
+          if git grep -nE "from ['\"]@albertomarturelo/sii-core/cli['\"]" -- 'packages/mcp/**/*.ts'; then
+            echo "::error::The MCP package imports @albertomarturelo/sii-core/cli (consoleLogin takes a Clave) — ADR-006 forbids."
             exit 1
           fi
           echo "Surface boundary guard: CLI + MCP reach the core only via tasks (+ /node, CLI-only /cli)."

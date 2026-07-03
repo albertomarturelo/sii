@@ -31,7 +31,7 @@ labels: []
 
 <!-- Definition of Done. The PR description reuses these verbatim. -->
 
-- [ ] <!-- Behavior: concrete CLI/MCP output or @altumstack/sii-core API that works at the end -->
+- [ ] <!-- Behavior: concrete CLI/MCP output or @albertomarturelo/sii-core API that works at the end -->
 - [ ] <!-- Tests: which `<module>.test.ts` (vitest) exist; SII flows use SYNTHETIC fixtures (no real PII) -->
 - [ ] <!-- Documentation: which of CONVENTIONS / STACK / ARCHITECTURE / CURRENT_STATUS / ROADMAP / sii-contract / new ADR is updated -->
 
