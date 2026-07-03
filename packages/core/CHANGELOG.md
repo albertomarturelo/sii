@@ -4,7 +4,15 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
-## 0.3.0 — Unreleased
+## 0.3.0 — 2026-07-02
+
+First release on the **public npm registry** under `@albertomarturelo/sii-core`
+(ADR-018 / ADR-019). Prior `0.1.0` / `0.2.0` were private on GitHub Packages.
+
+> **Note on `bteEmit`:** the emission *preview* (`bteEmitPreview`) is live-validated;
+> the final issue POST in `bteEmit` is coded to a real capture but **not yet
+> live-validated end-to-end** and is guarded behind explicit confirmation — treat it
+> as experimental until #62 lands.
 
 ### Changed
 
