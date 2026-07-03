@@ -3,10 +3,10 @@
   "version": "0.2.0",
   "type": "module",
   "description": "Shared SII domain core: rut, config (prod hostnames), contracts, tasks, seams. A Node library; external side-effects (portal, secrets, audit, clock) are injected via seams (ADR-003).",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AltumStack/sii.git",
+    "url": "git+https://github.com/albertomarturelo/sii.git",
     "directory": "packages/core"
   },
   "publishConfig": {

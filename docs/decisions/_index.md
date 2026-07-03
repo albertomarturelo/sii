@@ -22,3 +22,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 015 | [Publish `@altumstack/sii-core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
 | 016 | [Embeddable core — pure main barrel, `./node` composition subpath, optional Playwright peer](016-embeddable-core-node-subpath.md) | Accepted | 2026-07-02 |
 | 017 | [BHE emission — the first write surface (`bte emit`) posture](017-bte-emit-write-posture.md) | Accepted | 2026-07-02 |
+| 018 | [Public release under the MIT license](018-public-release-mit-license.md) | Accepted | 2026-07-02 |
