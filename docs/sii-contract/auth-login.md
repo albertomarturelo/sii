@@ -52,8 +52,9 @@ Top level:
 | `alertas` | array | 0 entries observed |
 
 `contribuyente` (≈45 fields; **curated subset core reads is marked ✓**). The
-breadth here is why a future `profile` task should expose a curated typed shape
-+ a `raw` carrying the full payload (CONVENTIONS: curated + raw for 30+ fields):
+`whoami` surface (#70) reads `eMail` on top of the identity fields (razón
+social/nombre); a fuller `profile` (domicilio from `direcciones[]` + a `raw`)
+remains future — CONVENTIONS: curated + raw for 30+ fields:
 
 | key | type | core reads | notes |
 | --- | --- | :---: | --- |
@@ -71,7 +72,7 @@ breadth here is why a future `profile` task should expose a curated typed shape
 | `fechaConstitucion` | null | | (empresa-only) |
 | `fechaNacimiento` | string | | PII |
 | `fechaDefuncion` | null | | |
-| `eMail` | string | | PII |
+| `eMail` | string | ✓ | PII — surfaced by `whoami` (#70) |
 | `telefonoMovil` | string | | PII |
 | `fechaCreaRegistroCntr` / `fechaModiRegistroCntr` | string | | |
 | `fechaTerminoGiro` | null | | |

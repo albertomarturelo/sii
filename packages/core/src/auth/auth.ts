@@ -23,6 +23,7 @@ interface DatosContribuyente {
   nombres?: string;
   apellidoPaterno?: string;
   apellidoMaterno?: string;
+  eMail?: string;
 }
 interface DatosCntr {
   contribuyente?: DatosContribuyente;
@@ -32,6 +33,17 @@ export interface AuthIdentity {
   readonly rut: string;
   readonly nombre: string | null;
   readonly accountType: AccountType;
+}
+
+/** `whoami` — the AUTHENTICATED principal's own identity + contact. Session-keyed:
+ *  it reads the login principal's `DatosCntrNow`, NOT the operate pointer (operate
+ *  changes which RUT you ACT as, never who you ARE). PII by nature. */
+export interface AuthWhoami {
+  readonly rut: string;
+  readonly accountType: AccountType;
+  /** Razón social (empresa) or full name (persona); null if the portal omitted it. */
+  readonly nombre: string | null;
+  readonly email: string | null;
 }
 
 export interface AuthStatusLocal {
@@ -274,5 +286,23 @@ export async function statusRefresh(runtime: Runtime): Promise<AuthIdentity> {
     const identity = identityFromDatos(await s.evaluate<DatosCntr | null>(DATOS_EXPR));
     recordAudit(runtime, { action: 'auth_status_refresh', result: 'ok', rut: identity.rut });
     return identity;
+  });
+}
+
+/** whoami — the session PRINCIPAL's own razón social/nombre + email, read live from
+ *  the portal (like `statusRefresh`, plus the email). Session-keyed: ignores the
+ *  operate pointer (no `--rut`). The audit records ONLY that a whoami read happened
+ *  (keyed by rut) — never the razón social / email VALUES: that PII stays off the
+ *  receipt, the LLM-facing MCP description declares the exposure instead (ADR-006). */
+export async function whoami(runtime: Runtime): Promise<AuthWhoami> {
+  return withSession(runtime, async (s) => {
+    if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
+      throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
+    }
+    const datos = await s.evaluate<DatosCntr | null>(DATOS_EXPR);
+    const identity = identityFromDatos(datos);
+    const email = (datos?.contribuyente?.eMail ?? '').trim() || null;
+    recordAudit(runtime, { action: 'whoami', result: 'ok', rut: identity.rut });
+    return { rut: identity.rut, accountType: identity.accountType, nombre: identity.nombre, email };
   });
 }

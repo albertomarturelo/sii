@@ -8,7 +8,7 @@ import {
 import type { Runtime } from '../seams/index.js';
 import { HOSTS } from '../config/index.js';
 import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
-import { consoleLogin, localStatus, login, logout, statusRefresh } from './auth.js';
+import { consoleLogin, localStatus, login, logout, statusRefresh, whoami } from './auth.js';
 import { readSession } from './session.js';
 import { readOperateState } from '../identity/index.js';
 
@@ -267,6 +267,66 @@ describe('auth — real-SII flow (replicated, synthetic data)', () => {
     const rt = makeRuntime(liveDriver(() => ({ contribuyente: { rut: 20000042 } })));
     await expect(login(rt)).rejects.toBeInstanceOf(LoginFailedError);
     expect(await readSession(rt.store)).toBeNull();
+  });
+});
+
+describe('whoami — authenticated principal identity + email (own PII)', () => {
+  it('persona: nombre + email, live read from the session principal', async () => {
+    const rt = makeRuntime(liveDriver(realPersonaDatos));
+    await login(rt);
+    const who = await whoami(rt);
+    expect(who).toEqual({
+      rut: '20000042-0',
+      accountType: 'persona',
+      nombre: 'Juan Sintético Pérez Soto',
+      email: 'sintetico@example.cl',
+    });
+  });
+
+  it('empresa: nombre = razón social; email null when the portal omits it', async () => {
+    const rt = makeRuntime(liveDriver(realEmpresaDatos));
+    await login(rt);
+    const who = await whoami(rt);
+    expect(who).toEqual({
+      rut: '96500000-3',
+      accountType: 'empresa',
+      nombre: 'Comercial Sintética SpA',
+      email: null,
+    });
+  });
+
+  it('audit records ONLY the rut — never the razón social / email values (PII off the receipt)', async () => {
+    const rt = makeRuntime(liveDriver(realPersonaDatos));
+    await login(rt);
+    await whoami(rt);
+    const whoamiEntries = (rt.audit as RecordingAuditSink).entries.filter(
+      (e) => e.action === 'whoami',
+    );
+    expect(whoamiEntries).toHaveLength(1);
+    expect(whoamiEntries[0]).toMatchObject({ action: 'whoami', result: 'ok', rut: '20000042-0' });
+    const serialized = JSON.stringify(whoamiEntries);
+    expect(serialized).not.toContain('sintetico@example.cl');
+    expect(serialized).not.toContain('Juan');
+  });
+
+  it('normalizes a blank email to null (portal serves "   ")', async () => {
+    const blankEmail = (): unknown => ({
+      contribuyente: {
+        rut: 11111111,
+        dv: '1',
+        nombres: 'Juan',
+        apellidoPaterno: 'Pérez',
+        eMail: '   ',
+      },
+    });
+    const rt = makeRuntime(liveDriver(blankEmail));
+    await login(rt);
+    expect((await whoami(rt)).email).toBeNull();
+  });
+
+  it('requires a session (raises NotAuthenticated when none)', async () => {
+    const rt = makeRuntime(new FakePortalDriver({}));
+    await expect(whoami(rt)).rejects.toBeInstanceOf(NotAuthenticatedError);
   });
 });
 

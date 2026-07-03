@@ -5,6 +5,7 @@ import type {
   AuthLoginResult,
   AuthLogoutResult,
   AuthStatusLocal,
+  AuthWhoami,
 } from '../auth/index.js';
 import type { Runtime } from '../seams/index.js';
 
@@ -35,4 +36,10 @@ export function statusRefresh(runtime: Runtime): Promise<AuthIdentity> {
   return auth.statusRefresh(runtime);
 }
 
-export type { AuthIdentity, AuthLoginResult, AuthLogoutResult, AuthStatusLocal };
+/** whoami — the authenticated principal's own razón social/nombre + email (own PII).
+ *  Live portal read; session-keyed (ignores the operate pointer). */
+export function whoami(runtime: Runtime): Promise<AuthWhoami> {
+  return auth.whoami(runtime);
+}
+
+export type { AuthIdentity, AuthLoginResult, AuthLogoutResult, AuthStatusLocal, AuthWhoami };

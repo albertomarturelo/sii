@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last updated: 2026-07-02 — **`bte emit` — first WRITE surface MERGED (ADR-017, #60/PR #61)**; preview live-validated, issue path deferred to #62
+Last updated: 2026-07-02 — **`sii whoami` built + live-validated (#70)** — the authenticated account's razón social + email (CLI + MCP, session-keyed); PR open
 
 ## In Progress
 
@@ -22,6 +22,16 @@ Last updated: 2026-07-02 — **`bte emit` — first WRITE surface MERGED (ADR-01
   already declared) — until then those show `glosa:null` (honest; ADR-004).
 
 ## Recently Completed
+
+- [x] **`sii whoami` read surface (#70).** The authenticated principal's own identity beyond the
+  RUT: **razón social/nombre + email**, read live from `DatosCntrNow` (like `auth status --refresh`,
+  plus `eMail`). **Session-keyed** — reads the login principal, ignores the operate pointer (no
+  `--rut`). CLI `sii whoami` (JSON default) + MCP `whoami` tool (`readOnly`) whose description
+  **declares the PII exposure** to the model (ADR-006 / CONVENTIONS). **PII posture:** the audit
+  records only that a read happened (rut), NEVER the razón social / email values; curated only, no
+  `raw`. No spike needed (`razonSocial`/`eMail` already observed). **Domicilio deferred** (needs a
+  live `direcciones[]` capture). 9 new tests vs fakes (no SII), 262/262 green. **Live-validated
+  (CLI + MCP).**
 
 - [x] **`bte emit` — the FIRST WRITE surface (ADR-017, #60, PR #61).** Issue a Boleta de Honorarios
   Electrónica (legally-binding). The `TMBECN_*` emission contract — **never captured before** — was
