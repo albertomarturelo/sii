@@ -30,15 +30,15 @@ These are intended choices; versions are pinned when first installed.
   via `pnpm --filter @albertomarturelo/sii-core exec playwright install chromium`. (ADR-008)
   **An OPTIONAL peer of `@albertomarturelo/sii-core` since ADR-016** (lazy-loaded by the
   `./node` subpath's default driver; core keeps it as a devDependency for typecheck +
-  in-workspace resolution); `@sii/cli` and `@sii/mcp` declare it as their own
+  in-workspace resolution); `@albertomarturelo/sii-cli` and `@albertomarturelo/sii-mcp` declare it as their own
   dependency. An external consumer that injects its own `PortalDriver` never installs it.
-- **`commander`** `^12.1.0` — the CLI framework for `@sii/cli` (ADR-008). Nested
-  subcommands (`sii auth login`, `sii operate`). Lives in `@sii/cli` only;
+- **`commander`** `^12.1.0` — the CLI framework for `@albertomarturelo/sii-cli` (ADR-008). Nested
+  subcommands (`sii auth login`, `sii operate`). Lives in `@albertomarturelo/sii-cli` only;
   `@albertomarturelo/sii-core` never imports it.
 - **Secret storage** — TBD via ADR (candidate: `keytar` / `@napi-rs/keyring`
   for the OS keychain). The default `SecretStore` adapter.
 - **`zod`** `^4.4.3` — **adopted (ADR-011)**. Boundary validation. Direct dependency
-  of **both** `@sii/mcp` (MCP tool input schemas — the SDK's `registerTool` takes a zod
+  of **both** `@albertomarturelo/sii-mcp` (MCP tool input schemas — the SDK's `registerTool` takes a zod
   shape and emits the protocol JSON Schema) **and `@albertomarturelo/sii-core`** (SII wire-payload
   parsing: the SDI envelope is validated with zod, then rows are projected
   alias-tolerantly — landed with the RCV read surface, #17). Pinned to v4 to match the

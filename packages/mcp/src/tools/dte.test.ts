@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, toolText } from '../test-helpers.js';
 
-describe('@sii/mcp dte tools (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp dte tools (in-memory client, fake runtime, no SII)', () => {
   it('dte_authorized returns the curated public report as JSON — NO login required', async () => {
     const authorizedHtml = `
       <table>

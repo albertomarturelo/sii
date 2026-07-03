@@ -10,7 +10,7 @@ another system, where the consumer needs structured data, not human text.
 `@altumstack/sii-core` tasks already return plain, JSON-serializable TypeScript objects (`F22Estado`,
 `RcvSummary`, the operate context, …) — no `Date`/`Map`/`Set`, no formatting baked in. That
 IS the integration contract: a host system does `JSON.stringify(await f22Status(...))` and
-gets clean JSON. But the human saw only the `@sii/cli` text rendering and reasonably worried
+gets clean JSON. But the human saw only the `@albertomarturelo/sii-cli` text rendering and reasonably worried
 the data was text-shaped. We need the data contract to be unmistakable AND reachable when the
 CLI is driven programmatically (Claude Code via Bash, scripts, other systems shelling out).
 

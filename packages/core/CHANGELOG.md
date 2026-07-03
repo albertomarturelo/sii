@@ -4,6 +4,21 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.5.0 — 2026-07-03
+
+### Added
+
+- **`peticionesList` — peticiones administrativas via GWT-RPC (#74).** New task
+  returning a taxpayer's SISPAD administrative requests with their state timeline
+  (número, materia, estado actual, and per transition the fecha + SII's verbatim
+  note). **Body-RUT** (operable-set gate, like RCV). The FIRST GWT-RPC surface: a
+  cold authenticated POST to `www3.sii.cl/sispadinternet/peticion` decoded in-house
+  (`portal/gwt.ts`, schema-directed — the field layout derived from the compiled
+  permutation, `gwt-schema.ts`). PII: NO `raw`, tight allowlist; the audit records
+  only the read (rut + count). Live-validated end-to-end (ADR-020).
+- **`PortalSession.requestText` seam** — an authenticated raw-body GET/POST → text,
+  the peer of `requestPublic`; the transport behind GWT-RPC read facades (ADR-020).
+
 ## 0.4.0 — 2026-07-03
 
 ### Added

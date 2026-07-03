@@ -1,10 +1,11 @@
-name: Publish core
+name: Publish packages
 
-# CD for @albertomarturelo/sii-core → the PUBLIC npm registry, triggered by a
-# `v*` git tag (ADR-015 flow, registry changed by ADR-019). Bump
-# packages/core/package.json `version`, merge, then push a tag whose name matches
-# (`v0.3.0` ⇒ version 0.3.0). Needs an `NPM_TOKEN` repo secret — an npm
-# automation token with publish rights on the `@albertomarturelo` scope.
+# CD for the public npm packages — @albertomarturelo/sii-core, -cli, -mcp — triggered
+# by a `v*` git tag (ADR-015 flow, registry per ADR-019, surfaces added per ADR-021).
+# The three versions move in LOCKSTEP: bump all of packages/{core,cli,mcp}/package.json
+# to the same version, merge, then push a matching tag (`v0.5.0` ⇒ version 0.5.0).
+# `pnpm -r publish` is idempotent — already-published versions are skipped. Needs an
+# `NPM_TOKEN` repo secret (npm automation token, publish rights on `@albertomarturelo`).
 
 on:
   push:
@@ -16,7 +17,7 @@ permissions:
 
 jobs:
   publish:
-    name: Build + publish @albertomarturelo/sii-core
+    name: Build + publish (core + cli + mcp)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,19 +39,22 @@ jobs:
       - name: Typecheck + build (tsc -b)
         run: pnpm build
 
-      - name: Verify tag matches package version
-        # Guard against a mismatched tag publishing a stale version.
+      - name: Verify tag matches all package versions (lockstep)
+        # Guard against a mismatched tag publishing a stale version. All three
+        # packages must equal the tag (ADR-021 — versions move in lockstep).
         run: |
           set -euo pipefail
-          version=$(node -p "require('./packages/core/package.json').version")
           tag="${GITHUB_REF_NAME#v}"
-          if [ "$version" != "$tag" ]; then
-            echo "::error::Tag '${GITHUB_REF_NAME}' does not match @albertomarturelo/sii-core version '${version}'. Bump package.json or retag."
-            exit 1
-          fi
-          echo "Tag ${GITHUB_REF_NAME} matches version ${version}."
+          for pkg in core cli mcp; do
+            version=$(node -p "require('./packages/${pkg}/package.json').version")
+            if [ "$version" != "$tag" ]; then
+              echo "::error::Tag '${GITHUB_REF_NAME}' does not match packages/${pkg} version '${version}'. Bump all three package.json in lockstep or retag."
+              exit 1
+            fi
+          done
+          echo "Tag ${GITHUB_REF_NAME} matches core + cli + mcp."
 
-      - name: Publish to public npm
-        run: pnpm --filter @albertomarturelo/sii-core publish --no-git-checks --access public
+      - name: Publish to public npm (idempotent — skips already-published versions)
+        run: pnpm -r publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

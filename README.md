@@ -22,9 +22,10 @@ conocimiento del SII y los guardrails se **portan**; el código se escribe nuevo
 
 Superficies de **lectura** operativas y validadas en vivo: autenticación
 (`auth`), representación (`operate`), **RCV**, **F22** (status / formulario /
-observaciones / historial), **F29** (Fase 1), **BTE/BHE** y **DTE autorizados**
-(consulta pública). Primera superficie de **escritura**: `bte emit` (emisión de
-Boletas de Honorarios Electrónicas). Ver el detalle en
+observaciones / historial), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
+(consulta pública), **whoami** y **peticiones administrativas** (SISPAD). Primera
+superficie de **escritura**: `bte emit` (emisión de Boletas de Honorarios
+Electrónicas). Ver el detalle en
 [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) y el checklist completo en
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -33,8 +34,8 @@ Boletas de Honorarios Electrónicas). Ver el detalle en
 ```text
 packages/
   core/   @albertomarturelo/sii-core   Núcleo de dominio (librería Node). Las superficies llaman solo a sus tasks.
-  cli/    @sii/cli     CLI humana (terminal). También lo que Claude Code corre vía Bash.
-  mcp/    @sii/mcp     Servidor MCP (stdio). El punto de integración para Claude Code y Claude Desktop.
+  cli/    @albertomarturelo/sii-cli     CLI humana (terminal). También lo que Claude Code corre vía Bash.
+  mcp/    @albertomarturelo/sii-mcp     Servidor MCP (stdio). El punto de integración para Claude Code y Claude Desktop.
 docs/                  Capa de contexto CFD (ARCHITECTURE, CONVENTIONS, ADRs…).
 ```
 
@@ -55,6 +56,60 @@ real. Ver [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 El Clave Tributaria nunca llega al LLM ni a disco en texto plano: login por
 navegador (cookies-only) — ningún tool de MCP recibe contraseña. Ver
 [ADR-006](docs/decisions/006-auth-posture-browser-cookies-host-secrets.md).
+
+## Instalación y uso
+
+Para **usarlo** (sin clonar el repo). Requiere **Node ≥ 20**. Para desarrollar,
+ver [Desarrollo](#desarrollo).
+
+```bash
+# 1) Instala la CLI y el servidor MCP
+npm i -g @albertomarturelo/sii-cli @albertomarturelo/sii-mcp
+
+# 2) Instala el navegador que usa el login (una sola vez, ~100–150 MB)
+npx playwright install chromium
+
+# 3) Inicia sesión — abre tu navegador en la página REAL del SII;
+#    tecleas tu RUT + Clave ahí. La Clave nunca llega al modelo ni a disco.
+sii auth login
+
+# 4) Úsalo desde la terminal
+sii peticiones list            # ¿tengo trámites detenidos ("en espera de Antecedentes")?
+sii rcv summary 2026-05        # resumen del RCV de compras
+sii f29 overview 2026          # posición de IVA mes a mes
+```
+
+### Conectar el MCP a Claude
+
+El servidor es **stdio** (no requiere hosting): Claude lo lanza como un proceso.
+
+**Claude Desktop** — añade a `claude_desktop_config.json` y reinicia la app
+(macOS: `~/Library/Application Support/Claude/`; Windows: `%APPDATA%\Claude\`):
+
+```json
+{
+  "mcpServers": {
+    "sii": { "command": "sii-mcp" }
+  }
+}
+```
+
+**Claude Code** — un comando:
+
+```bash
+claude mcp add sii -- sii-mcp
+```
+
+Luego pídele en lenguaje natural (p. ej. «¿cuál es el estado de mi sesión?» o
+«muéstrame el RCV de compras de 2026-05»). Si aún no iniciaste sesión, corre
+`sii auth login` primero (o pídele a Claude la herramienta `auth_login`, que abre
+tu navegador). Los tools de lectura no cambian nada; emitir una BHE exige
+confirmación explícita.
+
+> **Playwright** es la única dependencia con peso: `sii` lo usa para el login por
+> navegador (cookies-only, ADR-006). Por eso el paso 2 (`npx playwright install
+> chromium`) es obligatorio la primera vez; el paquete npm no descarga navegadores
+> automáticamente.
 
 ## Capacidades
 
@@ -79,8 +134,10 @@ operar como, y **emitir** una BHE— quedan controladas: `bte_emit` es la única
 - «¿Tengo observaciones en el F22 de 2025?» → `f22_observaciones`
 - «¿Cuál es mi posición de IVA mes a mes en el F29 durante 2026?» → `f29_overview`
 - «Dame la propuesta del F29 de mayo 2026, agrupada por línea.» → `f29_formulario`
-- «¿Qué documentos tributarios está autorizado a emitir el RUT 76.192.083-9?» → `dte_authorized` (público, sin login)
+- «¿Qué documentos tributarios está autorizado a emitir el RUT 77.777.777-7?» → `dte_authorized` (público, sin login)
 - «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
+- «¿Tengo peticiones administrativas detenidas ante el SII (en espera de antecedentes)?» → `peticiones_list`
+- «¿A nombre de quién estoy registrado — razón social y correo?» → `whoami`
 - «Simula una boleta de honorarios de $500.000 a un cliente (sin emitir).» → `bte_emit_preview`
 - «Cambia a operar como la empresa que represento.» → `operate`
 
@@ -112,6 +169,8 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
+| `sii peticiones list [--rut]` | Peticiones administrativas (SISPAD) + su timeline de estados |
+| `sii whoami` | Razón social/nombre + correo de la cuenta autenticada |
 
 Las superficies **session-keyed** (`f22`, `f29`, `bte`) leen siempre el principal
 de la sesión (sin `--rut`); la **body-RUT** (`rcv`) acepta `--rut` / `operate`

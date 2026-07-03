@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, datos, isError, toolText } from '../test-helpers.js';
 
-describe('@sii/mcp bte tools (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, no SII)', () => {
   it('bte_list returns the month boletas as JSON (session-keyed, own-PII dropped)', async () => {
     const META = {
       total_boletas: '1',

@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { HOSTS } from '@albertomarturelo/sii-core';
 import { connect, isError, makeRuntime, propKeys, resourceText, toolText } from './test-helpers.js';
 
-describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no SII)', () => {
   it('exposes the auth/identity tools — and auth_login takes NO password', async () => {
     const client = await connect(makeRuntime());
     const { tools } = await client.listTools();

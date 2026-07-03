@@ -52,7 +52,7 @@ the CHANGELOG already states this):
    in-repo binaries). `adapters/node/portal.ts` drops the top-level value import and
    lazy-loads `await import('playwright')` inside the launch methods; a missing module
    surfaces an actionable "install playwright" error only when the default driver is
-   actually driven. `@sii/cli` and `@sii/mcp` declare `playwright` in their OWN
+   actually driven. `@albertomarturelo/sii-cli` and `@albertomarturelo/sii-mcp` declare `playwright` in their OWN
    dependencies (they really use the default driver). `zod` stays a regular dependency
    (it runs in the wire-parsing path of the main graph).
 4. **The ADR-003 CI boundary guard flips from denylist to allowlist**: any

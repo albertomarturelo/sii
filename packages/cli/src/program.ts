@@ -1,6 +1,7 @@
 // The `sii` command tree (commander, ADR-008). Every action is a thin call into a
 // @albertomarturelo/sii-core task — the CLI never reaches past the task layer (ADR-003). The Runtime
 // is injected so tests drive the whole tree against fakes (no SII touched).
+import { createRequire } from 'node:module';
 import { Command } from 'commander';
 import {
   LoginFailedError,
@@ -33,12 +34,17 @@ import { registerDte } from './commands/dte.js';
 import { registerBte } from './commands/bte.js';
 import { registerPeticiones } from './commands/peticiones.js';
 
+// The published version, read from this package's own package.json at runtime (one
+// level up from dist/) so `sii --version` never drifts from the release.
+const pkgVersion = (createRequire(import.meta.url)('../package.json') as { version: string })
+  .version;
+
 export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompters): Command {
   const program = new Command();
   program
     .name('sii')
     .description('CLI para automatizar trámites del SII (Chile).')
-    .version('0.0.0');
+    .version(pkgVersion);
   // Output is JSON by default (the @albertomarturelo/sii-core data contract); `--human` for readable text.
   // Declared on the root so `sii --human <cmd>` parses; `withOutputFlags` adds them to each
   // leaf too so `sii <cmd> --human` parses as well.

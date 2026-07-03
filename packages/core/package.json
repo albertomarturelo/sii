@@ -1,6 +1,6 @@
 {
   "name": "@albertomarturelo/sii-core",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "Shared SII domain core: rut, config (prod hostnames), contracts, tasks, seams. A Node library; external side-effects (portal, secrets, audit, clock) are injected via seams (ADR-003).",
   "license": "MIT",

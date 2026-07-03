@@ -63,7 +63,7 @@ Clave is used once and discarded; only cookies persist.
   the headless form. Acceptable: CLI-only (never LLM-adjacent), memory-only,
   single-use; strictly LESS exposure than the keyring path ADR-006 already allows.
 - Obligation: implement `PortalDriver.credentialLogin` (headless fill+submit) + a
-  fake; a hidden-input prompt in `@sii/cli`; the one-attempt policy; reuse the
+  fake; a hidden-input prompt in `@albertomarturelo/sii-cli`; the one-attempt policy; reuse the
   `DatosCntrNow` read + cookies-only persist already built for the browser path.
 - Open item: the server-side failure response (wrong-Clave vs locked account) is
   NOT yet observed — deliberately, since a wrong-Clave submit risks lockout

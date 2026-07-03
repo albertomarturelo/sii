@@ -1,4 +1,4 @@
-// Domain error hierarchy. The CLI maps these to exit codes (in @sii/cli):
+// Domain error hierarchy. The CLI maps these to exit codes (in @albertomarturelo/sii-cli):
 // NotAuthenticated → 2, LoginFailed → 3, RateLimit → 4. Pass SII's Spanish
 // messages through unchanged (sii-py error-surfacing convention).
 

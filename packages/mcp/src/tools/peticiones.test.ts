@@ -6,7 +6,7 @@ import { connect, datos, toolText } from '../test-helpers.js';
 const OK =
   '//OK[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,11,0,0,0,0,0,0,0,0,0,0,10,0,0,0,0,0,0,0,0,0,0,0,0,0,9,8,0,0,0,1770724800000,6,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,0,0,7,0,0,0,0,1769947200000,6,0,0,0,0,0,0,0,5,2,4,0,0,0,0,0,0,0,0,900123,3,0,0,0,0,0,0,0,0,0,0,0,0,2,1,1,["[Lcl.sii.sdi.difsj.sispad.to.PeticionTo;/1","cl.sii.sdi.difsj.sispad.to.PeticionTo/1","java.lang.Integer/1","java.util.ArrayList/1","cl.sii.sdi.difsj.sispad.to.EstadoPeticionTo/1","java.sql.Timestamp/1","Petición Recepcionada por el SII","Falta adjuntar documento sintético.","Peticion en espera de Antecedentes","cl.sii.sdi.difsj.sispad.to.MateriaTo/1","Materia sintética de prueba"],0,5]';
 
-describe('@sii/mcp peticiones tools (in-memory client, fake runtime, no SII)', () => {
+describe('@albertomarturelo/sii-mcp peticiones tools (in-memory client, fake runtime, no SII)', () => {
   it('peticiones_list returns the curated petitions as JSON (read-only)', async () => {
     const runtime: Runtime = {
       clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
