@@ -4,6 +4,19 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.4.0 — 2026-07-03
+
+### Added
+
+- **`whoami` — the authenticated account's own identity (#70).** New task
+  `whoami(runtime)` returning `AuthWhoami` (`rut`, `accountType`, `nombre` =
+  razón social for an empresa / full name for a persona, `email`). Read live from
+  the session principal's `DatosCntrNow` — **session-keyed** (ignores the operate
+  pointer). The audit records only that a read happened (rut), never the razón
+  social / email VALUES (PII off the receipt, ADR-006). Live-validated (CLI + MCP).
+  Surfaced as `sii whoami` and the MCP `whoami` tool (whose description declares
+  the PII exposure to the model). Domicilio (from `direcciones[]`) is a follow-up.
+
 ## 0.3.0 — 2026-07-02
 
 First release on the **public npm registry** under `@albertomarturelo/sii-core`
