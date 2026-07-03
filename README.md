@@ -56,6 +56,67 @@ El Clave Tributaria nunca llega al LLM ni a disco en texto plano: login por
 navegador (cookies-only) — ningún tool de MCP recibe contraseña. Ver
 [ADR-006](docs/decisions/006-auth-posture-browser-cookies-host-secrets.md).
 
+## Capacidades
+
+Ambas superficies exponen las mismas operaciones sobre el SII (un solo núcleo):
+el **MCP** las ofrece como *tools* a Claude; la **CLI**, como comandos `sii …`.
+
+### Vía MCP (Claude Desktop / Claude Code)
+
+Claude ve las operaciones como herramientas con permiso configurable por
+herramienta (lectura vs escritura). Las de **escritura** —iniciar/cerrar sesión,
+operar como, y **emitir** una BHE— quedan controladas: `bte_emit` es la única
+`destructive` y exige confirmación explícita.
+
+![Herramientas del conector `sii` en Claude Desktop — 13 de lectura + 4 de escritura/borrado](docs/assets/mcp-tools-claude-desktop.png)
+
+**Ejemplos de prompts** (lenguaje natural; Claude elige la herramienta):
+
+- «¿Cuál es el estado de mi sesión y a nombre de qué RUT estoy operando?» → `auth_status`
+- «Muéstrame el resumen del RCV de **compras** del período 2026-05.» → `rcv_summary`
+- «Lista el detalle de ventas del RCV de 2026-05.» → `rcv_list`
+- «¿Cómo quedó mi declaración de renta (F22) del año tributario 2025?» → `f22_status` / `f22_formulario`
+- «¿Tengo observaciones en el F22 de 2025?» → `f22_observaciones`
+- «¿Cuál es mi posición de IVA mes a mes en el F29 durante 2026?» → `f29_overview`
+- «Dame la propuesta del F29 de mayo 2026, agrupada por línea.» → `f29_formulario`
+- «¿Qué documentos tributarios está autorizado a emitir el RUT 76.192.083-9?» → `dte_authorized` (público, sin login)
+- «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
+- «Simula una boleta de honorarios de $500.000 a un cliente (sin emitir).» → `bte_emit_preview`
+- «Cambia a operar como la empresa que represento.» → `operate`
+
+> Emitir una BHE de verdad (`bte_emit`) **no** ocurre por un prompt suelto: es una
+> herramienta `destructive` que pide confirmación explícita + el monto en eco
+> (ADR-017). El login abre tu navegador en la página real del SII — la Clave nunca
+> llega al modelo.
+
+### Vía CLI (`sii`)
+
+Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
+`operando como …` va a STDERR.
+
+| Comando | Qué hace |
+|---|---|
+| `sii auth login [--console]` | Inicia sesión (navegador cookies-only; `--console` pide la Clave por terminal) |
+| `sii auth status [--refresh]` | Quién soy / a nombre de quién opero (`--refresh` lee del portal) |
+| `sii auth logout` | Cierra sesión (cierre server best-effort + wipe local) |
+| `sii operate <rut> \| --self \| --list` | Elige el RUT a nombre del cual actuar / lista el set operable |
+| `sii rcv summary <periodo>` | Resumen del Registro de Compras y Ventas |
+| `sii rcv list <periodo> [--compra\|--venta] [--rut]` | Detalle de documentos del RCV |
+| `sii f22 status [año]` | Estado de la Renta anual (F22); sin año → overview multi-año |
+| `sii f22 formulario <año>` | Formulario F22 completo, agrupado (ingresos/deducciones/retenciones/resultado) |
+| `sii f22 observaciones <año> [--folio]` | Observaciones/inconsistencias del F22 |
+| `sii f22 historial <año> [--folio]` | Línea de tiempo de eventos del F22 (devoluciones, giros, rectificatorias) |
+| `sii f29 formulario <periodo>` | Propuesta de IVA (F29) etiquetada + agrupada |
+| `sii f29 overview <desde> <hasta> \| <año>` | Posición de IVA mes a mes en un rango |
+| `sii f29 status <periodo>` | Estado del F29 de un mes |
+| `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
+| `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
+| `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
+
+Las superficies **session-keyed** (`f22`, `f29`, `bte`) leen siempre el principal
+de la sesión (sin `--rut`); la **body-RUT** (`rcv`) acepta `--rut` / `operate`
+para llegar a una empresa representada (ADR-005).
+
 ## Modelo de identidad
 
 Una sola cuenta activa a la vez (cambiar de cuenta = `logout` → `login`). Dentro
