@@ -30,6 +30,14 @@ export interface GwtNode {
 }
 export type GwtValue = string | number | GwtNode | null;
 
+// The reader builds nodes mutably (a node joins `seen` before its fields/items are read,
+// so back-references resolve); callers see the readonly `GwtNode` view.
+interface MutableNode {
+  sig: string;
+  fields: GwtValue[];
+  items?: GwtValue[];
+}
+
 /** True when `v` is a decoded object node (not a scalar/null). */
 export function isNode(v: GwtValue): v is GwtNode {
   return typeof v === 'object' && v !== null;
@@ -66,7 +74,7 @@ export function buildPeticionesRequest(
 // ── Response ─────────────────────────────────────────────────────────────────
 class GraphReader {
   private i: number;
-  private readonly seen: GwtNode[] = [];
+  private readonly seen: MutableNode[] = [];
   constructor(
     private readonly payload: readonly number[],
     private readonly st: readonly string[],
@@ -98,7 +106,7 @@ class GraphReader {
         SCRAPER_ROTO + ` (se esperaba un tipo, llegó "${String(sig).slice(0, 24)}")`,
       );
     }
-    const node: GwtNode = { sig, fields: [] };
+    const node: MutableNode = { sig, fields: [] };
     this.seen.push(node);
     if (sig.startsWith('[')) {
       this.readArray(sig, node);
@@ -110,7 +118,7 @@ class GraphReader {
     this.runOps(ops, node);
     return node;
   }
-  private readArray(sig: string, node: GwtNode): void {
+  private readArray(sig: string, node: MutableNode): void {
     const el = sig[1];
     const n = this.tok();
     const items: GwtValue[] = [];
@@ -120,9 +128,9 @@ class GraphReader {
         items.push(this.tok() + this.tok()); // long[]
       else items.push(this.tok()); // C/I/Z/B/S/D/F -> one raw token
     }
-    (node as { items?: GwtValue[] }).items = items;
+    node.items = items;
   }
-  private runOps(ops: string, node: GwtNode): void {
+  private runOps(ops: string, node: MutableNode): void {
     for (const op of ops) {
       switch (op) {
         case 's':
@@ -142,7 +150,7 @@ class GraphReader {
           const n = this.tok();
           const items: GwtValue[] = [];
           for (let k = 0; k < n; k++) items.push(this.readObject());
-          (node as { items?: GwtValue[] }).items = items;
+          node.items = items;
           break;
         }
         case 'M': {
