@@ -31,6 +31,7 @@ import { registerF22 } from './commands/f22.js';
 import { registerF29 } from './commands/f29.js';
 import { registerDte } from './commands/dte.js';
 import { registerBte } from './commands/bte.js';
+import { registerPeticiones } from './commands/peticiones.js';
 
 export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompters): Command {
   const program = new Command();
@@ -178,6 +179,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
   registerF29(program, runtime);
   registerDte(program, runtime);
   registerBte(program, runtime);
+  registerPeticiones(program, runtime);
 
   // Make `--json`/`--human` parse after a subcommand too (`sii f22 status --human`), by
   // adding them to every leaf command — after the register fns have built their subtrees.

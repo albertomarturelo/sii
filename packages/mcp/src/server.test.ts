@@ -26,6 +26,7 @@ describe('@sii/mcp server (in-memory client, fake runtime, no SII)', () => {
       'f29_overview',
       'f29_status',
       'operate',
+      'peticiones_list',
       'rcv_list',
       'rcv_summary',
       'whoami',

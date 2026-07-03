@@ -24,3 +24,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 017 | [BHE emission — the first write surface (`bte emit`) posture](017-bte-emit-write-posture.md) | Accepted | 2026-07-02 |
 | 018 | [Public release under the MIT license](018-public-release-mit-license.md) | Accepted | 2026-07-02 |
 | 019 | [Publish to public npm under the personal scope `@albertomarturelo/sii-core`](019-publish-public-npm-personal-scope.md) | Accepted | 2026-07-02 |
+| 020 | [GWT-RPC read capability behind the seam (SISPAD peticiones)](020-gwt-rpc-read-capability.md) | Accepted | 2026-07-03 |

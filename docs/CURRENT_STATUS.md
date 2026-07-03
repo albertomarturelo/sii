@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last updated: 2026-07-02 — **`sii whoami` built + live-validated (#70)** — the authenticated account's razón social + email (CLI + MCP, session-keyed); PR open
+Last updated: 2026-07-03 — **`peticiones` read surface built + live-validated (#74)** — SISPAD peticiones administrativas via GWT-RPC (CLI + MCP, body-RUT); first GWT-RPC surface, decoder schema derived from the compiled permutation (ADR-020)
 
 ## In Progress
 
@@ -22,6 +22,28 @@ Last updated: 2026-07-02 — **`sii whoami` built + live-validated (#70)** — t
   already declared) — until then those show `glosa:null` (honest; ADR-004).
 
 ## Recently Completed
+
+- [x] **`peticiones` read surface — SISPAD peticiones administrativas (#74) — the FIRST GWT-RPC
+  surface (ADR-020).** `sii peticiones list` + MCP `peticiones_list` → a taxpayer's SII
+  administrative requests with their full state timeline: número, materia, estado actual, and per
+  transition the fecha + **SII's verbatim note** (what's pending / why). Surfaces the early-warning
+  SII does not push (e.g. **"Peticion en espera de Antecedentes"**). **Cold authenticated POST** to
+  `www3.sii.cl/sispadinternet/peticion` via the new **`PortalSession.requestText`** seam (landed in
+  the foundations commit); **body-RUT** (operable-set gate, like RCV). **In-house GWT-RPC codec**
+  `portal/gwt.ts` decodes the `//OK[…]` object graph **schema-directed** — and the per-type field
+  layout (`gwt-schema.ts`, 109 classes) is **DERIVED from the compiled permutation's deserializers**
+  (Path B), NOT reverse-engineered from samples (proven incomplete: different petitions expose
+  different types — `HojaTrabajoGeneralTo`, `AutorizacionSispadTo`, …). Keyed by **class name** (the
+  per-type CRC rotates on recompile; the layout does not) → a recompile still resolves, a changed
+  class ⇒ "scraper roto". **Policy hash self-heals** from the permutation JS; `//EX` business errors
+  **verbatim**; `LOGIN_HOST` bounce ⇒ `SessionExpiredError`. **PII:** NO `raw`, tight allowlist; the
+  estado glosa's `(Subrogancia … [NOMBRE])` functionary suffix is stripped; audit records only the
+  read (rut + count). **Live-validated end-to-end 2026-07-03** (persona: 4 real petitions with the
+  SII notes; + an empresa capture, 1 — full-consume of both). Schema regenerable via
+  `docs/sii-contract/peticiones-schema-extract.py`. Wire contract `sii-contract/peticiones.md` +
+  ADR-020 amended (the Path B decoder). 20 new tests vs synthetic fixtures (a GWT encoder mirrors
+  the reader — zero PII), 282/282 green. **Spike #73 resolved.** (**Follow-up:** issuing NEW
+  petitions is a future write surface.)
 
 - [x] **`sii whoami` read surface (#70).** The authenticated principal's own identity beyond the
   RUT: **razón social/nombre + email**, read live from `DatosCntrNow` (like `auth status --refresh`,
