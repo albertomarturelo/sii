@@ -3,7 +3,13 @@
 // zod input schemas (ADR-011) — the SDK derives the protocol JSON Schema.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { rcvList, rcvSummary, type RcvSide, type Runtime } from '@albertomarturelo/sii-core';
+import {
+  rcvList,
+  rcvListAll,
+  rcvSummary,
+  type RcvSide,
+  type Runtime,
+} from '@albertomarturelo/sii-core';
 import { toolText } from '../tool-helpers.js';
 
 const sideOf = (venta?: boolean): RcvSide => (venta ? 'VENTA' : 'COMPRA');
@@ -54,6 +60,32 @@ export function registerRcvTools(server: McpServer, runtime: Runtime): void {
       toolText(async () =>
         JSON.stringify(
           await rcvList(runtime, { periodo, side: sideOf(venta), codigoTipoDoc, ...rutOpt(rut) }),
+          null,
+          2,
+        ),
+      ),
+  );
+
+  server.registerTool(
+    'rcv_all',
+    {
+      title: 'RCV detalle — todos los tipos',
+      description:
+        'Detalle de TODOS los documentos de un período (YYYYMM/YYYY-MM) en una sola consulta: ' +
+        'aplana el detalle de cada tipo que reporta el resumen, cada fila con su codigoTipoDoc. ' +
+        'COMPRAS por defecto; venta=true para VENTAS. Body-RUT: usa rut para una empresa representada. ' +
+        'Si SII rechaza un tipo puntual, incomplete=true y rejectedTypes lista los códigos omitidos (el resto igual vuelve).',
+      inputSchema: {
+        periodo: z.string(),
+        venta: z.boolean().optional(),
+        rut: z.string().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ periodo, venta, rut }) =>
+      toolText(async () =>
+        JSON.stringify(
+          await rcvListAll(runtime, { periodo, side: sideOf(venta), ...rutOpt(rut) }),
           null,
           2,
         ),

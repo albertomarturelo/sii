@@ -31,6 +31,7 @@ sii auth login                 # browser, cookies-only (--console for a terminal
 sii auth status                # who am I / operating as whom
 sii peticiones list            # administrative requests + their state timeline
 sii rcv summary 2026-05        # RCV (compras) summary for a period
+sii rcv all 2026-05            # RCV (compras) — every doc type in one flat table
 sii f29 overview 2026          # month-by-month IVA position
 sii dte authorized 77777777-7  # public consulta — no login
 sii bte emit … --confirm <monto>   # issue a BHE (defaults to a safe preview)

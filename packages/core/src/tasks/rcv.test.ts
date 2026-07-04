@@ -5,11 +5,11 @@ import {
   InMemoryKeyValueStore,
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
-import type { Runtime } from '../seams/index.js';
+import type { JsonRequest, Runtime } from '../seams/index.js';
 import { NotAuthenticatedError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
-import { rcvSummary, rcvList } from './rcv.js';
+import { rcvSummary, rcvList, rcvListAll } from './rcv.js';
 
 // Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
@@ -27,7 +27,7 @@ const DETALLE_ENV = {
   data: [{ detNroDoc: 7, detRutDoc: 77777777, detDvDoc: '7', detMntTotal: 59500 }],
 };
 
-function makeRuntime(requestJson: (url: string) => unknown): Runtime {
+function makeRuntime(requestJson: (url: string, options?: JsonRequest) => unknown): Runtime {
   return {
     clock: new FixedClock(new Date('2026-06-27T12:00:00Z')),
     audit: new RecordingAuditSink(),
@@ -120,5 +120,146 @@ describe('rcv tasks (fakes, no SII)', () => {
       NotAuthenticatedError,
     );
     expect(entries(rt).at(-1)).toMatchObject({ action: 'rcv_resumen', result: 'failed' });
+  });
+});
+
+// A resumen reporting two DTE types (33 factura, 34 exenta) — the fan-out enumerates these.
+const RESUMEN_MULTI = {
+  respEstado: { codRespuesta: 0 },
+  totDocRes: 3,
+  data: [
+    { rsmnTipoDocInteger: 33, dcvNombreTipoDoc: 'Factura', rsmnTotDoc: 1 },
+    { rsmnTipoDocInteger: 34, dcvNombreTipoDoc: 'Factura exenta', rsmnTotDoc: 2 },
+  ],
+};
+
+/** Route a fan-out: the resumen POST returns `resumen`; each detalle POST returns
+ *  `detalle[codTipoDoc]` (default empty), recording the type into `calls` if provided. */
+function script(
+  resumen: unknown,
+  detalle: Record<string, unknown>,
+  calls?: string[],
+): (url: string, options?: JsonRequest) => unknown {
+  return (url, options) => {
+    if (url.includes('getResumen')) return resumen;
+    const cod = String(
+      (options?.body as { data?: { codTipoDoc?: unknown } })?.data?.codTipoDoc ?? '',
+    );
+    calls?.push(cod);
+    return detalle[cod] ?? { respEstado: { codRespuesta: 0 }, data: [] };
+  };
+}
+
+const okDoc = (folio: number, total: number): unknown => ({
+  respEstado: { codRespuesta: 0 },
+  data: [{ detNroDoc: folio, detMntTotal: total }],
+});
+
+describe('rcvListAll (fakes, no SII)', () => {
+  it('fans out over every resumen type from ONE session, flattening docs with their type', async () => {
+    const rt = makeRuntime(
+      script(RESUMEN_MULTI, {
+        '33': okDoc(1, 100),
+        '34': { respEstado: { codRespuesta: 0 }, data: [{ detNroDoc: 2 }, { detNroDoc: 3 }] },
+      }),
+    );
+    await seed(rt);
+
+    const res = await rcvListAll(rt, { periodo: '2026-06', side: 'COMPRA' });
+
+    expect(res).toMatchObject({ rut: SELF, periodo: '2026-06', side: 'COMPRA', incomplete: false });
+    expect(res.rejectedTypes).toEqual([]);
+    expect(res.docs).toHaveLength(3);
+    expect(res.docs.map((d) => d.codigoTipoDoc).sort()).toEqual(['33', '34', '34']);
+    expect(res.docs.find((d) => d.folio === 1)?.codigoTipoDoc).toBe('33');
+    expect(rt.portal.restoreCalls).toBe(1); // SINGLE session for the whole fan-out
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'rcv_detalle_all',
+      result: 'ok',
+      rut: SELF,
+      periodo: '202606',
+      side: 'COMPRA',
+      count: 3,
+      incomplete: false,
+    });
+  });
+
+  it("isolates one type's RcvError: incomplete + rejectedTypes, other types still return", async () => {
+    const rt = makeRuntime(
+      script(RESUMEN_MULTI, {
+        '33': okDoc(1, 100),
+        // A real rejection (non-zero, non-3 code) → parseEnvelope throws RcvError.
+        '34': { respEstado: { codRespuesta: 1, msgeRespuesta: 'Tipo no disponible' } },
+      }),
+    );
+    await seed(rt);
+
+    const res = await rcvListAll(rt, { periodo: '2026-06', side: 'COMPRA' });
+
+    expect(res.incomplete).toBe(true);
+    expect(res.rejectedTypes).toEqual(['34']);
+    expect(res.docs).toHaveLength(1);
+    expect(res.docs[0]?.codigoTipoDoc).toBe('33');
+    // The whole read still succeeds (a per-type error is not a session error).
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'rcv_detalle_all',
+      result: 'ok',
+      incomplete: true,
+    });
+  });
+
+  it('skips resumen rows with no codigoTipoDoc and never posts a detalle for them', async () => {
+    const calls: string[] = [];
+    const rt = makeRuntime(
+      script(
+        { respEstado: { codRespuesta: 0 }, data: [{ dcvNombreTipoDoc: 'sin tipo' }] },
+        {},
+        calls,
+      ),
+    );
+    await seed(rt);
+
+    const res = await rcvListAll(rt, { periodo: '2026-06', side: 'COMPRA' });
+
+    expect(res.docs).toEqual([]);
+    expect(res.incomplete).toBe(false);
+    expect(calls).toEqual([]); // no detalle POST for a null-type row
+  });
+
+  it('an empty resumen yields no docs, no detalle POST, incomplete=false', async () => {
+    const calls: string[] = [];
+    const rt = makeRuntime(script({ respEstado: { codRespuesta: 0 }, data: [] }, {}, calls));
+    await seed(rt);
+
+    const res = await rcvListAll(rt, { periodo: '2026-06', side: 'COMPRA' });
+
+    expect(res.docs).toEqual([]);
+    expect(res.incomplete).toBe(false);
+    expect(res.rejectedTypes).toEqual([]);
+    expect(calls).toEqual([]); // no types → no detalle fan-out
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'rcv_detalle_all', result: 'ok', count: 0 });
+  });
+
+  it('--rut reaches the represented empresa (body-RUT) and records rutAuth = principal', async () => {
+    const rt = makeRuntime(script(RESUMEN_MULTI, { '33': okDoc(1, 100), '34': okDoc(2, 200) }));
+    await seed(rt);
+
+    const res = await rcvListAll(rt, { periodo: '202606', side: 'VENTA', rut: EMPRESA });
+
+    expect(res.rut).toBe(EMPRESA);
+    expect(res.docs).toHaveLength(2);
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'rcv_detalle_all',
+      rut: EMPRESA,
+      rutAuth: SELF,
+    });
+  });
+
+  it('no session → NotAuthenticated, with a failed audit receipt', async () => {
+    const rt = makeRuntime(script(RESUMEN_MULTI, {})); // not seeded
+    await expect(rcvListAll(rt, { periodo: '2026-06', side: 'COMPRA' })).rejects.toBeInstanceOf(
+      NotAuthenticatedError,
+    );
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'rcv_detalle_all', result: 'failed' });
   });
 });
