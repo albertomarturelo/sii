@@ -4,6 +4,26 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.6.0 — 2026-07-04
+
+### Added
+
+- **`rcvListAll` — single-session RCV detalle fan-out (#77).** New task
+  `rcvListAll(runtime, { periodo, side, rut? })` returning `RcvDetalleAll`: every
+  RCV document of a período+lado in ONE session — `fetchRcvResumen` enumerates the
+  present DTE types, then `fetchRcvDetalle` per type, flattened (each
+  `RcvDetalleAllDoc` carries its `codigoTipoDoc`). A consumer gets one flat "todos
+  los documentos" table without opening N browser sessions (ADR-003). **Body-RUT**
+  (`--rut`/operate selects a represented empresa, like `rcvList`), paced between
+  POSTs (ADR-004). **Per-type resilience** (mirrors `f22Historial`): a per-type
+  `RcvError` is captured in `rejectedTypes` and flips `incomplete: true` while the
+  other types still return; a session-level error (`NotAuthenticated`/
+  `SessionExpired`) still aborts. Never retries a rejected type. One audit receipt
+  (`rcv_detalle_all`, rut/periodo/side/count — no PII).
+- Surfaced as `sii rcv all <periodo> [--venta] [--rut]` and the MCP `rcv_all` tool
+  (`readOnly`); the CLI human render tags each row with its `tipo` and prints a
+  `⚠ Resultado incompleto` line listing the rejected types.
+
 ## 0.5.0 — 2026-07-03
 
 ### Added

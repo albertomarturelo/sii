@@ -130,6 +130,7 @@ operar como, y **emitir** una BHE— quedan controladas: `bte_emit` es la única
 - «¿Cuál es el estado de mi sesión y a nombre de qué RUT estoy operando?» → `auth_status`
 - «Muéstrame el resumen del RCV de **compras** del período 2026-05.» → `rcv_summary`
 - «Lista el detalle de ventas del RCV de 2026-05.» → `rcv_list`
+- «Dame **todos** los documentos del RCV de compras de 2026-05 en una sola tabla.» → `rcv_all`
 - «¿Cómo quedó mi declaración de renta (F22) del año tributario 2025?» → `f22_status` / `f22_formulario`
 - «¿Tengo observaciones en el F22 de 2025?» → `f22_observaciones`
 - «¿Cuál es mi posición de IVA mes a mes en el F29 durante 2026?» → `f29_overview`
@@ -158,7 +159,8 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii auth logout` | Cierra sesión (cierre server best-effort + wipe local) |
 | `sii operate <rut> \| --self \| --list` | Elige el RUT a nombre del cual actuar / lista el set operable |
 | `sii rcv summary <periodo>` | Resumen del Registro de Compras y Ventas |
-| `sii rcv list <periodo> [--compra\|--venta] [--rut]` | Detalle de documentos del RCV |
+| `sii rcv list <periodo> [--compra\|--venta] [--rut]` | Detalle de documentos de UN tipo del RCV |
+| `sii rcv all <periodo> [--venta] [--rut]` | Detalle de TODOS los tipos del RCV en una tabla plana (una sola sesión) |
 | `sii f22 status [año]` | Estado de la Renta anual (F22); sin año → overview multi-año |
 | `sii f22 formulario <año>` | Formulario F22 completo, agrupado (ingresos/deducciones/retenciones/resultado) |
 | `sii f22 observaciones <año> [--folio]` | Observaciones/inconsistencias del F22 |
