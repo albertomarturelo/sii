@@ -96,6 +96,8 @@ describe('sii rcv command (fake runtime, no SII)', () => {
     expect(human).toContain('⚠ Resultado incompleto');
     expect(human).toContain('34');
 
+    // A fresh runtime for the JSON default: `run` captures a command's stdout once, so the
+    // human (--human) and JSON assertions each need their own invocation.
     const rt2 = makeRcvRuntime(
       allScript({
         '33': { respEstado: { codRespuesta: 0 }, data: [{ detNroDoc: 1, detMntTotal: 100 }] },

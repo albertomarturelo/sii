@@ -165,7 +165,10 @@ export async function rcvListAll(runtime: Runtime, args: RcvResumenArgs): Promis
         const docs: RcvDetalleAllDoc[] = [];
         const rejectedTypes: string[] = [];
         for (const codigoTipoDoc of tipos) {
-          await runtime.clock.sleep(pacingMs()); // pace each detalle POST after the resumen (ADR-004)
+          // Pace before EVERY detalle POST — the resumen→detalle[0] hop is itself a
+          // consecutive POST, so (unlike f22Overview's `i>0` guard) the first iteration
+          // sleeps too (ADR-004).
+          await runtime.clock.sleep(pacingMs());
           try {
             const detalle = await fetchRcvDetalle(session, {
               rut,

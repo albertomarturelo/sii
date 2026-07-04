@@ -226,6 +226,20 @@ describe('rcvListAll (fakes, no SII)', () => {
     expect(calls).toEqual([]); // no detalle POST for a null-type row
   });
 
+  it('an empty resumen yields no docs, no detalle POST, incomplete=false', async () => {
+    const calls: string[] = [];
+    const rt = makeRuntime(script({ respEstado: { codRespuesta: 0 }, data: [] }, {}, calls));
+    await seed(rt);
+
+    const res = await rcvListAll(rt, { periodo: '2026-06', side: 'COMPRA' });
+
+    expect(res.docs).toEqual([]);
+    expect(res.incomplete).toBe(false);
+    expect(res.rejectedTypes).toEqual([]);
+    expect(calls).toEqual([]); // no types → no detalle fan-out
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'rcv_detalle_all', result: 'ok', count: 0 });
+  });
+
   it('--rut reaches the represented empresa (body-RUT) and records rutAuth = principal', async () => {
     const rt = makeRuntime(script(RESUMEN_MULTI, { '33': okDoc(1, 100), '34': okDoc(2, 200) }));
     await seed(rt);
