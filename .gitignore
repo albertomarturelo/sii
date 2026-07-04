@@ -28,3 +28,6 @@ coverage/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# local working doc — status is managed locally, not versioned
+docs/CURRENT_STATUS.md
