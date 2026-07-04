@@ -7,6 +7,7 @@ import {
   formatMoney as money,
   formatRut as fmtRut,
   rcvList,
+  rcvListAll,
   rcvSummary,
   type RcvSide,
   type Runtime,
@@ -70,6 +71,35 @@ export function registerRcv(program: Command, runtime: Runtime): void {
           );
         }
         out(`${res.docs.length} documento(s).`);
+      });
+    });
+
+  rcv
+    .command('all')
+    .description('Detalle de TODOS los tipos de documento de un período (una sola sesión).')
+    .argument('<periodo>', 'Período tributario (YYYYMM o YYYY-MM).')
+    .option('--venta', 'Consulta el registro de VENTAS (por defecto: COMPRAS).')
+    .option('--rut <rut>', 'Operar como una empresa representada (del conjunto operable).')
+    .action(async (periodo: string, opts: { venta?: boolean; rut?: string }) => {
+      const res = await rcvListAll(runtime, { periodo, side: sideOf(opts), ...rutOpt(opts.rut) });
+      emit(res, () => {
+        out(`RCV ${res.side} ${res.periodo} — todos los tipos — ${fmtRut(res.rut)}`);
+        if (res.docs.length === 0) {
+          out('Sin documentos en el período.');
+        } else {
+          for (const d of res.docs) {
+            const contraparte = d.rutEmisor ? fmtRut(d.rutEmisor) : '—';
+            out(
+              `  tipo=${d.codigoTipoDoc}  folio=${d.folio ?? '—'}  ${contraparte}  ${d.fechaEmision ?? '—'}  total=${money(d.montoTotal)}`,
+            );
+          }
+          out(`${res.docs.length} documento(s).`);
+        }
+        // A per-type SII rejection doesn't fail the read — surface which types are missing
+        // (ADR-004: never hidden), mirroring `f22 historial`'s `⚠ folio …` line.
+        if (res.incomplete) {
+          out(`⚠ Resultado incompleto — tipos rechazados por SII: ${res.rejectedTypes.join(', ')}`);
+        }
       });
     });
 }

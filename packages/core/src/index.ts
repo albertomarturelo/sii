@@ -18,8 +18,16 @@ export { operate, operateSelf, operatingStatus, listOperable } from './tasks/ope
 export type { OperateResult, OperableList } from './tasks/operate.js';
 export { describeOperating, formatOperableEntry } from './identity/index.js';
 export type { OperatingContext, OperableEntry } from './identity/index.js';
-export { rcvSummary, rcvList } from './tasks/rcv.js';
-export type { RcvResumen, RcvResumenRow, RcvDetalle, RcvDetalleDoc, RcvSide } from './tasks/rcv.js';
+export { rcvSummary, rcvList, rcvListAll } from './tasks/rcv.js';
+export type {
+  RcvResumen,
+  RcvResumenRow,
+  RcvDetalle,
+  RcvDetalleDoc,
+  RcvDetalleAll,
+  RcvDetalleAllDoc,
+  RcvSide,
+} from './tasks/rcv.js';
 export { f22Status, f22Overview, f22Observaciones, f22Historial } from './tasks/f22.js';
 export type {
   F22Estado,
