@@ -39,7 +39,7 @@ boilerplate, it is how the project stays coherent.
    [Conventional Commits](https://www.conventionalcommits.org/) subjects
    (`feat(scope): …`, ≤72 chars), in English.
 4. Ship `docs/` updates in the same commit as the code that motivated them;
-   `CURRENT_STATUS.md` / `ROADMAP.md` bookkeeping goes in a separate commit.
+   `ROADMAP.md` bookkeeping goes in a separate commit.
 5. Open a PR against `main`; CI must be green (typecheck, lint, format, tests, and
    the ADR-003 boundary guard).
 

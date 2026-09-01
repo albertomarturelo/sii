@@ -9,9 +9,11 @@ checklist with PASS / WARN / FAIL per item:
 2. **`CLAUDE.md` content shape**: should be mostly `@references`, not
    paragraphs of prose. FAIL if any section has >10 lines of inlined
    content where an `@docs/...` reference would do.
-3. **`docs/CURRENT_STATUS.md` freshness**: run
-   `git log -1 --format=%ar -- docs/CURRENT_STATUS.md`. WARN if older
-   than 2 working days; FAIL if older than 1 week.
+3. **`docs/ROADMAP.md` freshness**: run
+   `git log -1 --format=%ar -- docs/ROADMAP.md`. WARN if it predates the
+   last feature commit on `main` — a shipped surface whose row was never
+   ticked. (Do NOT check `docs/CURRENT_STATUS.md`: it is untracked since
+   #79, so any git-based check reports it as infinitely stale.)
 4. **ADR index integrity**: every file matching
    `docs/decisions/[0-9]*.md` must be listed in
    `docs/decisions/_index.md`, and every row in `_index.md` must point to

@@ -29,7 +29,7 @@ This shapes every architectural decision — internalize before writing code.
    session. Others authorize by the SESSION PRINCIPAL (F29, BHE, and — to be
    confirmed — F22): a representing persona is rejected for those and must log
    in AS the empresa. Load-bearing for the identity model (ADR-005); F22/F29
-   reach is an open observation item (see CURRENT_STATUS).
+   reach was confirmed live (spike #15): both are session-keyed.
 
 ## Two surfaces, one core — and where Claude plugs in
 

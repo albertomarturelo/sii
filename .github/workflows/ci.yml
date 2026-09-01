@@ -19,14 +19,14 @@ jobs:
     name: Build + Lint + Format + Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # No `version:` here — action-setup reads it from package.json
       # `packageManager` (pnpm@10.x), the single source of truth. Pinning it here
       # too triggers ERR_PNPM_BAD_PM_VERSION on a mismatch.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
@@ -52,7 +52,7 @@ jobs:
     # Pure git/bash checks — no install needed, so this gate is green from the
     # first commit, before any dependency lands.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: ADR index integrity
         # Every docs/decisions/NNN-*.md must be listed in _index.md, and every

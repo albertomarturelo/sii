@@ -31,13 +31,13 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # No `version:` here — action-setup reads pnpm from package.json
       # `packageManager` (the single source of truth), matching ci.yml.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 20
           cache: pnpm
@@ -77,7 +77,7 @@ jobs:
     permissions:
       contents: write # create the release; the only job that may write to the repo
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Create the GitHub release from CHANGELOG.md
         env:

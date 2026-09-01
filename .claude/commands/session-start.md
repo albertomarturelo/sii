@@ -4,10 +4,12 @@
 
 Read the following files in order, then produce a brief summary:
 
-1. `docs/CURRENT_STATUS.md` — what is in progress, what is blocked, what
-   is next.
+1. `docs/ROADMAP.md` — the surface checklist: what is shipped (✅), in
+   progress (🚧), blocked (🔒) and planned (📋).
 2. `docs/decisions/_index.md` — any recent decisions that might affect
    current work.
+3. `git log --oneline -10` + `gh issue list --state open` — what actually
+   moved last, and what is still open.
 
 Then state:
 
@@ -19,5 +21,7 @@ Do **NOT** read source code files yet. The point of this command is to
 orient yourself in O(1k) tokens, not O(50k). Source code reading happens
 after the focus is chosen.
 
-If `docs/CURRENT_STATUS.md` was last updated more than 1 working day ago,
-warn the user that the context may be stale before proceeding.
+Derive "what was last worked on" from the recent commits and open issues,
+not from a status file: `docs/CURRENT_STATUS.md` is NOT versioned (untracked
+since #79) and may be absent or stale. If the last commit is more than a few
+days old, say so — the context may have moved on outside this repo.
