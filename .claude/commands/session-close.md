@@ -4,12 +4,12 @@
 
 Before this session ends, do ALL of the following. Do not skip any step.
 
-1. **Update `docs/CURRENT_STATUS.md`:**
-   - Move completed items from "In Progress" to "Recently Completed".
-   - Add new items uncovered this session.
-   - Update "Known Issues" / "Open Decisions" if anything new surfaced.
-   - Re-rank "Next Priorities".
-   - Update the "Last updated" date to today.
+1. **Update `docs/ROADMAP.md`** if a surface changed state: tick a row ✅
+   on merge, flip 🚧/🔒, add a row for a newly planned surface, and refresh
+   the ADR/issue columns. This is the versioned "are we there yet?" source
+   of truth — bookkeeping goes in its OWN commit, never bundled with feature
+   code. (`docs/CURRENT_STATUS.md` is no longer versioned — #79. If you keep
+   a local one, it is yours; do not commit it.)
 
 2. **If a convention was clarified or a pattern was corrected this
    session**, update `docs/CONVENTIONS.md` accordingly. Do NOT leave

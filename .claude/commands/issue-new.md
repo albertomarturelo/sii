@@ -5,7 +5,7 @@
      The completeness of this issue determines how cheaply the NEXT
      session starts. Be thorough HERE so you can be cheap THERE. -->
 
-Guide the user through creating a new GitHub issue on `AltumStack/sii`
+Guide the user through creating a new GitHub issue on `albertomarturelo/sii`
 using the fixed 6-section body template.
 Ask, in order, and confirm each answer before moving on:
 
@@ -31,8 +31,8 @@ Ask, in order, and confirm each answer before moving on:
    - **Tests** — what tests exist (`<module>.test.ts`, vitest); state
      explicitly that fixtures are **synthetic** (no real PII).
    - **Documentation** — which of `CONVENTIONS.md`, `STACK.md`,
-     `ARCHITECTURE.md`, `CURRENT_STATUS.md`, a `sii-contract/*.md`, or a
-     new ADR is updated.
+     `ARCHITECTURE.md`, `ROADMAP.md`, a `sii-contract/*.md`, or a new ADR
+     is updated.
 8. **Reproduction steps.** ONLY for `fix`. Minimal repro to confirm the
    bug (state whether the session was cached or fresh for SII bugs).
 9. **Estimated sessions.** `1` | `2–3` | `4+`. If > 1, **propose
@@ -67,7 +67,7 @@ section order or names — `/issue:start` parses by section header):
 Then run:
 
 ```bash
-gh issue create --repo AltumStack/sii \
+gh issue create --repo albertomarturelo/sii \
   --title "<step 2>" --body "<body above>" \
   --label "<step 1>,<step 10 scopes>"
 ```

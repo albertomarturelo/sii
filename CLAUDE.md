@@ -28,10 +28,6 @@ hard-won SII wire knowledge and guardrails are PORTED, the code is not.
 
 @docs/CONVENTIONS.md
 
-## Current Status
-
-@docs/CURRENT_STATUS.md
-
 ## Roadmap
 
 @docs/ROADMAP.md

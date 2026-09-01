@@ -264,8 +264,8 @@ Python `sii-cli`, adapted to TypeScript.
 - **One feature / work-unit per PR.** Don't bundle two distinct features even on
   the same branch — when a second feature emerges mid-branch, give it its own
   branch/PR (stacked if it depends on the first). Split BEFORE opening the PR.
-- **Status docs go in a SEPARATE commit from feature code.** `CURRENT_STATUS.md`
-  and `ROADMAP.md` bookkeeping is its own commit; the feature commit carries code
+- **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
+  bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
 - **No AI attribution anywhere** — no `Co-Authored-By`, no "Generated with",
   no `🤖`, in any artifact that lands in git or on GitHub. Authorship is the
