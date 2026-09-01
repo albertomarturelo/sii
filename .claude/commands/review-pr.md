@@ -85,9 +85,10 @@ Token cost so far ~2–4k. **Still no full source-file reads.**
 ### Documentation (CFD — ADR-001)
 - New convention → `CONVENTIONS.md` updated in the SAME commit.
 - New decision → new ADR BEFORE the implementation; superseded ADRs updated.
-- `CURRENT_STATUS.md` reflects what shipped; `STACK.md` updated if deps changed;
-  `ARCHITECTURE.md` updated if the module map changed; a new SII surface adds a
-  `sii-contract/*.md`.
+- `ROADMAP.md` reflects what shipped, in its OWN commit (status bookkeeping is never
+  bundled with feature code). `STACK.md` updated if deps changed; `ARCHITECTURE.md`
+  updated if the module map changed; a new SII surface adds a `sii-contract/*.md`.
+  (`CURRENT_STATUS.md` is NOT versioned — untracked since #79; never flag it here.)
 
 ## 4. Output a structured report
 
