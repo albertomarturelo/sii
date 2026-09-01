@@ -1,6 +1,6 @@
 {
   "name": "@albertomarturelo/sii-cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "CLI for Chile's SII (tax authority): authenticated reads of RCV, F29, F22, boletas de honorarios, DTE-authorized, and peticiones administrativas. Each command is a thin call into @albertomarturelo/sii-core tasks (ADR-003).",
   "keywords": [
@@ -38,7 +38,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "dependencies": {
     "@albertomarturelo/sii-core": "workspace:^",

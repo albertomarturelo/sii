@@ -23,11 +23,17 @@ conocimiento del SII y los guardrails se **portan**; el código se escribe nuevo
 Superficies de **lectura** operativas y validadas en vivo: autenticación
 (`auth`), representación (`operate`), **RCV**, **F22** (status / formulario /
 observaciones / historial), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
-(consulta pública), **whoami** y **peticiones administrativas** (SISPAD). Primera
-superficie de **escritura**: `bte emit` (emisión de Boletas de Honorarios
-Electrónicas). Ver el detalle en
-[`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md) y el checklist completo en
-[`docs/ROADMAP.md`](docs/ROADMAP.md).
+(consulta pública), **whoami** y **peticiones administrativas** (SISPAD).
+
+Primera superficie de **descarga de documentos**: `f29 pdf`, que guarda en disco
+el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuando el
+período fue pagado, **su comprobante de pago**— y el Certificado de Declaración.
+
+Primera superficie de **escritura**: `bte emit` (emisión de Boletas de Honorarios
+Electrónicas).
+
+Checklist completo en [`docs/ROADMAP.md`](docs/ROADMAP.md); el historial de
+versiones, en [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Estructura
 
@@ -77,6 +83,7 @@ sii auth login
 sii peticiones list            # ¿tengo trámites detenidos ("en espera de Antecedentes")?
 sii rcv summary 2026-05        # resumen del RCV de compras
 sii f29 overview 2026          # posición de IVA mes a mes
+sii f29 pdf 2026-05            # descarga el PDF del F29 de mayo
 ```
 
 ### Conectar el MCP a Claude
@@ -123,6 +130,11 @@ herramienta (lectura vs escritura). Las de **escritura** —iniciar/cerrar sesi�
 operar como, y **emitir** una BHE— quedan controladas: `bte_emit` es la única
 `destructive` y exige confirmación explícita.
 
+Las herramientas que **descargan documentos** (`f29_pdf`) escriben el archivo en tu
+disco y devuelven **solo su ruta y tamaño, nunca el contenido**: un F29 lleva razón
+social, domicilio y tu posición financiera completa, así que el documento no entra
+en la conversación — lo abres tú desde la ruta que indica.
+
 ![Herramientas del conector `sii` en Claude Desktop — 13 de lectura + 4 de escritura/borrado](docs/assets/mcp-tools-claude-desktop.png)
 
 **Ejemplos de prompts** (lenguaje natural; Claude elige la herramienta):
@@ -135,6 +147,7 @@ operar como, y **emitir** una BHE— quedan controladas: `bte_emit` es la única
 - «¿Tengo observaciones en el F22 de 2025?» → `f22_observaciones`
 - «¿Cuál es mi posición de IVA mes a mes en el F29 durante 2026?» → `f29_overview`
 - «Dame la propuesta del F29 de mayo 2026, agrupada por línea.» → `f29_formulario`
+- «Descárgame el PDF del F29 de mayo 2026 con su comprobante de pago.» → `f29_pdf`
 - «¿Qué documentos tributarios está autorizado a emitir el RUT 77.777.777-7?» → `dte_authorized` (público, sin login)
 - «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
 - «¿Tengo peticiones administrativas detenidas ante el SII (en espera de antecedentes)?» → `peticiones_list`
@@ -168,6 +181,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii f29 formulario <periodo>` | Propuesta de IVA (F29) etiquetada + agrupada |
 | `sii f29 overview <desde> <hasta> \| <año>` | Posición de IVA mes a mes en un rango |
 | `sii f29 status <periodo>` | Estado del F29 de un mes |
+| `sii f29 pdf <periodo> [--tipo] [--out]` | Descarga el PDF del F29 presentado (y su comprobante de pago) |
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
