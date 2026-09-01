@@ -4,19 +4,29 @@
 //   - formulario <periodo> : la propuesta de IVA, etiquetada + agrupada (fuente: propuesta).
 //   - overview <desde> [hasta] | <año> : posición por mes (estado/folio/total) en un rango.
 //   - status <periodo> : el estado crudo de las declaraciones del mes.
+//   - pdf <periodo> : descarga el/los PDF de la declaración presentada (ADR-022).
+import { join } from 'node:path';
 import type { Command } from 'commander';
 import {
   f29Formulario,
   f29Overview,
+  f29Pdf,
   f29Status,
   formatMoney as money,
   formatRut as fmtRut,
   F29_GRUPO_LABELS,
   type F29Grupo,
   type LineaF29,
+  type F29PdfTipo,
   type Runtime,
 } from '@albertomarturelo/sii-core';
+// The default destination lives in the `./node` subpath (the pure core cannot know $HOME —
+// ADR-016/ADR-022); the SURFACE applies it.
+import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
 import { emit, out } from '../io.js';
+
+const TIPOS_PDF = ['compacto', 'solemne', 'ambos'] as const;
+type TipoPdfArg = (typeof TIPOS_PDF)[number];
 
 const GROUP_ORDER: readonly F29Grupo[] = ['debitos', 'creditos', 'retenciones', 'otros', 'totales'];
 
@@ -90,6 +100,45 @@ export function registerF29(program: Command, runtime: Runtime): void {
           );
         }
         out(`${e.declaraciones.length} declaración(es).`);
+      });
+    });
+
+  f29
+    .command('pdf')
+    .description(
+      'Descarga el PDF de la declaración F29 presentada de un período. ' +
+        'El compacto es además el comprobante de pago cuando el período fue pagado.',
+    )
+    .argument('<periodo>', 'Período tributario (YYYYMM o YYYY-MM).')
+    .option(
+      '--tipo <tipo>',
+      `Documento a descargar: ${TIPOS_PDF.join(' | ')}.`,
+      'compacto' satisfies TipoPdfArg,
+    )
+    .option('--out <dir>', 'Carpeta destino.', join(DOCUMENTOS_DIR, 'f29'))
+    .option('--folio <folio>', 'Folio específico (por defecto, la declaración vigente).')
+    .action(async (periodoArg: string, opts: { tipo: string; out: string; folio?: string }) => {
+      if (!(TIPOS_PDF as readonly string[]).includes(opts.tipo)) {
+        throw new Error(`--tipo debe ser uno de: ${TIPOS_PDF.join(', ')}.`);
+      }
+      let folio: number | undefined;
+      if (opts.folio !== undefined) {
+        folio = Number(opts.folio);
+        if (!Number.isInteger(folio) || folio <= 0) {
+          throw new Error('--folio debe ser un número entero positivo.');
+        }
+      }
+      const res = await f29Pdf(runtime, {
+        periodo: periodoArg,
+        tipo: opts.tipo as F29PdfTipo | 'ambos',
+        directorio: opts.out,
+        ...(folio !== undefined ? { folio } : {}),
+      });
+      emit(res, () => {
+        out(`F29 ${res.periodo} — ${fmtRut(res.rut)} · folio ${res.folio} (${res.estado ?? '—'})`);
+        for (const d of res.documentos) {
+          out(`  ${d.tipo.padEnd(8)} ${(d.bytes / 1024).toFixed(1)} KB  ${d.path}`);
+        }
       });
     });
 }

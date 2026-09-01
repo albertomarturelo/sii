@@ -2,11 +2,14 @@
 import type {
   AuditEntry,
   AuditSink,
+  BinaryRequest,
+  BinaryResponse,
   Clock,
   CredentialLoginOptions,
   FormRequest,
   InteractiveLoginOptions,
   JsonRequest,
+  FileSink,
   KeyValueStore,
   PortalDriver,
   PortalSession,
@@ -66,6 +69,10 @@ export interface FakeSessionScript {
   /** Result for `requestText(url, options)` — an authenticated raw-body request (GWT-RPC
    *  reads, ADR-020). Return the decoded body string (status 200) or a full PublicResponse. */
   requestText?: (url: string, options?: TextRequest) => PublicResponse | string;
+  /** Result for `requestBinary(url, options)` — an authenticated download (F29 PDFs,
+   *  ADR-022). Return the raw bytes (content-type defaults to `application/pdf`) or a
+   *  full BinaryResponse to script an error page / odd content-type. */
+  requestBinary?: (url: string, options?: BinaryRequest) => BinaryResponse | Uint8Array;
   /** Cookie name → value map for `cookie(url, name)`. */
   cookies?: Record<string, string>;
   storageState?: unknown;
@@ -105,6 +112,14 @@ export class FakePortalSession implements PortalSession {
     const r = this.script.requestText?.(url, options);
     if (r === undefined) return { status: 200, body: '' };
     return typeof r === 'string' ? { status: 200, body: r } : r;
+  }
+  /** The last requestBinary call — lets a test assert the download URL sent to SII. */
+  lastBinaryRequest: { url: string; options?: BinaryRequest } | null = null;
+  async requestBinary(url: string, options?: BinaryRequest): Promise<BinaryResponse> {
+    this.lastBinaryRequest = options ? { url, options } : { url };
+    const r = this.script.requestBinary?.(url, options);
+    if (r === undefined) return { status: 200, contentType: null, bytes: new Uint8Array() };
+    return r instanceof Uint8Array ? { status: 200, contentType: 'application/pdf', bytes: r } : r;
   }
   async cookie(_url: string, name: string): Promise<string | null> {
     return this.script.cookies?.[name] ?? null;
@@ -177,5 +192,17 @@ export class FakePortalDriver implements PortalDriver {
     const r = this.script.requestPublic?.(url, options);
     if (r === undefined) return { status: 200, body: '' };
     return typeof r === 'string' ? { status: 200, body: r } : r;
+  }
+}
+
+/** In-memory FileSink: records what would have been written, touching no filesystem.
+ *  `files` maps the absolute path to the bytes, so a test asserts both destination and
+ *  payload (ADR-022). */
+export class InMemoryFileSink implements FileSink {
+  readonly files = new Map<string, Uint8Array>();
+  async write(dir: string, name: string, bytes: Uint8Array): Promise<string> {
+    const path = `${dir.replace(/\/+$/, '')}/${name}`;
+    this.files.set(path, bytes);
+    return path;
   }
 }

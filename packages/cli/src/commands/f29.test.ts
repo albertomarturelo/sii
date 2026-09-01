@@ -28,6 +28,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
         folio: 7654321,
         declFechaCreacion: '12/06/2026',
         monto: 880000, // declared total a pagar → surfaced
+        codigo: 987654321, // = the PDF servlet's `codInt` (ADR-022)
       },
     ],
   };
@@ -36,6 +37,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
       clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
       audit: new testing.RecordingAuditSink(),
       store: new testing.InMemoryKeyValueStore(),
+      files: new testing.InMemoryFileSink(),
       portal: new testing.FakePortalDriver({
         loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
         restoreSession: {
@@ -48,6 +50,11 @@ describe('sii f29 command (fake runtime, no SII)', () => {
               : url.includes('getDeclaracionConEstados')
                 ? ESTADO
                 : { metaData: {}, data: null },
+          requestBinary: () => ({
+            status: 200,
+            contentType: 'application/pdf',
+            bytes: new TextEncoder().encode('%PDF-1.4 synthetic'),
+          }),
         },
       }),
     };
@@ -93,5 +100,44 @@ describe('sii f29 command (fake runtime, no SII)', () => {
     await expect(run(makeF29Runtime(), 'f29', 'formulario', '2026-05')).rejects.toBeInstanceOf(
       NotAuthenticatedError,
     );
+  });
+
+  it('f29 pdf <periodo> downloads to the given --out and prints the path', async () => {
+    const rt = makeF29Runtime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'f29', 'pdf', '2026-05', '--out', '/tmp/x');
+
+    expect(out).toContain('folio 7654321');
+    expect(out).toContain('/tmp/x/f29-202605-compacto-7654321.pdf');
+    expect((rt.files as testing.InMemoryFileSink).files.size).toBe(1);
+  });
+
+  it('f29 pdf --tipo ambos writes both artifacts; JSON is the default output', async () => {
+    const rt = makeF29Runtime();
+    await run(rt, 'auth', 'login');
+    const json = (await runJson(
+      rt,
+      'f29',
+      'pdf',
+      '2026-05',
+      '--tipo',
+      'ambos',
+      '--out',
+      '/tmp/x',
+    )) as {
+      folio: number;
+      documentos: { tipo: string; path: string }[];
+    };
+
+    expect(json.folio).toBe(7654321);
+    expect(json.documentos.map((d) => d.tipo)).toEqual(['compacto', 'solemne']);
+    expect((rt.files as testing.InMemoryFileSink).files.size).toBe(2);
+  });
+
+  it('f29 pdf rejects an unknown --tipo before touching SII', async () => {
+    const rt = makeF29Runtime();
+    await run(rt, 'auth', 'login');
+    await expect(run(rt, 'f29', 'pdf', '2026-05', '--tipo', 'xml')).rejects.toThrow(/--tipo/);
+    expect((rt.files as testing.InMemoryFileSink).files.size).toBe(0);
   });
 });

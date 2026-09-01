@@ -12,6 +12,8 @@ import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginError } from '../../auth/login-error.js';
 import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
 import type {
+  BinaryRequest,
+  BinaryResponse,
   CredentialLoginOptions,
   FormRequest,
   InteractiveLoginOptions,
@@ -146,6 +148,31 @@ class PlaywrightPortalSession implements PortalSession {
     const buffer = await response.body();
     const text = new TextDecoder(charsetOf(response.headers()['content-type'])).decode(buffer);
     return { status: response.status(), body: text };
+  }
+
+  async requestBinary(url: string, options: BinaryRequest = {}): Promise<BinaryResponse> {
+    // Authenticated download from the browser's APIRequestContext (the session cookies
+    // ride along) — the primitive behind the F29 PDF servlets (ADR-022). The body is taken
+    // UNDECODED: running a PDF through TextDecoder corrupts it irreversibly.
+    //
+    // SII answers HTTP 200 on BOTH failure modes here (observed 2026-08-31): a wrong
+    // `codInt` returns an HTML error page, and a dead cookie jar follows a redirect to the
+    // login wall. So status is never a success signal — the login wall is caught URL-based
+    // (as in requestForm/requestText) and the caller decides the rest from contentType +
+    // magic bytes.
+    const response = await this.context.request.fetch(url, {
+      method: options.method ?? 'GET',
+      ...(options.headers ? { headers: options.headers } : {}),
+      ...(options.body !== undefined ? { data: options.body } : {}),
+    });
+    const wall = formLoginWallError(response.url());
+    if (wall) throw wall;
+    const buffer = await response.body();
+    return {
+      status: response.status(),
+      contentType: response.headers()['content-type'] ?? null,
+      bytes: new Uint8Array(buffer),
+    };
   }
 
   async cookie(url: string, name: string): Promise<string | null> {

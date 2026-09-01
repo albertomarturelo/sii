@@ -71,6 +71,28 @@ export interface TextRequest {
   readonly body?: string;
 }
 
+/** An AUTHENTICATED request whose response body is taken UNDECODED. The primitive behind
+ *  document downloads — the F29 PDF servlets (`rfiInternet/formCompacto` / `formSolemne`,
+ *  ADR-022). Text decoding would corrupt the bytes irreversibly, so this is a distinct
+ *  primitive rather than a flag on `requestText`. */
+export interface BinaryRequest {
+  readonly method?: 'GET' | 'POST';
+  readonly headers?: Record<string, string>;
+  /** Raw request body, sent verbatim. Omit for GET. */
+  readonly body?: string;
+}
+
+export interface BinaryResponse {
+  readonly status: number;
+  /** The `content-type` header verbatim (e.g. `application/pdf`), or null. SII answers
+   *  HTTP 200 even for an error page, so the CALLER decides success from this plus the
+   *  body's magic bytes — never from `status` (observed, ADR-022). */
+  readonly contentType: string | null;
+  /** Undecoded response body. `Uint8Array` (not `Buffer`) keeps the pure main barrel
+   *  free of `node:` types (ADR-016). */
+  readonly bytes: Uint8Array;
+}
+
 export interface PortalSession {
   /** Navigate; returns the URL actually landed on (for URL-based auth detection). */
   goto(url: string): Promise<string>;
@@ -93,6 +115,11 @@ export interface PortalSession {
    *  detection is URL-based (landing on `LOGIN_HOST`) → `SessionExpiredError`, since a
    *  non-JSON body is EXPECTED (unlike `requestJson`). */
   requestText(url: string, options?: TextRequest): Promise<PublicResponse>;
+  /** Issue an authenticated request from the session and return the body UNDECODED. The
+   *  primitive behind document downloads (F29 PDFs, ADR-022). Login-wall detection is
+   *  URL-based (the final URL landing on `LOGIN_HOST`) → `SessionExpiredError`, since a
+   *  non-text body is expected; it is raised BEFORE any bytes are returned. */
+  requestBinary(url: string, options?: BinaryRequest): Promise<BinaryResponse>;
   /** Value of a cookie visible to `url` (e.g. the SPA conversation `TOKEN`), or
    *  null. Used to seed SDI request metadata. */
   cookie(url: string, name: string): Promise<string | null>;
@@ -152,10 +179,24 @@ export interface PortalDriver {
 }
 
 /** The set of seams a task needs. The composition root (runtime.ts) builds it. */
+/** Writes a produced document to the local filesystem. A seam (ADR-003) rather than a
+ *  direct `node:fs` call so the pure main barrel stays Node-free (ADR-016) and tests never
+ *  touch the disk. The first consumer is the F29 PDF download (ADR-022). */
+export interface FileSink {
+  /** Write `bytes` to `<dir>/<name>`, creating `dir` if needed, and return the absolute
+   *  path written. The name is deterministic, so re-downloading refreshes in place. */
+  write(dir: string, name: string, bytes: Uint8Array): Promise<string>;
+}
+
 export interface Runtime {
   readonly clock: Clock;
   readonly audit: AuditSink;
   readonly store: KeyValueStore;
   readonly portal: PortalDriver;
+  /** OPTIONAL, like `secrets`: only document-producing tasks need it (F29 PDFs, ADR-022),
+   *  so an embedded consumer that injects its own seams (ADR-016) is not forced to supply
+   *  one. `createNodeRuntime` always wires the Node default; a task that needs it and finds
+   *  it missing raises an actionable error rather than failing obscurely. */
+  readonly files?: FileSink;
   readonly secrets?: SecretStore;
 }

@@ -24,6 +24,7 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
       'f22_status',
       'f29_formulario',
       'f29_overview',
+      'f29_pdf',
       'f29_status',
       'operate',
       'peticiones_list',

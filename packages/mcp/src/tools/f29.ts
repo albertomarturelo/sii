@@ -5,7 +5,17 @@
 // overview (estado por rango) + status (estado de un mes).
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { f29Formulario, f29Overview, f29Status, type Runtime } from '@albertomarturelo/sii-core';
+import {
+  f29Formulario,
+  f29Overview,
+  f29Pdf,
+  f29Status,
+  type Runtime,
+} from '@albertomarturelo/sii-core';
+// The default destination lives in the `./node` subpath (the pure core cannot know $HOME —
+// ADR-016/ADR-022); the SURFACE applies it.
+import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
+import { join } from 'node:path';
 import { toolText } from '../tool-helpers.js';
 
 export function registerF29Tools(server: McpServer, runtime: Runtime): void {
@@ -61,5 +71,44 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
     },
     ({ periodo }) =>
       toolText(async () => JSON.stringify(await f29Status(runtime, { periodo }), null, 2)),
+  );
+
+  server.registerTool(
+    'f29_pdf',
+    {
+      title: 'F29 PDF (descargar la declaración presentada)',
+      description:
+        'Descarga a un archivo local el PDF de la declaración F29 presentada de un período ' +
+        '(YYYYMM o YYYY-MM). `tipo`: "compacto" (el formulario tal como lo imprime el SII; es ' +
+        'ADEMÁS el comprobante de pago cuando el período fue pagado — su timbre dice "RECIBIDA ' +
+        'Y PAGADA POR INTERNET"), "solemne" (el Certificado de Declaración) o "ambos". ' +
+        'Devuelve SOLO la ruta y el tamaño del archivo, NO su contenido: el documento lleva ' +
+        'datos tributarios personales (razón social, domicilio, posición financiera) y no debe ' +
+        'entrar en la conversación — ábrelo tú desde la ruta indicada. `directorio` elige la ' +
+        'carpeta destino (por defecto ~/.sii/documentos/f29). `folio` apunta a una declaración ' +
+        'concreta cuando el período tiene varias; por defecto, la vigente. ' +
+        'Session-keyed: descarga tu propio F29; para una empresa, inicia sesión como ella.',
+      inputSchema: {
+        periodo: z.string(),
+        tipo: z.enum(['compacto', 'solemne', 'ambos']).optional(),
+        directorio: z.string().optional(),
+        folio: z.number().int().positive().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ periodo, tipo, directorio, folio }) =>
+      // readOnly at SII: it fetches a document and writes it locally; nothing changes at SII.
+      toolText(async () =>
+        JSON.stringify(
+          await f29Pdf(runtime, {
+            periodo,
+            ...(tipo !== undefined ? { tipo } : {}),
+            directorio: directorio ?? join(DOCUMENTOS_DIR, 'f29'),
+            ...(folio !== undefined ? { folio } : {}),
+          }),
+          null,
+          2,
+        ),
+      ),
   );
 }
