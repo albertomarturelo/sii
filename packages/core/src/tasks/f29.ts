@@ -20,15 +20,15 @@ import { F29Error, ValidationError } from '../errors/index.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
 import { fetchF29Estado, fetchF29Propuesta } from '../portal/f29.js';
 import { F29_PDF_TIPOS, fetchF29Pdf } from '../portal/f29-pdf.js';
-import type { F29PdfTipo } from '../portal/f29-pdf.js';
+import type { F29PdfTipo, F29PdfTipoArg } from '../portal/f29-pdf.js';
 import type { CodigoF29, DeclaracionEstadoF29, F29Estado } from '../portal/f29.js';
 import { F29_CODIGOS, glosaF29, grupoF29 } from '../portal/f29-codigos.js';
 import type { F29Grupo } from '../portal/f29-codigos.js';
 import type { AuditEntry, Clock, Runtime } from '../seams/index.js';
 
 export type { CodigoF29, DeclaracionEstadoF29, F29Estado, F29Propuesta } from '../portal/f29.js';
-export type { F29PdfTipo } from '../portal/f29-pdf.js';
-export { F29_PDF_TIPOS } from '../portal/f29-pdf.js';
+export type { F29PdfTipo, F29PdfTipoArg } from '../portal/f29-pdf.js';
+export { F29_PDF_TIPO_ARGS, F29_PDF_TIPOS } from '../portal/f29-pdf.js';
 export { F29_GRUPO_LABELS } from '../portal/f29-codigos.js';
 export type { F29Grupo } from '../portal/f29-codigos.js';
 
@@ -328,13 +328,19 @@ export interface F29PdfResult {
   readonly folio: number;
   readonly estado: string | null;
   readonly documentos: readonly DocumentoF29[];
+  /** True when at least one requested artifact failed — the successful ones are still
+   *  returned (and already written to disk). */
+  readonly incompleto: boolean;
+  /** Verbatim SII message per failed artifact (ADR-004: surfaced, never hidden, never
+   *  retried). */
+  readonly documentosConError: readonly { tipo: F29PdfTipo; error: string }[];
 }
 
 export interface F29PdfArgs {
   readonly periodo: string;
   /** Which artifact(s). Default: `compacto` — the filed form, and the payment receipt when
    *  the período was paid. */
-  readonly tipo?: F29PdfTipo | 'ambos';
+  readonly tipo?: F29PdfTipoArg;
   /** Destination directory. REQUIRED: the pure core cannot know the user's home, so each
    *  surface supplies its default from `DOCUMENTOS_DIR` (`./node` subpath, ADR-016). */
   readonly directorio: string;
@@ -397,23 +403,40 @@ export async function f29Pdf(runtime: Runtime, args: F29PdfArgs): Promise<F29Pdf
       }
 
       const documentos: DocumentoF29[] = [];
+      const documentosConError: { tipo: F29PdfTipo; error: string }[] = [];
       for (const [i, tipo] of tipos.entries()) {
         if (i > 0) await runtime.clock.sleep(pacingMs());
-        const pdf = await fetchF29Pdf(session, {
-          tipo,
-          rut,
-          folio: decl.folio,
-          codigo: decl.codigo,
-        });
-        const archivo = nombreArchivo(periodo, tipo, decl.folio);
-        const path = await files.write(args.directorio, archivo, pdf.bytes);
-        documentos.push({
-          tipo,
-          path,
-          archivo,
-          bytes: pdf.bytes.byteLength,
-          contentType: pdf.contentType,
-        });
+        try {
+          const pdf = await fetchF29Pdf(session, {
+            tipo,
+            rut,
+            folio: decl.folio,
+            codigo: decl.codigo,
+          });
+          const archivo = nombreArchivo(periodo, tipo, decl.folio);
+          const path = await files.write(args.directorio, archivo, pdf.bytes);
+          documentos.push({
+            tipo,
+            path,
+            archivo,
+            bytes: pdf.bytes.byteLength,
+            contentType: pdf.contentType,
+          });
+        } catch (e) {
+          // One artifact's SII refusal (F29Error) is recorded verbatim and skipped — it must
+          // not discard a sibling that ALREADY landed on disk (CONVENTIONS: in a fan-out a
+          // per-item error stops the item, not the batch). A session-level failure is not an
+          // F29Error and propagates, aborting the whole read.
+          if (e instanceof F29Error) {
+            documentosConError.push({ tipo, error: e.message });
+            continue;
+          }
+          throw e;
+        }
+      }
+      // Every requested artifact failed → this is a plain failure, not a partial result.
+      if (documentos.length === 0 && documentosConError.length > 0) {
+        throw new F29Error(documentosConError.map((d) => `${d.tipo}: ${d.error}`).join(' | '));
       }
       return {
         rut: rut.canonical,
@@ -421,6 +444,8 @@ export async function f29Pdf(runtime: Runtime, args: F29PdfArgs): Promise<F29Pdf
         folio: decl.folio,
         estado: decl.estado,
         documentos,
+        incompleto: documentosConError.length > 0,
+        documentosConError,
       };
     });
 
@@ -431,6 +456,7 @@ export async function f29Pdf(runtime: Runtime, args: F29PdfArgs): Promise<F29Pdf
       period: periodo.canonical,
       folio: res.folio,
       tipos: res.documentos.map((d) => d.tipo).join(','),
+      ...(res.incompleto ? { incompleto: true } : {}),
       durationMs: runtime.clock.now().getTime() - start,
     });
     return res;

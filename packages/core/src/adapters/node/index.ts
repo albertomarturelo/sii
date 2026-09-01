@@ -3,7 +3,6 @@
 import { promises as fsp, appendFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { homedir as _homedir } from 'node:os';
 import type { AuditEntry, AuditSink, Clock, FileSink, KeyValueStore } from '../../seams/index.js';
 
 export const SII_DIR = join(homedir(), '.sii');
@@ -69,7 +68,7 @@ export const DOCUMENTOS_DIR = join(SII_DIR, 'documentos');
  *  user- or model-supplied `~/Downloads` works as typed. */
 export class NodeFileSink implements FileSink {
   async write(dir: string, name: string, bytes: Uint8Array): Promise<string> {
-    const expanded = dir.startsWith('~') ? join(_homedir(), dir.slice(1)) : dir;
+    const expanded = dir.startsWith('~') ? join(homedir(), dir.slice(1)) : dir;
     const target = resolve(expanded);
     await fsp.mkdir(target, { recursive: true, mode: 0o700 });
     const path = join(target, name);

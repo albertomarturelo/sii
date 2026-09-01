@@ -139,6 +139,12 @@ body starts with the `%PDF-` magic**. Otherwise:
 
 HTTP status is never treated as a success signal.
 
+**A per-artifact refusal stops the ARTIFACT, not the batch** (CONVENTIONS' fan-out rule).
+When `ambos` is requested and one artifact is refused, the one that already landed on disk
+is still returned; the failure is surfaced verbatim in `documentosConError` with
+`incompleto: true`. Only when EVERY requested artifact fails does the task throw. A
+session-level error is not a per-item error and still aborts the whole operation.
+
 ### 5. Surface posture
 
 - **Session-keyed** (ADR-005): F29 authorizes by the session principal. No `--rut`; a

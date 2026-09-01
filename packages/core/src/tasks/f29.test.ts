@@ -339,4 +339,89 @@ describe('f29Pdf (fakes, no SII, no filesystem)', () => {
       NotAuthenticatedError,
     );
   });
+
+  it('keeps a sibling that ALREADY landed when the second artifact is refused', async () => {
+    // CONVENTIONS: in a fan-out, a per-item SII error stops the ITEM, not the batch.
+    const rt = makeRuntime();
+    await seed(rt);
+    const portal = rt.portal as FakePortalDriver;
+    portal.script.restoreSession = {
+      ...portal.script.restoreSession,
+      requestBinary: (url: string) =>
+        url.includes('formSolemne')
+          ? {
+              status: 200, // SII answers 200 for its refusal page
+              contentType: 'text/html;charset=ISO-8859-1',
+              bytes: Uint8Array.from(
+                [
+                  ...'<html><body><b>No est\xE1 autorizado para realizar esta acci\xF3n.</b></body></html>',
+                ].map((c) => c.charCodeAt(0)),
+              ),
+            }
+          : {
+              status: 200,
+              contentType: 'application/pdf',
+              bytes: new TextEncoder().encode('%PDF-1.4 C'),
+            },
+    };
+
+    const res = await f29Pdf(rt, { periodo: '202605', tipo: 'ambos', directorio: '/tmp/docs' });
+
+    expect(res.documentos.map((d) => d.tipo)).toEqual(['compacto']); // the one that worked
+    expect(res.incompleto).toBe(true);
+    expect(res.documentosConError).toEqual([
+      { tipo: 'solemne', error: 'No está autorizado para realizar esta acción.' }, // verbatim
+    ]);
+    expect((rt.files as InMemoryFileSink).files.size).toBe(1);
+    const audit = entries(rt).find((e) => e.action === 'f29_pdf');
+    expect(audit?.result).toBe('ok');
+    expect(audit?.incompleto).toBe(true);
+  });
+
+  it('fails outright when EVERY requested artifact is refused', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const portal = rt.portal as FakePortalDriver;
+    portal.script.restoreSession = {
+      ...portal.script.restoreSession,
+      requestBinary: () => ({
+        status: 200,
+        contentType: 'text/html',
+        bytes: new TextEncoder().encode('<html><body><b>No autorizado.</b></body></html>'),
+      }),
+    };
+
+    await expect(f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      /compacto: No autorizado\./,
+    );
+    expect((rt.files as InMemoryFileSink).files.size).toBe(0);
+  });
+
+  it('raises an actionable error when the runtime has no FileSink', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const noFiles = { ...rt, files: undefined } as unknown as Runtime;
+
+    await expect(f29Pdf(noFiles, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      /FileSink/,
+    );
+  });
+
+  it('refuses a declaración with no folio/codigo (the codInt the servlet needs)', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const portal = rt.portal as FakePortalDriver;
+    portal.script.restoreSession = {
+      ...portal.script.restoreSession,
+      requestJson: (url: string) =>
+        url.includes('getDeclaracionConEstados')
+          ? { metaData: { errors: null }, data: [{ estado: 'Vigente', folio: null, codigo: null }] }
+          : { metaData: {}, data: null },
+    };
+
+    await expect(f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      /folio\/código de acceso/,
+    );
+    expect((rt.files as InMemoryFileSink).files.size).toBe(0);
+  });
 });

@@ -48,6 +48,7 @@ export {
   f29Status,
   F29_GRUPO_LABELS,
   F29_PDF_TIPOS,
+  F29_PDF_TIPO_ARGS,
 } from './tasks/f29.js';
 export type {
   F29Formulario,
@@ -64,6 +65,7 @@ export type {
   F29PdfArgs,
   F29PdfResult,
   F29PdfTipo,
+  F29PdfTipoArg,
 } from './tasks/f29.js';
 export { dteAuthorized } from './tasks/dte.js';
 export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';

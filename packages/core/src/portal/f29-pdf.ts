@@ -22,7 +22,12 @@ import type { BinaryResponse, PortalSession } from '../seams/index.js';
  *  `solemne` = the formal "Certificado Declaración de Formulario 29". */
 export type F29PdfTipo = 'compacto' | 'solemne';
 
-export const F29_PDF_TIPOS: readonly F29PdfTipo[] = ['compacto', 'solemne'] as const;
+export const F29_PDF_TIPOS = ['compacto', 'solemne'] as const;
+
+/** What a SURFACE accepts: the artifacts plus the "both" shorthand. Kept here so the CLI
+ *  option list and the MCP zod enum cannot drift from each other. */
+export const F29_PDF_TIPO_ARGS = ['compacto', 'solemne', 'ambos'] as const;
+export type F29PdfTipoArg = (typeof F29_PDF_TIPO_ARGS)[number];
 
 /** Internal F29 form number in the document URLs — `029`, zero-padded (NOT the internal id
  *  "2" the SDI facades use for `formId`/`formCodigo`). Observed. */

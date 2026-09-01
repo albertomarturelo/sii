@@ -17,16 +17,14 @@ import {
   F29_GRUPO_LABELS,
   type F29Grupo,
   type LineaF29,
-  type F29PdfTipo,
+  F29_PDF_TIPO_ARGS,
+  type F29PdfTipoArg,
   type Runtime,
 } from '@albertomarturelo/sii-core';
 // The default destination lives in the `./node` subpath (the pure core cannot know $HOME —
 // ADR-016/ADR-022); the SURFACE applies it.
 import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
 import { emit, out } from '../io.js';
-
-const TIPOS_PDF = ['compacto', 'solemne', 'ambos'] as const;
-type TipoPdfArg = (typeof TIPOS_PDF)[number];
 
 const GROUP_ORDER: readonly F29Grupo[] = ['debitos', 'creditos', 'retenciones', 'otros', 'totales'];
 
@@ -112,14 +110,14 @@ export function registerF29(program: Command, runtime: Runtime): void {
     .argument('<periodo>', 'Período tributario (YYYYMM o YYYY-MM).')
     .option(
       '--tipo <tipo>',
-      `Documento a descargar: ${TIPOS_PDF.join(' | ')}.`,
-      'compacto' satisfies TipoPdfArg,
+      `Documento a descargar: ${F29_PDF_TIPO_ARGS.join(' | ')}.`,
+      'compacto' satisfies F29PdfTipoArg,
     )
     .option('--out <dir>', 'Carpeta destino.', join(DOCUMENTOS_DIR, 'f29'))
     .option('--folio <folio>', 'Folio específico (por defecto, la declaración vigente).')
     .action(async (periodoArg: string, opts: { tipo: string; out: string; folio?: string }) => {
-      if (!(TIPOS_PDF as readonly string[]).includes(opts.tipo)) {
-        throw new Error(`--tipo debe ser uno de: ${TIPOS_PDF.join(', ')}.`);
+      if (!(F29_PDF_TIPO_ARGS as readonly string[]).includes(opts.tipo)) {
+        throw new Error(`--tipo debe ser uno de: ${F29_PDF_TIPO_ARGS.join(', ')}.`);
       }
       let folio: number | undefined;
       if (opts.folio !== undefined) {
@@ -130,7 +128,7 @@ export function registerF29(program: Command, runtime: Runtime): void {
       }
       const res = await f29Pdf(runtime, {
         periodo: periodoArg,
-        tipo: opts.tipo as F29PdfTipo | 'ambos',
+        tipo: opts.tipo as F29PdfTipoArg,
         directorio: opts.out,
         ...(folio !== undefined ? { folio } : {}),
       });
@@ -139,6 +137,8 @@ export function registerF29(program: Command, runtime: Runtime): void {
         for (const d of res.documentos) {
           out(`  ${d.tipo.padEnd(8)} ${(d.bytes / 1024).toFixed(1)} KB  ${d.path}`);
         }
+        // A partial failure must be visible: the sibling that DID land is above (ADR-004).
+        for (const e of res.documentosConError) out(`  ${e.tipo.padEnd(8)} ERROR: ${e.error}`);
       });
     });
 }

@@ -10,6 +10,7 @@ import {
   f29Overview,
   f29Pdf,
   f29Status,
+  F29_PDF_TIPO_ARGS,
   type Runtime,
 } from '@albertomarturelo/sii-core';
 // The default destination lives in the `./node` subpath (the pure core cannot know $HOME —
@@ -90,7 +91,7 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
         'Session-keyed: descarga tu propio F29; para una empresa, inicia sesión como ella.',
       inputSchema: {
         periodo: z.string(),
-        tipo: z.enum(['compacto', 'solemne', 'ambos']).optional(),
+        tipo: z.enum(F29_PDF_TIPO_ARGS).optional(),
         directorio: z.string().optional(),
         folio: z.number().int().positive().optional(),
       },
