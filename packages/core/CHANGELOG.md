@@ -4,6 +4,58 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.7.0 — 2026-08-31
+
+### Breaking
+
+- **`PortalSession` gains `requestBinary`.** A consumer that implements the
+  `PortalSession` interface itself (rather than using the Node default driver) must add
+  the method. The Node adapter, the fake session and both surfaces already do. Type-level
+  only — no behaviour changed for consumers using `createNodeRuntime`.
+
+### Added
+
+- **`f29Pdf` — download the filed F29 as a local PDF (#80, ADR-022).** New task
+  `f29Pdf(runtime, { periodo, tipo?, directorio, folio? })` returning `F29PdfResult`. Two
+  artifacts, both plain authenticated GET servlets under `www4.sii.cl/rfiInternet/`:
+  `compacto` (the form as SII prints it — and **the payment receipt** when the período was
+  paid: its stamp reads "RECIBIDA Y PAGADA POR INTERNET", with banco / medio de pago /
+  fecha), `solemne` (the Certificado de Declaración), or `ambos`. The `codInt` the servlet
+  demands is the `codigo` field `getDeclaracionConEstados` already returned, so one
+  existing JSON call yields both the folio and its authorization token — **no GWT-RPC and
+  no SPA warm-up** (unlike Fase 2's `formCompleto`, which bounces a live session to the
+  login wall). **Session-keyed** (ADR-005): no `--rut`; a representing operate pointer is
+  rejected up front.
+- **The document output contract (ADR-022, amends ADR-012).** The task writes the bytes to
+  disk and returns a DESCRIPTOR — `{tipo, path, archivo, bytes, contentType}` — never the
+  bytes and never base64: these PDFs are PII-dense (razón social, domicilio, full financial
+  position) and their contents must stay out of the LLM's context (ADR-006). Success is
+  decided by `content-type` + the `%PDF-` magic, **never by HTTP status** — SII answers 200
+  for its own error page AND for the login-wall bounce. A per-artifact refusal is captured
+  verbatim in `documentosConError` with `incompleto: true` and does not discard a sibling
+  already written (CONVENTIONS' fan-out rule); only an all-artifacts failure throws. The
+  audit receipt records rut / período / folio / tipos — not the destination path, not the
+  contents.
+- **`PortalSession.requestBinary` seam** — an authenticated request whose body is taken
+  UNDECODED (`Uint8Array`, keeping the pure barrel Node-free). Text decoding would corrupt
+  a PDF irreversibly, so this is a distinct primitive rather than a flag on `requestText`.
+  Login-wall detection is URL-based, as in `requestForm`/`requestText`.
+- **`FileSink` seam + `NodeFileSink`** — writes a produced document (`mkdir -p`, mode
+  **0600**, leading `~` expanded). `Runtime.files` is **OPTIONAL** (like `secrets`), so an
+  embedded consumer injecting its own seams (ADR-016) is not forced to supply one; a task
+  that needs it and finds it missing raises an actionable error. `createNodeRuntime` always
+  wires the default.
+- **`DOCUMENTOS_DIR`** exported from the `./node` subpath (`~/.sii/documentos`) — the
+  destination is a required task argument, since the pure core cannot know `$HOME`, and each
+  surface applies the default.
+- **`testing.InMemoryFileSink`** — records what would have been written, so tests touch no
+  filesystem.
+- Surfaced as `sii f29 pdf <periodo> [--tipo compacto|solemne|ambos] [--out <dir>]
+  [--folio <n>]` and the MCP `f29_pdf` tool (`readOnly`), whose description states that the
+  file holds tax PII and that its contents are deliberately not returned. The surface tipo
+  list has one owner (`F29_PDF_TIPO_ARGS`) so the CLI option list and the MCP zod enum
+  cannot drift.
+
 ## 0.6.0 — 2026-07-04
 
 ### Added
