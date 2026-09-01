@@ -41,7 +41,15 @@ export type {
   EventoF22,
   ObservacionF22,
 } from './tasks/f22.js';
-export { f29Formulario, f29Overview, f29Status, F29_GRUPO_LABELS } from './tasks/f29.js';
+export {
+  f29Formulario,
+  f29Overview,
+  f29Pdf,
+  f29Status,
+  F29_GRUPO_LABELS,
+  F29_PDF_TIPOS,
+  F29_PDF_TIPO_ARGS,
+} from './tasks/f29.js';
 export type {
   F29Formulario,
   F29Overview,
@@ -53,6 +61,11 @@ export type {
   F29Propuesta,
   CodigoF29,
   DeclaracionEstadoF29,
+  DocumentoF29,
+  F29PdfArgs,
+  F29PdfResult,
+  F29PdfTipo,
+  F29PdfTipoArg,
 } from './tasks/f29.js';
 export { dteAuthorized } from './tasks/dte.js';
 export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   FakePortalDriver,
   FixedClock,
+  InMemoryFileSink,
   InMemoryKeyValueStore,
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
@@ -9,7 +10,7 @@ import type { Runtime } from '../seams/index.js';
 import { F29Error, NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
-import { f29Formulario, f29Overview, f29Status } from './f29.js';
+import { f29Formulario, f29Overview, f29Pdf, f29Status } from './f29.js';
 
 // Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
@@ -45,6 +46,7 @@ const ESTADO_ENV = {
       declFechaCreacion: '12/06/2026 10:30:00',
       monto: 880000,
       enNegocio: true,
+      codigo: 111111111, // = the PDF servlet's `codInt`; per-folio (ADR-022)
     },
     {
       estadoDeclaracionId: 1,
@@ -53,6 +55,7 @@ const ESTADO_ENV = {
       declFechaCreacion: '12/06/2026 10:31:00',
       monto: 880000, // declared total a pagar → the month's headline `total`
       enNegocio: true,
+      codigo: 987654321, // = the PDF servlet's `codInt` (ADR-022)
     },
   ],
 };
@@ -62,6 +65,7 @@ function makeRuntime(): Runtime {
     clock: new FixedClock(new Date('2026-06-27T12:00:00Z')),
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
+    files: new InMemoryFileSink(),
     portal: new FakePortalDriver({
       restoreSession: {
         cookies: { TOKEN: 't' },
@@ -70,6 +74,11 @@ function makeRuntime(): Runtime {
           if (url.includes('getDeclaracionConEstados')) return ESTADO_ENV;
           return { metaData: {}, data: null };
         },
+        requestBinary: (url) => ({
+          status: 200,
+          contentType: 'application/pdf',
+          bytes: new TextEncoder().encode(`%PDF-1.4 ${url.includes('Solemne') ? 'S' : 'C'}`),
+        }),
       },
     }),
   };
@@ -250,5 +259,169 @@ describe('f29 tasks (fakes, no SII)', () => {
     await seed(rt);
     await expect(f29Formulario(rt, { periodo: 'nope' })).rejects.toBeInstanceOf(ValidationError);
     expect(entries(rt).some((e) => String(e.action).startsWith('f29_'))).toBe(false);
+  });
+});
+
+describe('f29Pdf (fakes, no SII, no filesystem)', () => {
+  it('downloads the VIGENTE folio using its `codigo` as codInt, writes it, audits', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+
+    const res = await f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' });
+
+    // The vigente declaración is picked over the rejected one, and ITS codigo is the codInt.
+    expect(res.folio).toBe(1234567890);
+    expect(res.estado).toBe('Vigente');
+    expect(res.documentos).toHaveLength(1);
+
+    const [doc] = res.documentos;
+    expect(doc?.tipo).toBe('compacto');
+    expect(doc?.archivo).toBe('f29-202605-compacto-1234567890.pdf');
+    expect(doc?.path).toBe('/tmp/docs/f29-202605-compacto-1234567890.pdf');
+    expect(doc?.bytes).toBeGreaterThan(0);
+
+    const files = rt.files as InMemoryFileSink;
+    expect(files.files.has('/tmp/docs/f29-202605-compacto-1234567890.pdf')).toBe(true);
+
+    const audit = entries(rt).find((e) => e.action === 'f29_pdf');
+    expect(audit?.result).toBe('ok');
+    expect(audit?.folio).toBe(1234567890);
+    // The receipt records WHAT was fetched, never WHERE it landed nor its contents (ADR-022).
+    expect(JSON.stringify(audit)).not.toContain('/tmp/docs');
+  });
+
+  it('`ambos` writes both artifacts and PACES between them', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+
+    const res = await f29Pdf(rt, { periodo: '202605', tipo: 'ambos', directorio: '/tmp/docs' });
+
+    expect(res.documentos.map((d) => d.tipo)).toEqual(['compacto', 'solemne']);
+    expect((rt.files as InMemoryFileSink).files.size).toBe(2);
+    expect(slept(rt).length).toBe(1); // one pause between the two downloads (ADR-004)
+  });
+
+  it('targets a specific folio with --folio', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+
+    const res = await f29Pdf(rt, { periodo: '202605', folio: 1234567891, directorio: '/tmp/docs' });
+
+    expect(res.folio).toBe(1234567891);
+    expect(res.estado).toBe('Rechazada por pago inconcluso');
+    expect(res.documentos[0]?.archivo).toContain('1234567891');
+  });
+
+  it('rejects an unknown folio without downloading anything', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+
+    await expect(
+      f29Pdf(rt, { periodo: '202605', folio: 999, directorio: '/tmp/docs' }),
+    ).rejects.toThrow(/folio 999/);
+    expect((rt.files as InMemoryFileSink).files.size).toBe(0);
+  });
+
+  it('is SESSION-KEYED: rejects a representing operate pointer BEFORE any session', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    await setOperatingRut(rt.store, EMPRESA);
+
+    await expect(f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      F29Error,
+    );
+    expect((rt.files as InMemoryFileSink).files.size).toBe(0);
+  });
+
+  it('raises NotAuthenticated with no session', async () => {
+    const rt = makeRuntime();
+    await expect(f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      NotAuthenticatedError,
+    );
+  });
+
+  it('keeps a sibling that ALREADY landed when the second artifact is refused', async () => {
+    // CONVENTIONS: in a fan-out, a per-item SII error stops the ITEM, not the batch.
+    const rt = makeRuntime();
+    await seed(rt);
+    const portal = rt.portal as FakePortalDriver;
+    portal.script.restoreSession = {
+      ...portal.script.restoreSession,
+      requestBinary: (url: string) =>
+        url.includes('formSolemne')
+          ? {
+              status: 200, // SII answers 200 for its refusal page
+              contentType: 'text/html;charset=ISO-8859-1',
+              bytes: Uint8Array.from(
+                [
+                  ...'<html><body><b>No est\xE1 autorizado para realizar esta acci\xF3n.</b></body></html>',
+                ].map((c) => c.charCodeAt(0)),
+              ),
+            }
+          : {
+              status: 200,
+              contentType: 'application/pdf',
+              bytes: new TextEncoder().encode('%PDF-1.4 C'),
+            },
+    };
+
+    const res = await f29Pdf(rt, { periodo: '202605', tipo: 'ambos', directorio: '/tmp/docs' });
+
+    expect(res.documentos.map((d) => d.tipo)).toEqual(['compacto']); // the one that worked
+    expect(res.incompleto).toBe(true);
+    expect(res.documentosConError).toEqual([
+      { tipo: 'solemne', error: 'No está autorizado para realizar esta acción.' }, // verbatim
+    ]);
+    expect((rt.files as InMemoryFileSink).files.size).toBe(1);
+    const audit = entries(rt).find((e) => e.action === 'f29_pdf');
+    expect(audit?.result).toBe('ok');
+    expect(audit?.incompleto).toBe(true);
+  });
+
+  it('fails outright when EVERY requested artifact is refused', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const portal = rt.portal as FakePortalDriver;
+    portal.script.restoreSession = {
+      ...portal.script.restoreSession,
+      requestBinary: () => ({
+        status: 200,
+        contentType: 'text/html',
+        bytes: new TextEncoder().encode('<html><body><b>No autorizado.</b></body></html>'),
+      }),
+    };
+
+    await expect(f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      /compacto: No autorizado\./,
+    );
+    expect((rt.files as InMemoryFileSink).files.size).toBe(0);
+  });
+
+  it('raises an actionable error when the runtime has no FileSink', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const noFiles = { ...rt, files: undefined } as unknown as Runtime;
+
+    await expect(f29Pdf(noFiles, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      /FileSink/,
+    );
+  });
+
+  it('refuses a declaración with no folio/codigo (the codInt the servlet needs)', async () => {
+    const rt = makeRuntime();
+    await seed(rt);
+    const portal = rt.portal as FakePortalDriver;
+    portal.script.restoreSession = {
+      ...portal.script.restoreSession,
+      requestJson: (url: string) =>
+        url.includes('getDeclaracionConEstados')
+          ? { metaData: { errors: null }, data: [{ estado: 'Vigente', folio: null, codigo: null }] }
+          : { metaData: {}, data: null },
+    };
+
+    await expect(f29Pdf(rt, { periodo: '202605', directorio: '/tmp/docs' })).rejects.toThrow(
+      /folio\/código de acceso/,
+    );
+    expect((rt.files as InMemoryFileSink).files.size).toBe(0);
   });
 });

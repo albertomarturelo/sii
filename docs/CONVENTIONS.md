@@ -123,6 +123,20 @@ Python `sii-cli`, adapted to TypeScript.
   different types). Key the schema by **class name** (the per-type CRC rotates on recompile; the
   layout does not). Body-RUT (validate `--rut` vs the operable set, like RCV). PII-dense (own +
   functionary + third-party) ⇒ NO `raw`, tight allowlist. (ADR-020)
+- **Document downloads go through `PortalSession.requestBinary` + the `FileSink` seam, and a
+  task returns a DESCRIPTOR, never bytes (ADR-022).** A surface that produces a file (first:
+  `f29 pdf`) takes the response body UNDECODED (`requestBinary` — running a PDF through
+  `TextDecoder` corrupts it), writes it through the `FileSink` seam (never `node:fs` directly —
+  the pure barrel must stay Node-free, ADR-016), and returns `{tipo, path, archivo, bytes,
+  contentType, …}`. **Never base64 the bytes into the result**: these documents are PII-dense,
+  so their contents must not enter the LLM's context (ADR-006), and a ~34 KB PDF is tens of
+  thousands of tokens nobody reads. `Runtime.files` is OPTIONAL (like `secrets`) so an embedded
+  consumer isn't forced to supply one; a task that needs it and finds it missing raises an
+  actionable error. **Success is decided by `content-type` + magic bytes, NEVER by HTTP status**
+  — SII answers `200` for its own error page AND for the login-wall bounce (observed). The
+  destination directory is a REQUIRED task argument (the pure core cannot know `$HOME`); each
+  SURFACE applies the default from `DOCUMENTOS_DIR` (`./node` subpath). Compose the local
+  filename yourself — SII's `Content-Disposition` is generic and carries no folio/período.
 - **Write surfaces are two-phase, session-keyed, confirm-gated, PII-free in the audit (ADR-017).**
   A state-changing op (first: `bte emit`) exposes a non-mutating PREVIEW (server computes the
   result without committing) split from the ISSUE step. The CLI defaults to the preview; the real

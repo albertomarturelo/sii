@@ -19,12 +19,16 @@ import { Rut } from '../rut/index.js';
 import { F29Error, ValidationError } from '../errors/index.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
 import { fetchF29Estado, fetchF29Propuesta } from '../portal/f29.js';
+import { F29_PDF_TIPOS, fetchF29Pdf } from '../portal/f29-pdf.js';
+import type { F29PdfTipo, F29PdfTipoArg } from '../portal/f29-pdf.js';
 import type { CodigoF29, DeclaracionEstadoF29, F29Estado } from '../portal/f29.js';
 import { F29_CODIGOS, glosaF29, grupoF29 } from '../portal/f29-codigos.js';
 import type { F29Grupo } from '../portal/f29-codigos.js';
 import type { AuditEntry, Clock, Runtime } from '../seams/index.js';
 
 export type { CodigoF29, DeclaracionEstadoF29, F29Estado, F29Propuesta } from '../portal/f29.js';
+export type { F29PdfTipo, F29PdfTipoArg } from '../portal/f29-pdf.js';
+export { F29_PDF_TIPO_ARGS, F29_PDF_TIPOS } from '../portal/f29-pdf.js';
 export { F29_GRUPO_LABELS } from '../portal/f29-codigos.js';
 export type { F29Grupo } from '../portal/f29-codigos.js';
 
@@ -301,6 +305,163 @@ export async function f29Overview(
     return result;
   } catch (e) {
     audit(runtime, 'f29_overview', 'failed', { period: `${desde.canonical}-${hasta.canonical}` });
+    throw e;
+  }
+}
+
+// --- f29 pdf (document download) -------------------------------------------------
+
+/** One downloaded artifact. The BYTES are deliberately absent: the file lands on disk and
+ *  only this descriptor crosses the task boundary, keeping a PII-dense tax document out of
+ *  the LLM's context and out of any transcript (ADR-006 / ADR-022). */
+export interface DocumentoF29 {
+  readonly tipo: F29PdfTipo;
+  readonly path: string; // absolute path written
+  readonly archivo: string; // basename
+  readonly bytes: number; // size on disk
+  readonly contentType: string;
+}
+
+export interface F29PdfResult {
+  readonly rut: string;
+  readonly periodo: string; // YYYY-MM
+  readonly folio: number;
+  readonly estado: string | null;
+  readonly documentos: readonly DocumentoF29[];
+  /** True when at least one requested artifact failed — the successful ones are still
+   *  returned (and already written to disk). */
+  readonly incompleto: boolean;
+  /** Verbatim SII message per failed artifact (ADR-004: surfaced, never hidden, never
+   *  retried). */
+  readonly documentosConError: readonly { tipo: F29PdfTipo; error: string }[];
+}
+
+export interface F29PdfArgs {
+  readonly periodo: string;
+  /** Which artifact(s). Default: `compacto` — the filed form, and the payment receipt when
+   *  the período was paid. */
+  readonly tipo?: F29PdfTipoArg;
+  /** Destination directory. REQUIRED: the pure core cannot know the user's home, so each
+   *  surface supplies its default from `DOCUMENTOS_DIR` (`./node` subpath, ADR-016). */
+  readonly directorio: string;
+  /** Target one declaración when the período holds several (e.g. a vigente plus rejected
+   *  ones). Default: the vigente one. */
+  readonly folio?: number;
+}
+
+/** Local filename — SII's own `Content-Disposition` is generic (`pdfFormularioCompactoV2.pdf`,
+ *  no folio/período), so it is useless for archiving several months. Ours sorts
+ *  chronologically and stays unambiguous when a período has several folios (ADR-022). */
+function nombreArchivo(periodo: Periodo, tipo: F29PdfTipo, folio: number): string {
+  return `f29-${periodo.canonical}-${tipo}-${folio}.pdf`;
+}
+
+/** Download the F29 PDF(s) of a período to disk and return their descriptors.
+ *
+ *  Session-keyed (ADR-005): reads the session principal, no `--rut`. The `codInt` the servlet
+ *  demands is the estado facade's `codigo`, so one `getDeclaracionConEstados` call supplies
+ *  both the folio and its authorization token — no GWT-RPC (ADR-022). Two artifacts are paced
+ *  through `Clock.sleep` like any fan-out; a SII refusal surfaces verbatim and is never
+ *  retried. */
+export async function f29Pdf(runtime: Runtime, args: F29PdfArgs): Promise<F29PdfResult> {
+  const files = runtime.files;
+  if (!files) {
+    throw new F29Error(
+      'Este runtime no tiene un FileSink: no se puede escribir el documento. Usa ' +
+        '`createNodeRuntime()` o inyecta un `files` seam (ADR-022).',
+    );
+  }
+  const periodo = Periodo.parse(args.periodo);
+  const tipos: readonly F29PdfTipo[] =
+    args.tipo === 'ambos' ? F29_PDF_TIPOS : [args.tipo ?? 'compacto'];
+  await assertSelfOperating(runtime);
+  const start = runtime.clock.now().getTime();
+
+  try {
+    const res = await withSession(runtime, async (session, ctx) => {
+      const rut = Rut.parse(ctx.sessionRut);
+      const estado = await fetchF29Estado(session, { rut, periodo });
+
+      const decl =
+        args.folio !== undefined
+          ? estado.declaraciones.find((d) => d.folio === args.folio)
+          : (estado.declaraciones.find((d) => d.estado === 'Vigente') ?? estado.declaraciones[0]);
+
+      if (!decl) {
+        throw new F29Error(
+          args.folio !== undefined
+            ? `No hay una declaración con folio ${args.folio} en el período ${periodo.formatted}.`
+            : `No hay declaración presentada para el período ${periodo.formatted}.`,
+        );
+      }
+      if (decl.folio === null || decl.codigo === null) {
+        // `codigo` IS the servlet's `codInt` — without it SII refuses the download.
+        throw new F29Error(
+          `La declaración del período ${periodo.formatted} no trae folio/código de acceso; ` +
+            'no se puede descargar el documento.',
+        );
+      }
+
+      const documentos: DocumentoF29[] = [];
+      const documentosConError: { tipo: F29PdfTipo; error: string }[] = [];
+      for (const [i, tipo] of tipos.entries()) {
+        if (i > 0) await runtime.clock.sleep(pacingMs());
+        try {
+          const pdf = await fetchF29Pdf(session, {
+            tipo,
+            rut,
+            folio: decl.folio,
+            codigo: decl.codigo,
+          });
+          const archivo = nombreArchivo(periodo, tipo, decl.folio);
+          const path = await files.write(args.directorio, archivo, pdf.bytes);
+          documentos.push({
+            tipo,
+            path,
+            archivo,
+            bytes: pdf.bytes.byteLength,
+            contentType: pdf.contentType,
+          });
+        } catch (e) {
+          // One artifact's SII refusal (F29Error) is recorded verbatim and skipped — it must
+          // not discard a sibling that ALREADY landed on disk (CONVENTIONS: in a fan-out a
+          // per-item error stops the item, not the batch). A session-level failure is not an
+          // F29Error and propagates, aborting the whole read.
+          if (e instanceof F29Error) {
+            documentosConError.push({ tipo, error: e.message });
+            continue;
+          }
+          throw e;
+        }
+      }
+      // Every requested artifact failed → this is a plain failure, not a partial result.
+      if (documentos.length === 0 && documentosConError.length > 0) {
+        throw new F29Error(documentosConError.map((d) => `${d.tipo}: ${d.error}`).join(' | '));
+      }
+      return {
+        rut: rut.canonical,
+        periodo: periodo.formatted,
+        folio: decl.folio,
+        estado: decl.estado,
+        documentos,
+        incompleto: documentosConError.length > 0,
+        documentosConError,
+      };
+    });
+
+    // Audit the receipt only: rut, período, folio, which artifacts and their sizes. NEVER the
+    // destination path (it can encode user-chosen directory names) and never the contents.
+    audit(runtime, 'f29_pdf', 'ok', {
+      rut: res.rut,
+      period: periodo.canonical,
+      folio: res.folio,
+      tipos: res.documentos.map((d) => d.tipo).join(','),
+      ...(res.incompleto ? { incompleto: true } : {}),
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return res;
+  } catch (e) {
+    audit(runtime, 'f29_pdf', 'failed', { period: periodo.canonical });
     throw e;
   }
 }

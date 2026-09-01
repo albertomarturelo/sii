@@ -2,8 +2,8 @@
 // Playwright PortalDriver lands with the auth increment (ADR-008).
 import { promises as fsp, appendFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import type { AuditEntry, AuditSink, Clock, KeyValueStore } from '../../seams/index.js';
+import { dirname, join, resolve } from 'node:path';
+import type { AuditEntry, AuditSink, Clock, FileSink, KeyValueStore } from '../../seams/index.js';
 
 export const SII_DIR = join(homedir(), '.sii');
 
@@ -56,5 +56,23 @@ export class FileAuditSink implements AuditSink {
     } catch {
       // a receipt is never a gatekeeper — failures degrade silently (ADR-004)
     }
+  }
+}
+
+/** Default document destination: ~/.sii/documentos (ADR-022). A downloaded artifact is a
+ *  tax document, so it lands under the tool's own dir unless the user names another. */
+export const DOCUMENTOS_DIR = join(SII_DIR, 'documentos');
+
+/** fs-backed FileSink: writes a produced document, creating the directory. Files are 0600
+ *  — these are PII-dense tax documents (ADR-006 / ADR-022). A leading `~` is expanded so a
+ *  user- or model-supplied `~/Downloads` works as typed. */
+export class NodeFileSink implements FileSink {
+  async write(dir: string, name: string, bytes: Uint8Array): Promise<string> {
+    const expanded = dir.startsWith('~') ? join(homedir(), dir.slice(1)) : dir;
+    const target = resolve(expanded);
+    await fsp.mkdir(target, { recursive: true, mode: 0o700 });
+    const path = join(target, name);
+    await fsp.writeFile(path, bytes, { mode: 0o600 });
+    return path;
   }
 }
