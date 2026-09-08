@@ -86,6 +86,7 @@ export type {
   FacturaEmpresa,
   FacturaItem,
   FacturaPreviewDoc,
+  FacturaSelectAviso,
   FacturaTotales,
   FormaPago,
   TipoDte,

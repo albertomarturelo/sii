@@ -15,6 +15,19 @@ import {
   resolveAndSelectEmpresa,
 } from './factura.js';
 import type { FacturaEmpresa } from './factura.js';
+import { repairMojibake } from './factura.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+/** The facade source. The in-page fill script is a STRING, so its invariants (waiting for real
+ *  selectors, select-aware assignment, no event on the receptor RUT) are asserted against the
+ *  source directly — a browser-level test would need a live SII page. */
+const facturaSource = (): string =>
+  readFileSync(fileURLToPath(new URL('./factura.ts', import.meta.url)), 'utf8');
+const fillScriptSource = (): string => {
+  const src = facturaSource();
+  return src.slice(src.indexOf('function fillScript'));
+};
 
 /** The `RUT_EMP` select exactly as SII serves it: unclosed `<option>`, label repeats the RUT. */
 const EMPRESAS_HTML = `<form name="fPrmEmpPOP" method="post">
@@ -240,5 +253,107 @@ describe('fetchPreviewPdf', () => {
     await expect(
       fetchPreviewPdf(s, { fields: {}, totales: { neto: 0, iva: 0, total: 0 } }),
     ).rejects.toThrow(/no entregó la vista previa/);
+  });
+});
+
+// --- Regressions for the four failures observed live on 2026-09-08 -------------------
+describe('regressions (live 2026-09-08)', () => {
+  it('BUG-1: repairs SII double-encoded text, leaving clean text untouched', () => {
+    expect(repairMojibake('Fundaci\u00c3\u00b3n Educacional \u00c3\u0091u\u00c3\u00b1oa')).toBe(
+      'Fundaci\u00f3n Educacional \u00d1u\u00f1oa',
+    );
+    expect(repairMojibake('Fundaci\u00f3n Educacional \u00d1u\u00f1oa')).toBe(
+      'Fundaci\u00f3n Educacional \u00d1u\u00f1oa',
+    );
+    expect(repairMojibake('TALLER DEL SUR LTDA')).toBe('TALLER DEL SUR LTDA');
+  });
+
+  it('BUG-1: curated listing rows come back repaired', async () => {
+    const s = new FakePortalSession({
+      requestJson: () => [
+        {
+          ehdr_CODIGO: '5000001',
+          ptdc_CODIGO: '33',
+          efxp_RZN_SOC_RECEP: 'Fundaci\u00c3\u00b3n Educacional \u00c3\u0091u\u00c3\u00b1oa',
+        },
+      ],
+    });
+    const rows = await fetchBorradores(s);
+    expect(rows[0]?.receptorNombre).toBe('Fundaci\u00f3n Educacional \u00d1u\u00f1oa');
+  });
+
+  it('BUG-2: surfaces a scraper error when the async detail grid never draws', async () => {
+    const s = new FakePortalSession({
+      evaluate: () => ({ scraper: 'la grilla de detalle no se dibujo' }),
+    });
+    await expect(fillFactura(s, EMPRESA, INPUT)).rejects.toThrow(/grilla de detalle/);
+  });
+
+  it('BUG-2: the fill script waits for real selectors, never a blind sleep', () => {
+    const src = fillScriptSource();
+    expect(src).toContain("waitFor(['EFXP_NMB_01', 'DESCRIP_01', 'CANT_DET']");
+    expect(src).toContain("waitFor(['EFXP_DSC_ITEM_'");
+    // every setTimeout in the in-page scripts is a short POLL TICK, never a blind wait:
+    // no timer of 100 ms or more is allowed anywhere in the facade.
+    expect(facturaSource()).not.toMatch(/setTimeout\([^,]+,\s*\d{3,}\)/);
+    // and the waits are bounded by a deadline rather than a fixed number of ticks
+    expect(src).toContain('Date.now() + ');
+  });
+
+  it('BUG-3: select receptor fields are matched by option, never blanked', () => {
+    const src = fillScriptSource();
+    expect(src).toContain("e.tagName === 'SELECT'");
+    expect(src).toContain('o.value === v');
+    expect(src).toContain('norm(o.text) === want');
+    expect(src).toContain('coerced.push');
+  });
+
+  it('BUG-3: never fires a change event on the receptor RUT (it reloads the form)', () => {
+    const src = fillScriptSource();
+    expect(src).toContain("put('EFXP_RUT_RECEP', P.receptor.rut);");
+    expect(src).toContain("put('EFXP_DV_RECEP', P.receptor.dv);");
+    expect(src).toContain("put('EFXP_QTY_' + s, it.cantidad, true);");
+  });
+
+  it('BUG-4: the PDF POST reproduces the iframe request (Referer/Origin/dest)', async () => {
+    const REVIEW = '<form name="PreViewDTE"><input type="hidden" name="A" value="1"></form>';
+    const s = new FakePortalSession({
+      requestForm: () => REVIEW,
+      requestBinary: () => new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
+    });
+    await fetchPreviewPdf(s, { fields: { A: '1' }, totales: { neto: 1, iva: 0, total: 1 } });
+    const h = s.lastBinaryRequest?.options?.headers ?? {};
+    expect(h['Referer']).toBe('https://www1.sii.cl/Portal001/PreViewFrame.html');
+    expect(h['Origin']).toBe('https://www1.sii.cl');
+    expect(h['Sec-Fetch-Dest']).toBe('iframe');
+    expect(h['Content-Type']).toBe('application/x-www-form-urlencoded');
+    expect(s.lastBinaryRequest?.options?.method).toBe('POST');
+  });
+
+  it('BUG-4: paces the two consecutive preview POSTs', async () => {
+    const REVIEW = '<form name="PreViewDTE"><input type="hidden" name="A" value="1"></form>';
+    const s = new FakePortalSession({
+      requestForm: () => REVIEW,
+      requestBinary: () => new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
+    });
+    let paced = 0;
+    await fetchPreviewPdf(
+      s,
+      { fields: { A: '1' }, totales: { neto: 1, iva: 0, total: 1 } },
+      async () => {
+        paced += 1;
+      },
+    );
+    expect(paced).toBe(1);
+  });
+
+  it('never CALLS the signing CGI (ADR-023)', () => {
+    // The source names it once, in the comment that documents the boundary. What must never
+    // exist is a call: assert against the COMPILED output, where comments are gone.
+    const code = facturaSource()
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    expect(code).not.toContain('mipeGenXMLFirma');
+    expect(code).not.toContain('Firma');
   });
 });

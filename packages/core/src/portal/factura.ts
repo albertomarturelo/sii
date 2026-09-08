@@ -34,6 +34,10 @@ const PREVIEW_URL = `${CGI}/mipeDisplayPreView.cgi`;
 /** Renders the (unsigned) document as a real `application/pdf` — the preview the portal embeds
  *  in its `framePdf` iframe. Takes the review page's `PreViewDTE` body (observed 2026-09-08). */
 const PDF_URL = `${CGI}/mipePreView.cgi`;
+/** The iframe that issues the PDF POST. SII checks the Referer: a POST without it comes back
+ *  as HTML, not `application/pdf` (observed 2026-09-08 — the browser sends
+ *  `referer: .../PreViewFrame.html`, `origin: https://www1.sii.cl`, `sec-fetch-dest: iframe`). */
+const PREVIEW_FRAME_URL = 'https://www1.sii.cl/Portal001/PreViewFrame.html';
 /** The borradores list is served by the MIPYME SPA, not the CGIs (observed 2026-09-08). */
 const LISTA_BORRADOR_URL = `${HOSTS.portalApi}/mipymeinternetui/services/data/borradorService/listaBorrador`;
 
@@ -147,10 +151,26 @@ function parseEmpresas(html: string): FacturaEmpresa[] {
   return out;
 }
 
+/** Read the message out of SII's server-side rejection page: a 200 "Redireccionando" document
+ *  whose script is `alert('…')` followed by `window.history.go(-1)` (observed 2026-09-08).
+ *  Returns the alert text with its escaped newlines turned into separators, or null. */
+export function serverAlert(html: string): string | null {
+  if (!/Redireccionando|history\.go\(-1\)/i.test(html)) return null;
+  const raw = /alert\('([\s\S]*?)'\)/.exec(html)?.[1];
+  if (!raw) return null;
+  return raw
+    .replace(/\\n/g, ' | ')
+    .replace(/\s*\|\s*$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** SII answers 200 with a human message on both success and refusal, so decide on the text.
  *  The success wording is observed 2026-09-08; anything else is surfaced VERBATIM (ADR-004). */
 function assertCgiOk(html: string, step: string): void {
   if (/ha sido grabado|ha sido eliminado|con éxito|con exito/i.test(html)) return;
+  const rejection = serverAlert(html);
+  if (rejection) throw new FacturaError(`El SII rechazó el documento: ${rejection}`);
   const msg = /<(?:p|div|td|span|h\d)[^>]*>\s*([^<]{15,300}?)\s*<\//i.exec(
     html.replace(/<script[\s\S]*?<\/script>/gi, ''),
   )?.[1];
@@ -198,20 +218,80 @@ const unescapeHtml = (v: string): string =>
  *   * `DESCRIP_nn` is a checkbox whose `onclick` DRAWS the `EFXP_DSC_ITEM_nn` textarea; the
  *     textarea does not exist until it is clicked. */
 function fillScript(payload: unknown): string {
-  return `(() => {
+  return `(async () => {
   const P = ${JSON.stringify(payload)};
   const f = document.forms['VIEW_EFXP'];
   if (!f) return { scraper: 'no se encontró el formulario VIEW_EFXP' };
+
+  // BUG-2 (live): the detail grid is drawn ASYNCHRONOUSLY by the page's own JS, so
+  // \`DESCRIP_01\` / \`EFXP_NMB_01\` may not exist yet the instant domcontentloaded fires.
+  // Wait for the REAL elements (never a blind sleep) before touching anything.
+  const waitFor = async (names, ms) => {
+    const deadline = Date.now() + ms;
+    for (;;) {
+      if (names.every((n) => f.elements[n])) return true;
+      if (Date.now() > deadline) return false;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  };
+  if (!(await waitFor(['EFXP_NMB_01', 'DESCRIP_01', 'CANT_DET'], 15000))) {
+    return { scraper: 'la grilla de detalle no se dibujó (EFXP_NMB_01/DESCRIP_01 ausentes)' };
+  }
+
   const missing = [];
+  const coerced = [];
+  const norm = (v) =>
+    String(v ?? '')
+      .normalize('NFD')
+      .replace(/[\\u0300-\\u036f]/g, '')
+      .replace(/\\s+/g, ' ')
+      .trim()
+      .toUpperCase();
+
+  // BUG-3 (live): when a saved borrador is REOPENED, SII renders EFXP_DIR_RECEP and
+  // EFXP_GIRO_RECEP as <select> (the receptor's registered addresses / giros) instead of
+  // <input>. Assigning a value that is not exactly one of the options silently leaves the
+  // select EMPTY, which is how the receptor block came back blank. So: match an option by
+  // value, then by accent/case-insensitive text; if nothing matches, KEEP SII's canonical
+  // selection rather than blanking it, and report the coercion.
   const put = (n, v, fire) => {
     const e = f.elements[n];
     if (!e) { missing.push(n); return; }
+    if (e.tagName === 'SELECT') {
+      const want = norm(v);
+      if (want === '') return; // nothing to set — keep SII's own option
+      const opts = Array.from(e.options);
+      const hit =
+        opts.find((o) => o.value === v) ??
+        opts.find((o) => norm(o.value) === want) ??
+        opts.find((o) => norm(o.text) === want) ??
+        opts.find((o) => norm(o.text).startsWith(want) || want.startsWith(norm(o.text)));
+      if (hit) { e.value = hit.value; return; }
+      // Nothing matched: keep SII's canonical option and report BOTH what was kept and the
+      // options it does offer, so the caller (or a model) can pick a real one next time.
+      coerced.push({
+        campo: n,
+        solicitado: String(v),
+        usado: e.options[e.selectedIndex] ? e.options[e.selectedIndex].text : '',
+        opciones: opts.map((o) => o.text).filter((t) => t !== ''),
+      });
+      return;
+    }
     e.value = v;
+    // Only the numeric item fields need an event (they drive the total recompute). NEVER fire
+    // on the receptor RUT: it triggers the portal's autofill round trip, which RELOADS the
+    // page and wipes the grid (observed).
     if (fire) e.dispatchEvent(new Event('change', { bubbles: true }));
   };
+
   while (Number(f.elements['CANT_DET'].value || 1) < P.items.length) {
     modCantLineaDet(f.elements['AGREGA_DETALLE']);
+    // each click re-renders the grid — wait for the row it just added
+    if (!(await waitFor(['EFXP_NMB_' + String(Number(f.elements['CANT_DET'].value)).padStart(2, '0')], 10000))) {
+      return { scraper: 'no se dibujó la línea de detalle ' + f.elements['CANT_DET'].value };
+    }
   }
+
   put('EFXP_CIUDAD_ORIGEN', P.ciudadEmisor);
   put('EFXP_FCH_EMIS', P.fechaEmision);
   put('EFXP_FMA_PAGO', P.formaPago);
@@ -224,23 +304,34 @@ function fillScript(payload: unknown): string {
   put('EFXP_GIRO_RECEP', P.receptor.giro);
   put('EFXP_CONTACTO', P.receptor.contacto);
   if (P.borradorId) { f.elements['EHDR_CODIGO'].value = P.borradorId; }
-  P.items.forEach((it, i) => {
+
+  for (let i = 0; i < P.items.length; i += 1) {
+    const it = P.items[i];
     const s = String(i + 1).padStart(2, '0');
-    if (it.descripcion) { const c = f.elements['DESCRIP_' + s]; c.checked = true; c.onclick(); }
+    if (it.descripcion) {
+      const c = f.elements['DESCRIP_' + s];
+      if (c && !c.checked) { c.checked = true; c.onclick(); }
+      // the textarea is DRAWN by that onclick — wait for it, don't assume
+      if (!(await waitFor(['EFXP_DSC_ITEM_' + s], 10000))) {
+        return { scraper: 'no se dibujó la descripción EFXP_DSC_ITEM_' + s };
+      }
+    }
     put('EFXP_NMB_' + s, it.nombre);
     put('EFXP_UNMD_' + s, it.unidad);
     if (it.descripcion) put('EFXP_DSC_ITEM_' + s, it.descripcion);
     if (it.descuentoPct) put('EFXP_PCTD_' + s, it.descuentoPct, true);
     put('EFXP_QTY_' + s, it.cantidad, true);
     put('EFXP_PRC_' + s, it.precioUnitario, true);
-  });
+  }
+
   const msgs = [];
   const prev = window.alert;
   window.alert = (m) => msgs.push(String(m).trim());
   let ok = false;
   try { ok = !!validaFacEx(f.elements['Button_Update']); }
-  catch (e) { window.alert = prev; return { scraper: String(e && e.message || e) }; }
+  catch (e) { window.alert = prev; return { scraper: String((e && e.message) || e) }; }
   window.alert = prev;
+
   const fields = {};
   for (const e of f.elements) {
     if (!e.name || e.type === 'button' || e.type === 'submit') continue;
@@ -248,7 +339,7 @@ function fillScript(payload: unknown): string {
     fields[e.name] = e.value;
   }
   return {
-    ok, msgs, missing, fields,
+    ok, msgs, missing, coerced, fields,
     totales: {
       neto: Number(f.elements['EFXP_MNT_NETO'].value || 0),
       iva: Number(f.elements['EFXP_IVA'].value || 0),
@@ -263,14 +354,27 @@ interface FillResult {
   readonly ok?: boolean;
   readonly msgs?: string[];
   readonly missing?: string[];
+  readonly coerced?: FacturaSelectAviso[];
   readonly fields?: Record<string, string>;
   readonly totales?: FacturaTotales;
+}
+
+/** A receptor field SII renders as a <select> where the requested value matched no option.
+ *  SII's own selection was KEPT (assigning a non-matching value blanks the select — observed
+ *  2026-09-08), and `opciones` lists what it actually offers so a caller can choose a real one. */
+export interface FacturaSelectAviso {
+  readonly campo: string;
+  readonly solicitado: string;
+  readonly usado: string;
+  readonly opciones: readonly string[];
 }
 
 /** A filled, SII-validated form: the exact body to POST plus the totals SII computed. */
 export interface FacturaFilled {
   readonly fields: Record<string, string>;
   readonly totales: FacturaTotales;
+  /** Non-fatal: <select> fields where SII's own option was kept. Surfaced to the user. */
+  readonly avisos: readonly FacturaSelectAviso[];
 }
 
 // --- Operations ---------------------------------------------------------------------
@@ -375,7 +479,7 @@ export async function fillFactura(
   // SII's own validator refused — pass its Spanish message through UNCHANGED (ADR-004).
   if (!r.ok) throw new FacturaError((r.msgs ?? []).join(' ') || 'El SII rechazó el documento.');
   if (!r.fields || !r.totales) throw new FacturaError('El formulario del SII no entregó datos.');
-  return { fields: r.fields, totales: r.totales };
+  return { fields: r.fields, totales: r.totales, avisos: r.coerced ?? [] };
 }
 
 /** Serialize an EXISTING borrador's form without changing it — the body `mipeEliminaBorrador`
@@ -395,11 +499,25 @@ export async function loadBorrador(
   if (!landed.includes('mipeGenFacEx.cgi')) {
     throw new FacturaError(`El SII no entregó el borrador ${borradorId} (llegamos a ${landed}).`);
   }
-  const r = await session.evaluate<FillResult>(`(() => {
+  const r = await session.evaluate<FillResult>(`(async () => {
     const f = document.forms['VIEW_EFXP'];
     if (!f) return { scraper: 'no se encontró el formulario VIEW_EFXP' };
     if (f.elements['EHDR_CODIGO'].value !== ${JSON.stringify(borradorId)}) {
       return { scraper: 'el SII devolvió otro borrador (' + f.elements['EHDR_CODIGO'].value + ')' };
+    }
+    // The detail grid is drawn ASYNCHRONOUSLY (same hazard as fillScript). Serializing before
+    // it exists yielded a form with NO detail lines, and SII then rejected the preview with
+    // "Debe ingresar nombre del primer item del detalle" (observed 2026-09-08).
+    const deadline = Date.now() + 15000;
+    while (!(f.elements['EFXP_NMB_01'] && f.elements['EFXP_QTY_01'] && f.elements['EFXP_PRC_01'])) {
+      if (Date.now() > deadline) return { scraper: 'la grilla de detalle del borrador no se dibujó' };
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    // and wait for the values to actually land (the grid is filled after it is drawn)
+    const valued = Date.now() + 10000;
+    while (String(f.elements['EFXP_NMB_01'].value || '').trim() === '') {
+      if (Date.now() > valued) break; // a genuinely empty borrador is possible
+      await new Promise((r) => setTimeout(r, 50));
     }
     const fields = {};
     for (const e of f.elements) {
@@ -415,7 +533,7 @@ export async function loadBorrador(
   })()`);
   if (r.scraper) throw new FacturaError(`No se pudo leer el borrador ${borradorId}: ${r.scraper}.`);
   if (!r.fields || !r.totales) throw new FacturaError(`El borrador ${borradorId} llegó vacío.`);
-  return { fields: r.fields, totales: r.totales };
+  return { fields: r.fields, totales: r.totales, avisos: [] };
 }
 
 /** Persist the filled form as a borrador (create, or update when `EHDR_CODIGO` is set).
@@ -438,6 +556,28 @@ export async function eliminaBorrador(
   assertCgiOk(res.body, 'eliminaBorrador');
 }
 
+/** Repair SII's DOUBLE-ENCODED text. `listaBorrador` declares `charset=ISO-8859-1` but serves
+ *  UTF-8 bytes of an ALREADY-mojibaked string: "Á" arrives as `C3 83 C2 81`, i.e. UTF-8 of
+ *  ("Ã", U+0081) — so a correct UTF-8 decode still yields "FundaciÃ³n" / "Ã‘uÃ±oa" (observed
+ *  2026-09-08). Undo the extra layer by re-encoding the decoded string as Latin-1 and decoding
+ *  it as UTF-8 again. Applied ONLY when the string carries the tell-tale `Ã`/`Â` + continuation
+ *  pair AND the round trip decodes cleanly, so legitimately-accented text is left untouched.
+ *  This only fixes what we DISPLAY — nothing sent to SII is altered. */
+export function repairMojibake(v: string): string {
+  if (!/[\u00c2-\u00c3][\u0080-\u00bf]/.test(v)) return v;
+  const bytes = Uint8Array.from(v, (ch) => {
+    const c = ch.charCodeAt(0);
+    return c > 0xff ? 0x3f : c; // non-Latin-1 char ⇒ not a mojibake string
+  });
+  if (Array.from(v).some((ch) => ch.charCodeAt(0) > 0xff)) return v;
+  try {
+    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return decoded.includes('\ufffd') ? v : decoded;
+  } catch {
+    return v; // not valid UTF-8 once re-encoded ⇒ leave the original alone
+  }
+}
+
 /** The borradores of the CURRENTLY SELECTED empresa. A plain JSON array (no SDI `respEstado`
  *  envelope — observed), served ISO-8859-1; the seam decodes it. Rows carry ~250 mostly-null
  *  form columns; only the listing columns are curated (no `raw` — the row is receptor +
@@ -449,7 +589,8 @@ export async function fetchBorradores(session: PortalSession): Promise<FacturaBo
   }
   const num = (v: unknown): number | null =>
     typeof v === 'string' && v.trim() !== '' ? Number(v) : null;
-  const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+  const str = (v: unknown): string | null =>
+    typeof v === 'string' && v !== '' ? repairMojibake(v) : null;
   return data.map((r) => {
     const row = r as Record<string, unknown>;
     const body = str(row['efxp_RUT_RECEP']);
@@ -485,8 +626,14 @@ export async function fetchBorradores(session: PortalSession): Promise<FacturaBo
 export async function fetchPreviewPdf(
   session: PortalSession,
   filled: FacturaFilled,
+  sleep: () => Promise<void> = () => Promise.resolve(),
 ): Promise<Uint8Array> {
   const review = await session.requestForm(PREVIEW_URL, { form: filled.fields });
+  // SII rejects a bad document with a 200 "Redireccionando" page whose only content is an
+  // alert() + history.go(-1) (observed 2026-09-08). Surface ITS message verbatim (ADR-004)
+  // instead of a generic failure — that is the real reason the PDF never came back.
+  const rejection = serverAlert(review.body);
+  if (rejection) throw new FacturaError(`El SII rechazó el documento: ${rejection}`);
   const fields = parseHiddenInputs(review.body, 'PreViewDTE');
   if (Object.keys(fields).length === 0) {
     throw new FacturaError(
@@ -494,9 +641,23 @@ export async function fetchPreviewPdf(
         'Puede que haya rechazado algún dato del documento.',
     );
   }
+  // Reproduce the iframe's request as the browser issues it — captured from the live network
+  // panel, NOT guessed. Without the Referer/Origin/sec-fetch-dest trio SII answers with an
+  // HTML page instead of the PDF (that was the "recibe HTML en vez de PDF" failure).
+  await sleep(); // pace the two consecutive POSTs (the browser does them a beat apart)
   const res = await session.requestBinary(PDF_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Referer: PREVIEW_FRAME_URL,
+      Origin: 'https://www1.sii.cl',
+      'Sec-Fetch-Dest': 'iframe',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'same-origin',
+      'Upgrade-Insecure-Requests': '1',
+      Accept:
+        'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+    },
     body: new URLSearchParams(fields).toString(),
   });
   const isPdf =

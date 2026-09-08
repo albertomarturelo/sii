@@ -20,6 +20,7 @@ import {
   formatRut as fmtRut,
   type FacturaBorradorArgs,
   type FacturaItem,
+  type FacturaSelectAviso,
   type FormaPago,
   type Runtime,
 } from '@albertomarturelo/sii-core';
@@ -123,6 +124,16 @@ function toArgs(
   };
 }
 
+/** SII renders some receptor fields as <select>. When the requested value matches no option it
+ *  keeps its own, so show what it chose AND the options it offers — otherwise the caller has no
+ *  way to know the valid values. */
+function printAvisos(avisos: readonly FacturaSelectAviso[]): void {
+  for (const a of avisos) {
+    out(`  aviso: ${a.campo} — el SII no ofrece "${a.solicitado}"; usó "${a.usado}".`);
+    out(`         opciones: ${a.opciones.join(' | ')}`);
+  }
+}
+
 export function registerFactura(program: Command, runtime: Runtime): void {
   const factura = program
     .command('factura')
@@ -193,6 +204,7 @@ export function registerFactura(program: Command, runtime: Runtime): void {
             `  neto=${money(res.totales.neto)}  IVA=${money(res.totales.iva)}  ` +
               `total=${money(res.totales.total)}`,
           );
+          printAvisos(res.avisos);
         });
       },
     );

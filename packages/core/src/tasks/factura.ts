@@ -31,6 +31,7 @@ import {
   resolveAndSelectEmpresa,
 } from '../portal/factura.js';
 import type {
+  FacturaSelectAviso,
   FacturaBorradorInput,
   FacturaBorradorRow,
   FacturaEmpresa,
@@ -42,6 +43,7 @@ import type {
 import type { AuditEntry, Runtime } from '../seams/index.js';
 
 export type {
+  FacturaSelectAviso,
   FacturaBorradorRow,
   FacturaEmpresa,
   FacturaItem,
@@ -51,8 +53,33 @@ export type {
 } from '../portal/factura.js';
 export { TIPOS_DTE, MAX_ITEMS } from '../portal/factura.js';
 
-/** Inter-call pace (ms) — never hammer SII (ADR-004). */
-const pacingMs = (): number => Math.round(1000 / DEFAULT_SETTINGS.rateLimitRps);
+/** Inter-call pace (ms) between consecutive POSTs to SII. The MIPYME CGIs are the legacy,
+ *  session-stateful kind and were observed to start timing out under a fast sequence, so this
+ *  floors at 1000 ms rather than deriving a smaller value from `rateLimitRps`. Writes are NEVER
+ *  retried (ADR-004); see `readOnlyRetry` for the read-only exception. */
+const PACE_MS = 1000;
+const pacingMs = (): number => Math.max(PACE_MS, Math.round(1000 / DEFAULT_SETTINGS.rateLimitRps));
+
+/** Retry a READ-ONLY call at most twice, and ONLY on a transient transport failure — a timeout,
+ *  a 429 or a 5xx. Never on a validation error, an unexpected HTML body, or anything that
+ *  writes: those are surfaced immediately (ADR-004). Backoff is exponential with jitter so
+ *  concurrent callers do not resonate. */
+async function readOnlyRetry<T>(runtime: Runtime, fn: () => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= 2; attempt += 1) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastError = e;
+      const msg = e instanceof Error ? e.message : String(e);
+      const transient = /timeout|ETIMEDOUT|ECONNRESET|socket hang up|\b(?:429|5\d{2})\b/i.test(msg);
+      // A SII business/validation failure or a dead session is NOT transient — fail now.
+      if (!transient || e instanceof FacturaError || attempt === 2) throw e;
+      await runtime.clock.sleep(PACE_MS * 2 ** attempt + Math.floor(Math.random() * 250));
+    }
+  }
+  throw lastError;
+}
 
 function audit(runtime: Runtime, action: string, result: string, extra: Partial<AuditEntry>): void {
   recordAudit(runtime, { action, result, ...extra });
@@ -87,6 +114,8 @@ export interface FacturaBorradorSaved {
   readonly tipoDteDesc: string;
   readonly actualizado: boolean;
   readonly totales: FacturaTotales;
+  /** <select> fields where SII kept its own option; each lists the options it offers. */
+  readonly avisos: readonly FacturaSelectAviso[];
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -187,7 +216,9 @@ export async function facturaEmpresas(
 ): Promise<FacturaEmpresa[]> {
   const tipoDte = assertTipo(args.tipoDte);
   try {
-    const res = await withSession(runtime, (session) => fetchEmpresas(session, tipoDte));
+    const res = await readOnlyRetry(runtime, () =>
+      withSession(runtime, (session) => fetchEmpresas(session, tipoDte)),
+    );
     audit(runtime, 'factura_empresas', 'ok', { count: res.length });
     return res;
   } catch (e) {
@@ -205,11 +236,13 @@ export async function facturaBorradorList(
   const tipoDte = assertTipo(args.tipoDte);
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
-      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
-      await runtime.clock.sleep(pacingMs());
-      return { empresa: emp, borradores: await fetchBorradores(session) };
-    });
+    const res = await readOnlyRetry(runtime, () =>
+      withSession(runtime, async (session) => {
+        const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
+        await runtime.clock.sleep(pacingMs());
+        return { empresa: emp, borradores: await fetchBorradores(session) };
+      }),
+    );
     audit(runtime, 'factura_borrador_list', 'ok', {
       rut: empresa.canonical,
       count: res.borradores.length,
@@ -238,7 +271,8 @@ export async function facturaBorradorSave(
       const before = input.borradorId ? [] : (await fetchBorradores(session)).map((b) => b.id);
       await runtime.clock.sleep(pacingMs());
       const filled = await fillFactura(session, emp, { ...input, empresa: emp.rut });
-      await grabaBorrador(session, filled);
+      await runtime.clock.sleep(pacingMs());
+      await grabaBorrador(session, filled); // a WRITE — never retried (ADR-004)
       await runtime.clock.sleep(pacingMs());
       const id = input.borradorId
         ? input.borradorId
@@ -250,6 +284,7 @@ export async function facturaBorradorSave(
         tipoDteDesc: TIPOS_DTE[tipoDte],
         actualizado: input.borradorId !== undefined,
         totales: filled.totales,
+        avisos: filled.avisos,
       };
     });
     // Audit the WRITE with identifiers only — never the receptor, montos or glosas (ADR-006).
@@ -283,7 +318,8 @@ export async function facturaBorradorDelete(
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
       await runtime.clock.sleep(pacingMs());
       const filled = await loadBorrador(session, emp, tipoDte, args.borradorId);
-      await eliminaBorrador(session, filled);
+      await runtime.clock.sleep(pacingMs());
+      await eliminaBorrador(session, filled); // a WRITE — never retried (ADR-004)
       return { empresa: emp, borradorId: args.borradorId, eliminado: true as const };
     });
     audit(runtime, 'factura_borrador_delete', 'ok', {
@@ -312,6 +348,7 @@ export interface FacturaPreviewDoc {
   readonly totales: FacturaTotales;
   readonly empresa: FacturaEmpresa;
   readonly tipoDte: TipoDte;
+  readonly avisos: readonly FacturaSelectAviso[];
 }
 
 /** The "Validar y visualizar" PDF of a document that has NOT been emitted — stamped
@@ -337,7 +374,8 @@ export async function facturaPreviewPdf(
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
       await runtime.clock.sleep(pacingMs());
       const filled = await fillFactura(session, emp, { ...input, empresa: emp.rut });
-      const bytes = await fetchPreviewPdf(session, filled);
+      await runtime.clock.sleep(pacingMs());
+      const bytes = await fetchPreviewPdf(session, filled, () => runtime.clock.sleep(pacingMs()));
       // SII's own Content-Disposition is generic and carries no receptor/fecha, so compose the
       // name here (ADR-022): deterministic, so re-previewing refreshes in place.
       const archivo = `borrador-${tipoDte}-${empresa.canonical}-${input.fechaEmision}-${
@@ -352,6 +390,7 @@ export async function facturaPreviewPdf(
         totales: filled.totales,
         empresa: emp,
         tipoDte,
+        avisos: filled.avisos,
       };
     });
     audit(runtime, 'factura_preview_pdf', 'ok', {
