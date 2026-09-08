@@ -37,7 +37,10 @@ const PDF_URL = `${CGI}/mipePreView.cgi`;
 /** The iframe that issues the PDF POST. SII checks the Referer: a POST without it comes back
  *  as HTML, not `application/pdf` (observed 2026-09-08 — the browser sends
  *  `referer: .../PreViewFrame.html`, `origin: https://www1.sii.cl`, `sec-fetch-dest: iframe`). */
-const PREVIEW_FRAME_URL = 'https://www1.sii.cl/Portal001/PreViewFrame.html';
+const PREVIEW_FRAME_URL = `${HOSTS.mipeStatic}/PreViewFrame.html`;
+/** Same-origin `Origin` header the iframe sends — derived from the configured host, never
+ *  hard-coded (ADR-004: hostnames live only in the config module). */
+const MIPE_ORIGIN = new URL(HOSTS.mipeCgi).origin;
 /** The borradores list is served by the MIPYME SPA, not the CGIs (observed 2026-09-08). */
 const LISTA_BORRADOR_URL = `${HOSTS.portalApi}/mipymeinternetui/services/data/borradorService/listaBorrador`;
 
@@ -815,7 +818,7 @@ export async function fetchPreviewPdf(
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
       Referer: PREVIEW_FRAME_URL,
-      Origin: 'https://www1.sii.cl',
+      Origin: MIPE_ORIGIN,
       'Sec-Fetch-Dest': 'iframe',
       'Sec-Fetch-Mode': 'navigate',
       'Sec-Fetch-Site': 'same-origin',
