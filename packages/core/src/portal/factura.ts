@@ -23,7 +23,7 @@
 import { HOSTS } from '../config/index.js';
 import { FacturaError } from '../errors/index.js';
 import type { Rut } from '../rut/index.js';
-import type { PortalSession } from '../seams/index.js';
+import type { PortalSession, PublicResponse } from '../seams/index.js';
 
 const CGI = HOSTS.mipeCgi;
 const SEL_EMPRESA_URL = `${CGI}/mipeSelEmpresa.cgi`;
@@ -178,6 +178,96 @@ function assertCgiOk(html: string, step: string): void {
     `El SII no confirmó la operación de borrador (paso: ${step}).` +
       (msg ? ` Respuesta: ${msg.replace(/\s+/g, ' ').trim()}` : ''),
   );
+}
+
+/** Percent-encode a form body as ISO-8859-1, the charset every `Portal001` page declares.
+ *  `URLSearchParams` encodes UTF-8, so "Diseño" went out as `Dise%C3%B1o` and SII stored — and
+ *  printed — "DiseÃ±o" (observed 2026-09-08, both in the saved borrador and in the preview PDF).
+ *  The browser encodes per the PAGE charset, so we must too. Characters outside Latin-1 are sent
+ *  as an HTML numeric reference, exactly as a browser does for an unrepresentable character.
+ *
+ *  The label says ISO-8859-1 but the encoding is WINDOWS-1252: the HTML spec requires browsers to
+ *  treat a declared ISO-8859-1 document as windows-1252, and SII's own <select> options come back
+ *  holding characters from its 0x80–0x9F block (e.g. U+2018 in "ENSE\u00c3\u2018ANZA"). Encoding
+ *  those as Latin-1 turned them into `&#8216;` in the rendered document, so the 1252 block is
+ *  mapped back explicitly. */
+const CP1252_HIGH: Record<number, number> = {
+  0x20ac: 0x80,
+  0x201a: 0x82,
+  0x0192: 0x83,
+  0x201e: 0x84,
+  0x2026: 0x85,
+  0x2020: 0x86,
+  0x2021: 0x87,
+  0x02c6: 0x88,
+  0x2030: 0x89,
+  0x0160: 0x8a,
+  0x2039: 0x8b,
+  0x0152: 0x8c,
+  0x017d: 0x8e,
+  0x2018: 0x91,
+  0x2019: 0x92,
+  0x201c: 0x93,
+  0x201d: 0x94,
+  0x2022: 0x95,
+  0x2013: 0x96,
+  0x2014: 0x97,
+  0x02dc: 0x98,
+  0x2122: 0x99,
+  0x0161: 0x9a,
+  0x203a: 0x9b,
+  0x0153: 0x9c,
+  0x017e: 0x9e,
+  0x0178: 0x9f,
+};
+
+export function latin1FormBody(fields: Iterable<readonly [string, string]>): string {
+  const enc = (raw: string): string => {
+    let out = '';
+    for (const ch of raw) {
+      const c = ch.codePointAt(0) ?? 0;
+      if (/[A-Za-z0-9*\-._]/.test(ch)) out += ch;
+      else if (ch === ' ') out += '+';
+      else {
+        const byte = c <= 0xff ? c : CP1252_HIGH[c];
+        out +=
+          byte === undefined
+            ? encodeURIComponent(`&#${c};`) // truly unrepresentable — browser behaviour
+            : `%${byte.toString(16).toUpperCase().padStart(2, '0')}`;
+      }
+    }
+    return out;
+  };
+  const parts: string[] = [];
+  for (const [k, v] of fields) parts.push(`${enc(k)}=${enc(v)}`);
+  return parts.join('&');
+}
+
+/** The `name`s of the `VIEW` form inside `PreViewFrame.html` — the EXACT field set the iframe
+ *  posts to the PDF CGI, in order (observed 2026-09-08: 239 inputs, matching the browser's own
+ *  request byte-for-byte in count). Read from SII's frame at runtime so an upstream edit is
+ *  followed rather than drifting against a hardcoded list. */
+export function frameFields(html: string): { name: string; value: string }[] {
+  const form = /<form[^>]*name="VIEW"[\s\S]*?<\/form>/i.exec(html)?.[0];
+  if (!form) return [];
+  const out: { name: string; value: string }[] = [];
+  const re = /<input[^>]*>/gi;
+  for (let m = re.exec(form); m; m = re.exec(form)) {
+    const name = /\bname="([^"]+)"/i.exec(m[0])?.[1];
+    if (!name || out.some((f) => f.name === name)) continue;
+    out.push({ name, value: unescapeHtml(/\bvalue="([^"]*)"/i.exec(m[0])?.[1] ?? '') });
+  }
+  return out;
+}
+
+/** Also relay SII's generic failure page ("Error al contribuyente"), which carries a support
+ *  code rather than a validation message — it is a SII-side refusal, not our bad input. */
+export function contribuyenteError(bytes: Uint8Array, contentType: string | null): string | null {
+  if (!(contentType ?? '').toLowerCase().includes('html')) return null;
+  const html = new TextDecoder('iso-8859-1').decode(bytes);
+  if (!/Error al contribuyente/i.test(html)) return null;
+  const msg = /alert\('([\s\S]*?)'\)/.exec(html)?.[1];
+  return (msg ?? 'Error al contribuyente').replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 /** Read a form's `<input type="hidden" name="X" value="Y">` pairs. SII's preview page carries
@@ -377,6 +467,21 @@ export interface FacturaFilled {
   readonly avisos: readonly FacturaSelectAviso[];
 }
 
+/** POST a form body encoded as ISO-8859-1. Uses `requestText` (raw authenticated body) rather
+ *  than `requestForm`, whose `form` option is UTF-8-encoded by the driver — that encoding is what
+ *  mangled every accented value the portal stored. */
+async function postLatin1(
+  session: PortalSession,
+  url: string,
+  fields: Record<string, string>,
+): Promise<PublicResponse> {
+  return session.requestText(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=ISO-8859-1' },
+    body: latin1FormBody(Object.entries(fields)),
+  });
+}
+
 // --- Operations ---------------------------------------------------------------------
 
 /** The empresas the authenticated user may invoice for. This is the MIPYME "usuario
@@ -539,9 +644,7 @@ export async function loadBorrador(
 /** Persist the filled form as a borrador (create, or update when `EHDR_CODIGO` is set).
  *  `ES_BORR=TRUE` is what tells the CGI this is a draft, not a document to sign (observed). */
 export async function grabaBorrador(session: PortalSession, filled: FacturaFilled): Promise<void> {
-  const res = await session.requestForm(GRABA_URL, {
-    form: { ...filled.fields, ES_BORR: 'TRUE' },
-  });
+  const res = await postLatin1(session, GRABA_URL, { ...filled.fields, ES_BORR: 'TRUE' });
   assertCgiOk(res.body, 'grabaBorrador');
 }
 
@@ -550,9 +653,7 @@ export async function eliminaBorrador(
   session: PortalSession,
   filled: FacturaFilled,
 ): Promise<void> {
-  const res = await session.requestForm(ELIMINA_URL, {
-    form: { ...filled.fields, ES_BORR: 'TRUE' },
-  });
+  const res = await postLatin1(session, ELIMINA_URL, { ...filled.fields, ES_BORR: 'TRUE' });
   assertCgiOk(res.body, 'eliminaBorrador');
 }
 
@@ -628,7 +729,7 @@ export async function fetchPreviewPdf(
   filled: FacturaFilled,
   sleep: () => Promise<void> = () => Promise.resolve(),
 ): Promise<Uint8Array> {
-  const review = await session.requestForm(PREVIEW_URL, { form: filled.fields });
+  const review = await postLatin1(session, PREVIEW_URL, filled.fields);
   // SII rejects a bad document with a 200 "Redireccionando" page whose only content is an
   // alert() + history.go(-1) (observed 2026-09-08). Surface ITS message verbatim (ADR-004)
   // instead of a generic failure — that is the real reason the PDF never came back.
@@ -644,6 +745,26 @@ export async function fetchPreviewPdf(
   // Reproduce the iframe's request as the browser issues it — captured from the live network
   // panel, NOT guessed. Without the Referer/Origin/sec-fetch-dest trio SII answers with an
   // HTML page instead of the PDF (that was the "recibe HTML en vez de PDF" failure).
+  // The iframe does NOT post the review page's fields wholesale: it owns a form of its own
+  // (`VIEW`, 239 inputs) and copies the values across, so the PDF CGI receives that exact,
+  // narrower field set. Posting all 243 PreViewDTE hidden inputs instead made SII answer with
+  // its generic "Error al contribuyente" page (observed 2026-09-08). Derive the field list from
+  // SII's own frame at runtime rather than hardcoding 239 names — if SII edits the frame, the
+  // request follows.
+  await sleep();
+  const frame = await session.requestForm(PREVIEW_FRAME_URL, { method: 'GET' });
+  const wanted = frameFields(frame.body);
+  if (wanted.length === 0) {
+    throw new FacturaError(
+      'El SII cambió PreViewFrame.html: no se pudo determinar los campos de la vista previa.',
+    );
+  }
+  // The frame copies 238 of its 239 inputs from the review page; the odd one out, `EFXP_FOLIO`,
+  // keeps the frame's OWN default (`value="0"`) because an unsigned preview has no folio. So a
+  // field absent from the review page must fall back to the frame's declared value, NOT to ''
+  // — sending `EFXP_FOLIO=` made SII answer "Error al contribuyente" (observed 2026-09-08).
+  const body = latin1FormBody(wanted.map((f) => [f.name, fields[f.name] ?? f.value] as const));
+
   await sleep(); // pace the two consecutive POSTs (the browser does them a beat apart)
   const res = await session.requestBinary(PDF_URL, {
     method: 'POST',
@@ -658,7 +779,7 @@ export async function fetchPreviewPdf(
       Accept:
         'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
     },
-    body: new URLSearchParams(fields).toString(),
+    body,
   });
   const isPdf =
     (res.contentType ?? '').toLowerCase().includes('application/pdf') &&
@@ -668,8 +789,12 @@ export async function fetchPreviewPdf(
     res.bytes[2] === 0x44 && // D
     res.bytes[3] === 0x46; // F
   if (!isPdf) {
+    // Relay SII's own message when it gave one (ADR-004) instead of a bare content-type.
+    const sii = contribuyenteError(res.bytes, res.contentType);
     throw new FacturaError(
-      `El SII no devolvió un PDF de vista previa (content-type: ${res.contentType ?? 'desconocido'}).`,
+      sii
+        ? `El SII no generó la vista previa: ${sii}`
+        : `El SII no devolvió un PDF de vista previa (content-type: ${res.contentType ?? 'desconocido'}).`,
     );
   }
   return res.bytes;

@@ -15,7 +15,7 @@ import {
   resolveAndSelectEmpresa,
 } from './factura.js';
 import type { FacturaEmpresa } from './factura.js';
-import { repairMojibake } from './factura.js';
+import { repairMojibake, frameFields, contribuyenteError, latin1FormBody } from './factura.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -144,18 +144,18 @@ describe('fillFactura', () => {
 describe('grabaBorrador', () => {
   it('POSTs the filled form with ES_BORR=TRUE and accepts the confirmation', async () => {
     const s = new FakePortalSession({
-      requestForm: () => 'Su documento borrador ha sido grabado/actualizado con éxito',
+      requestText: () => 'Su documento borrador ha sido grabado/actualizado con éxito',
     });
     await grabaBorrador(s, {
       fields: { EFXP_NMB_01: 'x' },
       totales: { neto: 1, iva: 0, total: 1 },
     });
-    expect(s.lastFormRequest?.url).toContain('mipeGrabaBorrador.cgi');
-    expect(s.lastFormRequest?.options?.form?.['ES_BORR']).toBe('TRUE');
+    expect(s.lastTextRequest?.url).toContain('mipeGrabaBorrador.cgi');
+    expect(s.lastTextRequest?.options?.body).toContain('ES_BORR=TRUE');
   });
 
   it('fails when SII does not confirm', async () => {
-    const s = new FakePortalSession({ requestForm: () => '<p>La empresa no está autorizada</p>' });
+    const s = new FakePortalSession({ requestText: () => '<p>La empresa no está autorizada</p>' });
     await expect(
       grabaBorrador(s, { fields: {}, totales: { neto: 0, iva: 0, total: 0 } }),
     ).rejects.toThrow(/no está autorizada/);
@@ -219,24 +219,36 @@ describe('fetchPreviewPdf', () => {
     <input type="hidden" name="PTDC_CODIGO" value="33">
     <input type="hidden" name="EFXP_RZN_SOC" value="ACME &amp; CIA" maxlength="110">
     </form>`;
+  // The PDF body is built from the iframe's own VIEW form, so the fake must serve it too.
+  const FRAME = `<html><body onLoad="Enviar();">
+    <form action="/cgi-bin/Portal001/mipePreView.cgi" name="VIEW" method="post">
+      <input type="hidden" name="EFXP_RZN_SOC" value="">
+      <input type="hidden" name="PTDC_CODIGO" value="">
+    </form></body></html>`;
+  const serveFrame = (): string => FRAME;
   const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]); // %PDF-
 
   it('posts the PreViewDTE body to the PDF CGI and returns the bytes', async () => {
     const s = new FakePortalSession({
-      requestForm: () => REVIEW,
+      requestForm: serveFrame,
+      requestText: () => REVIEW,
       requestBinary: () => PDF,
     });
     await expect(
-      fetchPreviewPdf(s, { fields: { A: '1' }, totales: { neto: 1, iva: 0, total: 1 } }),
+      fetchPreviewPdf(s, {
+        fields: { EFXP_RZN_SOC: 'ACME & CIA', PTDC_CODIGO: '33' },
+        totales: { neto: 1, iva: 0, total: 1 },
+      }),
     ).resolves.toEqual(PDF);
     expect(s.lastBinaryRequest?.url).toContain('mipePreView.cgi');
-    // the review page's hidden inputs are forwarded, HTML-unescaped
+    // values come from the review page, but the FIELD SET comes from the iframe's VIEW form
     expect(s.lastBinaryRequest?.options?.body).toContain('EFXP_RZN_SOC=ACME+%26+CIA');
   });
 
   it('rejects when SII answers 200 with an error page instead of a PDF (ADR-022)', async () => {
     const s = new FakePortalSession({
-      requestForm: () => REVIEW,
+      requestForm: serveFrame,
+      requestText: () => REVIEW,
       requestBinary: () => ({
         status: 200,
         contentType: 'text/html',
@@ -249,7 +261,7 @@ describe('fetchPreviewPdf', () => {
   });
 
   it('rejects when the review page has no PreViewDTE form', async () => {
-    const s = new FakePortalSession({ requestForm: () => '<html>error</html>' });
+    const s = new FakePortalSession({ requestText: () => '<html>error</html>' });
     await expect(
       fetchPreviewPdf(s, { fields: {}, totales: { neto: 0, iva: 0, total: 0 } }),
     ).rejects.toThrow(/no entregó la vista previa/);
@@ -316,12 +328,15 @@ describe('regressions (live 2026-09-08)', () => {
   });
 
   it('BUG-4: the PDF POST reproduces the iframe request (Referer/Origin/dest)', async () => {
-    const REVIEW = '<form name="PreViewDTE"><input type="hidden" name="A" value="1"></form>';
     const s = new FakePortalSession({
-      requestForm: () => REVIEW,
+      requestForm: () =>
+        '<form name="VIEW"><input name="A" value=""><input name="EFXP_FOLIO" value="0"></form>',
+      requestText: () => '<form name="PreViewDTE"><input type="hidden" name="A" value="1"></form>',
       requestBinary: () => new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
     });
     await fetchPreviewPdf(s, { fields: { A: '1' }, totales: { neto: 1, iva: 0, total: 1 } });
+    // EFXP_FOLIO is absent from the review page ⇒ the frame's own "0" must be sent, not ''
+    expect(s.lastBinaryRequest?.options?.body).toContain('EFXP_FOLIO=0');
     const h = s.lastBinaryRequest?.options?.headers ?? {};
     expect(h['Referer']).toBe('https://www1.sii.cl/Portal001/PreViewFrame.html');
     expect(h['Origin']).toBe('https://www1.sii.cl');
@@ -331,9 +346,9 @@ describe('regressions (live 2026-09-08)', () => {
   });
 
   it('BUG-4: paces the two consecutive preview POSTs', async () => {
-    const REVIEW = '<form name="PreViewDTE"><input type="hidden" name="A" value="1"></form>';
     const s = new FakePortalSession({
-      requestForm: () => REVIEW,
+      requestForm: () => '<form name="VIEW"><input type="hidden" name="A" value=""></form>',
+      requestText: () => '<form name="PreViewDTE"><input type="hidden" name="A" value="1"></form>',
       requestBinary: () => new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
     });
     let paced = 0;
@@ -344,7 +359,43 @@ describe('regressions (live 2026-09-08)', () => {
         paced += 1;
       },
     );
-    expect(paced).toBe(1);
+    expect(paced).toBeGreaterThanOrEqual(2); // frame fetch + PDF post are both paced
+  });
+
+  it('BUG-4: the PDF body is the iframe VIEW form field set, not every hidden input', () => {
+    const frame = `<html><body onLoad="Enviar();">
+      <form action="/cgi-bin/Portal001/mipePreView.cgi" name="VIEW" method="post">
+        <input type="hidden" name="PTDC_CODIGO" value="">
+        <input type="hidden" name="EFXP_NMB_01" value="">
+      </form></body></html>`;
+    // the frame's OWN default must survive for a field the review page does not carry
+    expect(frameFields('<form name="VIEW"><input name="EFXP_FOLIO" value="0"></form>')).toEqual([
+      { name: 'EFXP_FOLIO', value: '0' },
+    ]);
+    expect(frameFields(frame).map((f) => f.name)).toEqual(['PTDC_CODIGO', 'EFXP_NMB_01']);
+    expect(frameFields('<html>changed</html>')).toEqual([]);
+  });
+
+  it('BUG-4: relays SII generic "Error al contribuyente" page verbatim', () => {
+    const html =
+      "<html><head><title>Error al contribuyente</title></head><body onLoad='cerrarVentana()'>" +
+      "<script>alert('Por el momento no se puede responder.\\n\\nCODIGO: 02.35.209');</script></body></html>";
+    const bytes = new TextEncoder().encode(html);
+    expect(contribuyenteError(bytes, 'text/html; charset=ISO-8859-1')).toContain(
+      'CODIGO: 02.35.209',
+    );
+    expect(contribuyenteError(new Uint8Array([0x25, 0x50]), 'application/pdf')).toBeNull();
+  });
+
+  it('BUG-5: form bodies are encoded windows-1252, not UTF-8', () => {
+    // UTF-8 would send %C3%B1 and SII stored/printed "Dise\u00c3\u00b1o" (observed live).
+    expect(latin1FormBody([['a', 'Dise\u00f1o']])).toBe('a=Dise%F1o');
+    expect(latin1FormBody([['a', 'Consultor\u00eda']])).toBe('a=Consultor%EDa');
+    // the windows-1252 0x80-0x9F block: SII's own <select> options carry these
+    expect(latin1FormBody([['a', '\u2018']])).toBe('a=%91');
+    expect(latin1FormBody([['a', 'x y']])).toBe('a=x+y');
+    // outside 1252 entirely -> HTML numeric reference, as a browser does
+    expect(latin1FormBody([['a', '\u4e2d']])).toBe('a=%26%2320013%3B');
   });
 
   it('never CALLS the signing CGI (ADR-023)', () => {

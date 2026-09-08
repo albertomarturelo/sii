@@ -52,6 +52,12 @@ function sessionScript(borradores: unknown[] = []) {
     requestForm: (url: string) => {
       if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;
       if (url.includes('mipeSelEmpresa.cgi')) return '<html>formulario</html>';
+      if (url.includes('PreViewFrame'))
+        return '<form name="VIEW"><input type="hidden" name="PTDC_CODIGO" value=""></form>';
+      return '';
+    },
+    // the accent-carrying CGIs post a Latin-1 body via requestText
+    requestText: (url: string) => {
       if (url.includes('mipeGrabaBorrador.cgi')) {
         saved = true;
         return OK_BORRADOR;
