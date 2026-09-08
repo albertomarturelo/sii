@@ -162,8 +162,26 @@ describe('factura tasks (fakes, no SII)', () => {
     expect(res.borradores[0]).toMatchObject({ id: '5000002', total: 990000 });
   });
 
+  it('deletes a borrador using the type from the LISTING, not the 33 default', async () => {
+    // REVIEW-3: deleting is irreversible; navigating with the wrong PTDC_CODIGO fails
+    // confusingly, so the type comes from the borrador's own row.
+    const rt = makeRuntime([{ ehdr_CODIGO: '5000001', ptdc_CODIGO: '34' }]);
+    await seed(rt);
+    const res = await facturaBorradorDelete(rt, { empresa: EMPRESA, borradorId: '5000001' });
+    expect(res).toMatchObject({ borradorId: '5000001', tipoDte: 34, eliminado: true });
+    expect(entries(rt).at(-1)).toMatchObject({ tipoDte: 34 });
+  });
+
+  it('refuses to delete a borrador that is not in the listing', async () => {
+    const rt = makeRuntime([]);
+    await seed(rt);
+    await expect(
+      facturaBorradorDelete(rt, { empresa: EMPRESA, borradorId: '9999999' }),
+    ).rejects.toThrow(/no existe/);
+  });
+
   it('deletes a borrador and audits the id', async () => {
-    const rt = makeRuntime();
+    const rt = makeRuntime([{ ehdr_CODIGO: '5000001', ptdc_CODIGO: '33' }]);
     await seed(rt);
     const res = await facturaBorradorDelete(rt, { empresa: EMPRESA, borradorId: '5000001' });
     expect(res).toMatchObject({ borradorId: '5000001', eliminado: true });

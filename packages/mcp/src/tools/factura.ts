@@ -133,8 +133,10 @@ export function registerFacturaTools(server: McpServer, runtime: Runtime): void 
     'factura_borrador_list',
     {
       description:
-        'Borradores de factura guardados de una empresa en el Portal MIPYME. Expone datos del ' +
-        'RECEPTOR (RUT y razón social) y los montos de cada borrador — PII de terceros.',
+        'Borradores de factura guardados de una empresa en el Portal MIPYME. Devuelve los de ' +
+        'TODOS los tipos de DTE (`tipoDte` va en cada fila); `tipoDte` aquí sólo indica con qué ' +
+        'tipo se abre el portal, NO filtra. Expone datos del RECEPTOR (RUT y razón social) y ' +
+        'los montos de cada borrador — PII de terceros.',
       inputSchema: { empresa: z.string(), tipoDte: z.number().int().optional() },
       annotations: { readOnlyHint: true },
     },
@@ -175,7 +177,8 @@ export function registerFacturaTools(server: McpServer, runtime: Runtime): void 
     {
       description:
         'Elimina un borrador de factura del Portal MIPYME. Irreversible: el borrador no se ' +
-        'puede recuperar. Requiere `confirmar: true`.',
+        'puede recuperar. Requiere `confirmar: true`. `tipoDte` es opcional — se resuelve del ' +
+        'propio borrador.',
       inputSchema: {
         empresa: z.string(),
         borradorId: z.string(),

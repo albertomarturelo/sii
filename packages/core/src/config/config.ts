@@ -24,7 +24,7 @@ export const HOSTS = {
    *  `mipeEliminaBorrador.cgi`), the preview (`mipeDisplayPreView.cgi`) and the empresa
    *  chooser (`mipeSelEmpresa.cgi`) all live here. The `.sii.cl` session cookie
    *  SSO-carries (observed 2026-09-08). EMPRESA-KEYED: the working empresa is chosen by
-   *  POSTing `mipeSelEmpresa.cgi`, not by the operate pointer. (#87 / ADR-023) */
+   *  POSTing `mipeSelEmpresa.cgi`, not by the operate pointer. (#89 / ADR-023) */
   mipeCgi: 'https://www1.sii.cl/cgi-bin/Portal001',
   /** SISPAD — peticiones administrativas. A GWT-RPC app: `text/x-gwt-rpc` POST to
    *  `/sispadinternet/peticion` returns a `//OK[…]` object graph; reached via

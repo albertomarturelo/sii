@@ -167,8 +167,15 @@ export function serverAlert(html: string): string | null {
 
 /** SII answers 200 with a human message on both success and refusal, so decide on the text.
  *  The success wording is observed 2026-09-08; anything else is surfaced VERBATIM (ADR-004). */
+const CGI_OK: Record<string, RegExp> = {
+  // Keyed per step: a delete that answered with a "grabado" page must NOT read as deleted.
+  grabaBorrador: /ha sido grabado|ha sido actualizado|grabado\/actualizado/i,
+  eliminaBorrador: /ha sido eliminad[oa]/i,
+};
+
 function assertCgiOk(html: string, step: string): void {
-  if (/ha sido grabado|ha sido eliminado|con éxito|con exito/i.test(html)) return;
+  const expected = CGI_OK[step];
+  if (expected && expected.test(html)) return;
   const rejection = serverAlert(html);
   if (rejection) throw new FacturaError(`El SII rechazó el documento: ${rejection}`);
   const msg = /<(?:p|div|td|span|h\d)[^>]*>\s*([^<]{15,300}?)\s*<\//i.exec(
@@ -330,6 +337,15 @@ function fillScript(payload: unknown): string {
 
   const missing = [];
   const coerced = [];
+  // Every direct element read goes through el()/cantDet() so a renamed field becomes a clean
+  // "scraper roto" error instead of a raw TypeError escaping page.evaluate.
+  const el = (n) => f.elements[n] || null;
+  const cantDet = () => Number((el('CANT_DET') || {}).value || 1);
+  const numOf = (n) => {
+    const e = el(n);
+    if (!e) { missing.push(n); return 0; }
+    return Number(e.value || 0);
+  };
   const norm = (v) =>
     String(v ?? '')
       .normalize('NFD')
@@ -374,11 +390,25 @@ function fillScript(payload: unknown): string {
     if (fire) e.dispatchEvent(new Event('change', { bubbles: true }));
   };
 
-  while (Number(f.elements['CANT_DET'].value || 1) < P.items.length) {
-    modCantLineaDet(f.elements['AGREGA_DETALLE']);
+  // BOUNDED: if modCantLineaDet ever stops incrementing CANT_DET — SII caps the grid for this
+  // DTE type, renames the function, or AGREGA_DETALLE disappears — an unbounded loop would spin
+  // in the renderer forever (page.evaluate does not time out), hanging the CLI and the MCP
+  // server with no error. Fail LOUD through the scraper channel instead (ADR-004).
+  const addBtn = el('AGREGA_DETALLE');
+  if (!addBtn && P.items.length > 1) return { scraper: 'falta el botón AGREGA_DETALLE' };
+  for (let guard = 0; cantDet() < P.items.length; guard += 1) {
+    if (guard >= P.items.length) {
+      return {
+        scraper:
+          'el formulario no aceptó más líneas de detalle (CANT_DET quedó en ' + cantDet() + ')',
+      };
+    }
+    const before = cantDet();
+    modCantLineaDet(addBtn);
+    const row = String(before + 1).padStart(2, '0');
     // each click re-renders the grid — wait for the row it just added
-    if (!(await waitFor(['EFXP_NMB_' + String(Number(f.elements['CANT_DET'].value)).padStart(2, '0')], 10000))) {
-      return { scraper: 'no se dibujó la línea de detalle ' + f.elements['CANT_DET'].value };
+    if (!(await waitFor(['EFXP_NMB_' + row], 10000)) || cantDet() <= before) {
+      return { scraper: 'no se dibujó la línea de detalle ' + row };
     }
   }
 
@@ -393,14 +423,21 @@ function fillScript(payload: unknown): string {
   put('EFXP_CIUDAD_RECEP', P.receptor.ciudad);
   put('EFXP_GIRO_RECEP', P.receptor.giro);
   put('EFXP_CONTACTO', P.receptor.contacto);
-  if (P.borradorId) { f.elements['EHDR_CODIGO'].value = P.borradorId; }
+  if (P.borradorId) {
+    const h = el('EHDR_CODIGO');
+    if (!h) return { scraper: 'falta EHDR_CODIGO en el formulario' };
+    h.value = P.borradorId;
+  }
 
   for (let i = 0; i < P.items.length; i += 1) {
     const it = P.items[i];
     const s = String(i + 1).padStart(2, '0');
     if (it.descripcion) {
-      const c = f.elements['DESCRIP_' + s];
-      if (c && !c.checked) { c.checked = true; c.onclick(); }
+      const c = el('DESCRIP_' + s);
+      if (!c || typeof c.onclick !== 'function') {
+        return { scraper: 'falta la casilla de descripción DESCRIP_' + s };
+      }
+      if (!c.checked) { c.checked = true; c.onclick(); }
       // the textarea is DRAWN by that onclick — wait for it, don't assume
       if (!(await waitFor(['EFXP_DSC_ITEM_' + s], 10000))) {
         return { scraper: 'no se dibujó la descripción EFXP_DSC_ITEM_' + s };
@@ -418,8 +455,11 @@ function fillScript(payload: unknown): string {
   const prev = window.alert;
   window.alert = (m) => msgs.push(String(m).trim());
   let ok = false;
-  try { ok = !!validaFacEx(f.elements['Button_Update']); }
-  catch (e) { window.alert = prev; return { scraper: String((e && e.message) || e) }; }
+  try {
+    const btn = el('Button_Update');
+    if (!btn) { window.alert = prev; return { scraper: 'falta el botón Button_Update' }; }
+    ok = !!validaFacEx(btn);
+  } catch (e) { window.alert = prev; return { scraper: String((e && e.message) || e) }; }
   window.alert = prev;
 
   const fields = {};
@@ -431,9 +471,9 @@ function fillScript(payload: unknown): string {
   return {
     ok, msgs, missing, coerced, fields,
     totales: {
-      neto: Number(f.elements['EFXP_MNT_NETO'].value || 0),
-      iva: Number(f.elements['EFXP_IVA'].value || 0),
-      total: Number(f.elements['EFXP_MNT_TOTAL'].value || 0),
+      neto: numOf('EFXP_MNT_NETO'),
+      iva: numOf('EFXP_IVA'),
+      total: numOf('EFXP_MNT_TOTAL'),
     },
   };
 })()`;
@@ -522,6 +562,7 @@ export async function resolveAndSelectEmpresa(
   session: PortalSession,
   rut: Rut,
   tipoDte: TipoDte,
+  sleep: () => Promise<void> = () => Promise.resolve(),
 ): Promise<FacturaEmpresa> {
   const empresas = await fetchEmpresas(session, tipoDte);
   const match = empresas.find((e) => e.rut.split('-')[0] === String(rut.body));
@@ -532,6 +573,7 @@ export async function resolveAndSelectEmpresa(
         '.',
     );
   }
+  await sleep(); // pace the two consecutive hops like every other pair (ADR-004)
   await selectEmpresa(session, match, tipoDte);
   return match;
 }
@@ -607,20 +649,23 @@ export async function loadBorrador(
   const r = await session.evaluate<FillResult>(`(async () => {
     const f = document.forms['VIEW_EFXP'];
     if (!f) return { scraper: 'no se encontró el formulario VIEW_EFXP' };
-    if (f.elements['EHDR_CODIGO'].value !== ${JSON.stringify(borradorId)}) {
-      return { scraper: 'el SII devolvió otro borrador (' + f.elements['EHDR_CODIGO'].value + ')' };
+    const el = (n) => f.elements[n] || null;
+    const hdr = el('EHDR_CODIGO');
+    if (!hdr) return { scraper: 'falta EHDR_CODIGO en el borrador' };
+    if (hdr.value !== ${JSON.stringify(borradorId)}) {
+      return { scraper: 'el SII devolvió otro borrador (' + hdr.value + ')' };
     }
     // The detail grid is drawn ASYNCHRONOUSLY (same hazard as fillScript). Serializing before
     // it exists yielded a form with NO detail lines, and SII then rejected the preview with
     // "Debe ingresar nombre del primer item del detalle" (observed 2026-09-08).
     const deadline = Date.now() + 15000;
-    while (!(f.elements['EFXP_NMB_01'] && f.elements['EFXP_QTY_01'] && f.elements['EFXP_PRC_01'])) {
+    while (!(el('EFXP_NMB_01') && el('EFXP_QTY_01') && el('EFXP_PRC_01'))) {
       if (Date.now() > deadline) return { scraper: 'la grilla de detalle del borrador no se dibujó' };
       await new Promise((r) => setTimeout(r, 50));
     }
     // and wait for the values to actually land (the grid is filled after it is drawn)
     const valued = Date.now() + 10000;
-    while (String(f.elements['EFXP_NMB_01'].value || '').trim() === '') {
+    while (String((el('EFXP_NMB_01') || {}).value || '').trim() === '') {
       if (Date.now() > valued) break; // a genuinely empty borrador is possible
       await new Promise((r) => setTimeout(r, 50));
     }
@@ -630,10 +675,9 @@ export async function loadBorrador(
       if ((e.type === 'checkbox' || e.type === 'radio') && !e.checked) continue;
       fields[e.name] = e.value;
     }
+    const num = (n) => Number((el(n) || {}).value || 0);
     return { ok: true, fields, totales: {
-      neto: Number(f.elements['EFXP_MNT_NETO'].value || 0),
-      iva: Number(f.elements['EFXP_IVA'].value || 0),
-      total: Number(f.elements['EFXP_MNT_TOTAL'].value || 0),
+      neto: num('EFXP_MNT_NETO'), iva: num('EFXP_IVA'), total: num('EFXP_MNT_TOTAL'),
     } };
   })()`);
   if (r.scraper) throw new FacturaError(`No se pudo leer el borrador ${borradorId}: ${r.scraper}.`);

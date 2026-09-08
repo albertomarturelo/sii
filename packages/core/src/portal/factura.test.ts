@@ -6,6 +6,7 @@ import { FakePortalSession } from '../adapters/fake/index.js';
 import { FacturaError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import {
+  eliminaBorrador,
   fetchBorradores,
   fetchEmpresas,
   fetchPreviewPdf,
@@ -396,6 +397,51 @@ describe('regressions (live 2026-09-08)', () => {
     expect(latin1FormBody([['a', 'x y']])).toBe('a=x+y');
     // outside 1252 entirely -> HTML numeric reference, as a browser does
     expect(latin1FormBody([['a', '\u4e2d']])).toBe('a=%26%2320013%3B');
+  });
+
+  // --- Review findings on PR #88 ---------------------------------------------------
+  it('REVIEW-critical: the grid-growth loop is bounded and fails through `scraper`', () => {
+    const src = fillScriptSource();
+    // no unbounded `while` around modCantLineaDet — it must be a guarded `for`
+    expect(src).not.toMatch(/while \([^)]*cantDet\(\) <[^)]*\)/);
+    expect(src).toContain('for (let guard = 0; cantDet() < P.items.length; guard += 1)');
+    expect(src).toContain('el formulario no aceptó más líneas de detalle');
+  });
+
+  it('REVIEW-1: no unguarded f.elements[...] reads escape as a raw TypeError', () => {
+    const src = fillScriptSource();
+    // The invariant that matters: never dereference a property straight off f.elements[...],
+    // which is what throws a raw TypeError when SII renames a field. The remaining bare lookups
+    // are existence checks (waitFor) and put()'s own missing[] path, both guarded.
+    expect(facturaSource()).not.toMatch(/f\.elements\[[^\]]+\]\s*\./);
+    expect(src).toContain('const el = (n) => f.elements[n] || null;');
+    expect(src).toContain('falta el botón Button_Update');
+    expect(src).toContain('falta la casilla de descripción DESCRIP_');
+  });
+
+  it('REVIEW-2: a delete answered with a "grabado" page is NOT reported as deleted', async () => {
+    const s = new FakePortalSession({
+      requestText: () => 'Su documento borrador ha sido grabado/actualizado con éxito',
+    });
+    await expect(
+      eliminaBorrador(s, { fields: {}, totales: { neto: 0, iva: 0, total: 0 }, avisos: [] }),
+    ).rejects.toBeInstanceOf(FacturaError);
+    // and the matching page IS accepted
+    const ok = new FakePortalSession({ requestText: () => 'El borrador ha sido eliminado' });
+    await expect(
+      eliminaBorrador(ok, { fields: {}, totales: { neto: 0, iva: 0, total: 0 }, avisos: [] }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('REVIEW-nit: the two empresa hops are paced', async () => {
+    const s = new FakePortalSession({
+      requestForm: (url) => (url.includes('?') ? EMPRESAS_HTML : '<html>formulario</html>'),
+    });
+    let paced = 0;
+    await resolveAndSelectEmpresa(s, Rut.parse('76192083-9'), 33, async () => {
+      paced += 1;
+    });
+    expect(paced).toBe(1);
   });
 
   it('never CALLS the signing CGI (ADR-023)', () => {

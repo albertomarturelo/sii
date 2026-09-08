@@ -55,6 +55,21 @@ interface FacturaJson {
   }[];
 }
 
+/** `--tipo` used to be `(v) => Number(v)`, so `--tipo abc` became NaN and every call site's
+ *  `opts.tipo ? …` guard silently fell back to 33 (`--tipo 0` too). Reject the bad value here so
+ *  the user is told, and pass the parsed number through unconditionally — `assertTipo` in the
+ *  core owns which types are supported. */
+const parseTipo = (v: string): number => {
+  const n = Number(v);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error(`--tipo inválido: "${v}" (un código de DTE entero, p. ej. 33 o 34).`);
+  }
+  return n;
+};
+
+const tipoOpt = (tipo?: number): { tipoDte?: number } =>
+  tipo === undefined ? {} : { tipoDte: tipo };
+
 const FORMAS: Record<string, FormaPago> = {
   contado: 'contado',
   credito: 'credito',
@@ -144,9 +159,9 @@ export function registerFactura(program: Command, runtime: Runtime): void {
   factura
     .command('empresas')
     .description('Empresas para las que estás autorizado a facturar en el Portal MIPYME.')
-    .option('--tipo <n>', 'Tipo de DTE (33 factura, 34 exenta).', (v) => Number(v))
+    .option('--tipo <n>', 'Tipo de DTE (33 factura, 34 exenta).', parseTipo)
     .action(async (opts: { tipo?: number }) => {
-      const res = await facturaEmpresas(runtime, { ...(opts.tipo ? { tipoDte: opts.tipo } : {}) });
+      const res = await facturaEmpresas(runtime, tipoOpt(opts.tipo));
       emit(res, () => {
         for (const e of res) out(`  ${e.rut}  ${e.nombre}`);
         out(`${res.length} empresa(s).`);
@@ -157,14 +172,24 @@ export function registerFactura(program: Command, runtime: Runtime): void {
 
   borrador
     .command('list')
-    .description('Borradores guardados de una empresa.')
+    .description('Borradores guardados de una empresa (de TODOS los tipos de DTE).')
     .requiredOption('--empresa <rut>', 'RUT de la empresa emisora.')
-    .option('--tipo <n>', 'Tipo de DTE (33 factura, 34 exenta).', (v) => Number(v))
-    .action(async (opts: { empresa: string; tipo?: number }) => {
-      const res = await facturaBorradorList(runtime, {
+    .option(
+      '--tipo <n>',
+      'Tipo de DTE con el que se abre el portal (33/34). NO filtra el listado; usa --solo-tipo.',
+      parseTipo,
+    )
+    .option('--solo-tipo <n>', 'Muestra sólo los borradores de este tipo de DTE.', parseTipo)
+    .action(async (opts: { empresa: string; tipo?: number; soloTipo?: number }) => {
+      const listed = await facturaBorradorList(runtime, {
         empresa: opts.empresa,
-        ...(opts.tipo ? { tipoDte: opts.tipo } : {}),
+        ...tipoOpt(opts.tipo),
       });
+      // The portal scopes by empresa, not by DTE type, so filtering is ours to do.
+      const res =
+        opts.soloTipo === undefined
+          ? listed
+          : { ...listed, borradores: listed.borradores.filter((b) => b.tipoDte === opts.soloTipo) };
       emit(res, () => {
         out(`Borradores de ${res.empresa.rut} — ${res.empresa.nombre}`);
         if (res.borradores.length === 0) {
@@ -214,7 +239,11 @@ export function registerFactura(program: Command, runtime: Runtime): void {
     .description('Elimina un borrador. Irreversible: exige --confirm con el mismo id.')
     .argument('<id>', 'Id del borrador (columna id de `borrador list`).')
     .requiredOption('--empresa <rut>', 'RUT de la empresa emisora.')
-    .option('--tipo <n>', 'Tipo de DTE (33 factura, 34 exenta).', (v) => Number(v))
+    .option(
+      '--tipo <n>',
+      'Tipo de DTE. Opcional: se toma del propio borrador; sólo es un respaldo.',
+      parseTipo,
+    )
     .option('--confirm <id>', 'Repite el id para confirmar el borrado.')
     .action(async (id: string, opts: { empresa: string; tipo?: number; confirm?: string }) => {
       // Double-entry of the load-bearing value, like `bte emit` (ADR-017).
@@ -226,9 +255,11 @@ export function registerFactura(program: Command, runtime: Runtime): void {
       const res = await facturaBorradorDelete(runtime, {
         empresa: opts.empresa,
         borradorId: id,
-        ...(opts.tipo ? { tipoDte: opts.tipo } : {}),
+        ...tipoOpt(opts.tipo),
       });
-      emit(res, () => out(`Borrador ${res.borradorId} eliminado de ${res.empresa.rut}.`));
+      emit(res, () =>
+        out(`Borrador ${res.borradorId} (DTE ${res.tipoDte}) eliminado de ${res.empresa.rut}.`),
+      );
     });
 
   factura

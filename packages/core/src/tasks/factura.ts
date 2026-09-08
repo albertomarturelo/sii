@@ -238,7 +238,9 @@ export async function facturaBorradorList(
   try {
     const res = await readOnlyRetry(runtime, () =>
       withSession(runtime, async (session) => {
-        const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
+        const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
+          runtime.clock.sleep(pacingMs()),
+        );
         await runtime.clock.sleep(pacingMs());
         return { empresa: emp, borradores: await fetchBorradores(session) };
       }),
@@ -267,7 +269,9 @@ export async function facturaBorradorSave(
   const start = runtime.clock.now().getTime();
   try {
     const res = await withSession(runtime, async (session) => {
-      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
+      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
+        runtime.clock.sleep(pacingMs()),
+      );
       const before = input.borradorId ? [] : (await fetchBorradores(session)).map((b) => b.id);
       await runtime.clock.sleep(pacingMs());
       const filled = await fillFactura(session, emp, { ...input, empresa: emp.rut });
@@ -306,25 +310,39 @@ export async function facturaBorradorSave(
 export async function facturaBorradorDelete(
   runtime: Runtime,
   args: { empresa: string; borradorId: string; tipoDte?: number },
-): Promise<{ empresa: FacturaEmpresa; borradorId: string; eliminado: true }> {
+): Promise<{ empresa: FacturaEmpresa; borradorId: string; tipoDte: TipoDte; eliminado: true }> {
   const empresa = Rut.parse(args.empresa);
-  const tipoDte = assertTipo(args.tipoDte);
+  // `tipoDte` is only a HINT here: the listing knows each borrador's real type, and deleting is
+  // the one irreversible operation — navigating with the wrong PTDC_CODIGO would fail
+  // confusingly. So resolve it from the listing and only fall back to the argument.
+  const hinted = assertTipo(args.tipoDte);
   if (!/^\d+$/.test(args.borradorId)) {
     throw new ValidationError(`Id de borrador inválido: "${args.borradorId}" (son dígitos).`);
   }
   const start = runtime.clock.now().getTime();
   try {
     const res = await withSession(runtime, async (session) => {
-      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
+      const emp = await resolveAndSelectEmpresa(session, empresa, hinted, () =>
+        runtime.clock.sleep(pacingMs()),
+      );
+      await runtime.clock.sleep(pacingMs());
+      const row = (await fetchBorradores(session)).find((b) => b.id === args.borradorId);
+      if (!row) {
+        throw new FacturaError(
+          `El borrador ${args.borradorId} no existe en ${emp.rut}. Revisa \`factura borrador list\`.`,
+        );
+      }
+      const tipoDte = isTipoDte(row.tipoDte) ? row.tipoDte : hinted;
       await runtime.clock.sleep(pacingMs());
       const filled = await loadBorrador(session, emp, tipoDte, args.borradorId);
       await runtime.clock.sleep(pacingMs());
       await eliminaBorrador(session, filled); // a WRITE — never retried (ADR-004)
-      return { empresa: emp, borradorId: args.borradorId, eliminado: true as const };
+      return { empresa: emp, borradorId: args.borradorId, tipoDte, eliminado: true as const };
     });
     audit(runtime, 'factura_borrador_delete', 'ok', {
       rut: empresa.canonical,
       borradorId: args.borradorId,
+      tipoDte: res.tipoDte,
       durationMs: runtime.clock.now().getTime() - start,
     });
     return res;
@@ -371,7 +389,9 @@ export async function facturaPreviewPdf(
   const start = runtime.clock.now().getTime();
   try {
     const res = await withSession(runtime, async (session) => {
-      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte);
+      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
+        runtime.clock.sleep(pacingMs()),
+      );
       await runtime.clock.sleep(pacingMs());
       const filled = await fillFactura(session, emp, { ...input, empresa: emp.rut });
       await runtime.clock.sleep(pacingMs());
