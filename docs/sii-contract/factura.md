@@ -275,8 +275,17 @@ field absent from the review page falls back to the frame's declared `value`, ne
 
 ## 6. Documentos emitidos (read-only)
 
-Reached from *Ver documentos emitidos* — `mipeLaunchPage.cgi?OPCION=2&TIPO=4`, so the empresa
-chooser runs with `DESDE_DONDE_URL=OPCION=2&TIPO=4`.
+Reached from *Ver documentos emitidos* — `mipeLaunchPage.cgi?OPCION=2&TIPO=4`. The empresa
+chooser, however, is asked for a **DTE-type** destination (`DESDE_DONDE_URL=OPCION=33&TIPO=4`,
+the `desdeDonde()` default), not `OPCION=2`. That is deliberate and safe: selecting the empresa
+is **session state independent of the destination** the chooser forwards to, so the listing is
+scoped identically either way (verified 2026-09-09 — the listing returns the empresa's documents
+after a `OPCION=33` selection).
+
+It is not cosmetic on the **single-empresa** path, though: there SII answers a launcher that
+jumps to whatever `OPCION` named (§ 1c), so the value decides which page is loaded. `OPCION=33`
+lands on the factura form, which is exactly where the emisor identity is read from — so the
+DTE-type destination is the one that path needs.
 
 ### Listing
 
@@ -316,6 +325,11 @@ none of the "VISTA PREVIA / DOCUMENTO NO VALIDO" watermark. `Content-Disposition
 the RUT — no folio — so the local filename is composed by the caller (ADR-022).
 
 Success is decided by `content-type` + `%PDF` magic, never by HTTP status.
+
+**Addressing.** `FOLIO` is a server-side filter, so a document is found by folio whatever page
+it lives on — one request. `CODIGO` (`DHDR_CODIGO`) has **no** filter, so reaching a document
+by its internal id means walking `NUM_PAG` until it appears; the walk is paced and bounded, and
+the not-found error reports how many pages were read.
 
 ## 7. Emission — OUT OF SCOPE (documented for the boundary only)
 The review page's `Firmar` button:

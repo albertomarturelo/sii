@@ -60,6 +60,11 @@ export type {
 } from '../portal/factura.js';
 export { TIPOS_DTE, MAX_ITEMS } from '../portal/factura.js';
 
+/** How far `facturaPdf` walks the emitted listing when it is addressed by SII's internal
+ *  `codigo`, which has no server-side filter (a `folio` does, so it needs one page). Bounded so
+ *  a wrong codigo costs a known number of round trips, not an unbounded crawl (ADR-004). */
+const MAX_PAGINAS_EMITIDAS = 20;
+
 /** Inter-call pace (ms) between consecutive POSTs to SII. The MIPYME CGIs are the legacy,
  *  session-stateful kind and were observed to start timing out under a fast sequence, so this
  *  floors at 1000 ms rather than deriving a smaller value from `rateLimitRps`. Writes are NEVER
@@ -460,7 +465,14 @@ export async function facturaPreviewPdf(
 
 // --- Documentos emitidos (read-only; ADR-023's boundary is untouched) ----------------
 
-/** The DTEs already EMITTED by `empresa`. Read-only — nothing here issues or signs. */
+/** The DTEs already EMITTED by `empresa`. Read-only — nothing here issues or signs.
+ *
+ *  `tipoDte` does NOT filter the listing (use `tipoDoc` for that). It only picks the `OPCION`
+ *  of the chooser GET, i.e. which destination `mipeSelEmpresa.cgi` is asked to forward to.
+ *  Empresa selection is SESSION state independent of that destination, so any wired value
+ *  scopes the session identically — but it is load-bearing on the single-empresa path, where
+ *  SII answers a launcher that jumps to whatever `OPCION` named (#95). Kept explicit rather
+ *  than hidden, and defaulted to 33. */
 export async function facturaEmitidas(
   runtime: Runtime,
   args: { empresa: string; tipoDte?: number } & FacturaEmitidasFiltro,
@@ -478,16 +490,18 @@ export async function facturaEmitidas(
   }
   const start = runtime.clock.now().getTime();
   try {
-    const res = await readOnlyRetry(runtime, () =>
-      withSession(runtime, async (session) => {
-        const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
-          runtime.clock.sleep(pacingMs()),
-        );
-        await runtime.clock.sleep(pacingMs());
-        const { empresa: _drop, tipoDte: _t, ...filtro } = args;
-        return { empresa: emp, documentos: await fetchEmitidas(session, filtro) };
-      }),
-    );
+    const res = await withSession(runtime, async (session) => {
+      const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
+        runtime.clock.sleep(pacingMs()),
+      );
+      await runtime.clock.sleep(pacingMs());
+      const { empresa: _drop, tipoDte: _t, ...filtro } = args;
+      // retry the READ only — never the empresa selection, which mutates session state
+      return {
+        empresa: emp,
+        documentos: await readOnlyRetry(runtime, () => fetchEmitidas(session, filtro)),
+      };
+    });
     audit(runtime, 'factura_emitidas', 'ok', {
       rut: empresa.canonical,
       count: res.documentos.length,
@@ -513,7 +527,12 @@ export interface FacturaEmitidaDoc {
 /** Download an ALREADY EMITTED document as a PDF, addressed by its `folio` (what a human has)
  *  or by SII's internal `codigo`. The folio is resolved through the listing, so a wrong folio
  *  fails with a clear message instead of an opaque SII page. `directorio` is REQUIRED — the
- *  pure core cannot know `$HOME`; each surface applies its own default (ADR-022). */
+ *  pure core cannot know `$HOME`; each surface applies its own default (ADR-022).
+ *
+ *  A `folio` is resolved by asking SII to filter on it, so it is found whatever page it lives
+ *  on. A `codigo` (SII's internal id) has no server-side filter, so the listing is WALKED page
+ *  by page — paced via `Clock.sleep`, bounded, and the not-found error says how far it looked.
+ *  `tipoDte` is the chooser's `OPCION`, not a filter — see `facturaEmitidas`. */
 export async function facturaPdf(
   runtime: Runtime,
   args: {
@@ -546,19 +565,33 @@ export async function facturaPdf(
         runtime.clock.sleep(pacingMs()),
       );
       await runtime.clock.sleep(pacingMs());
-      const found = await fetchEmitidas(
-        session,
-        args.folio === undefined ? {} : { folio: args.folio },
-      );
-      const doc =
-        args.codigo !== undefined
-          ? found.find((d) => d.codigo === args.codigo)
-          : found.find((d) => d.folio === args.folio);
+      let doc: FacturaEmitida | undefined;
+      let paginas = 0;
+      const folio = args.folio;
+      if (folio !== undefined) {
+        // SII filters on the folio server-side, so one page is enough whatever page it is on.
+        paginas = 1;
+        doc = (await readOnlyRetry(runtime, () => fetchEmitidas(session, { folio }))).find(
+          (d) => d.folio === folio,
+        );
+      } else {
+        // `codigo` has no server-side filter — walk the listing, paced (ADR-004), bounded.
+        for (let pagina = 1; pagina <= MAX_PAGINAS_EMITIDAS; pagina += 1) {
+          if (pagina > 1) await runtime.clock.sleep(pacingMs());
+          const page = await readOnlyRetry(runtime, () => fetchEmitidas(session, { pagina }));
+          paginas = pagina;
+          if (page.length === 0) break;
+          doc = page.find((d) => d.codigo === args.codigo);
+          if (doc) break;
+        }
+      }
       if (!doc) {
         throw new FacturaError(
-          `No se encontró un documento emitido ${
-            args.folio !== undefined ? `con folio ${args.folio}` : `con código ${args.codigo}`
-          } en ${emp.rut}. Revisa \`factura emitidas\`.`,
+          args.folio !== undefined
+            ? `No se encontró un documento emitido con folio ${args.folio} en ${emp.rut}. ` +
+                'Revisa `factura emitidas`.'
+            : `No se encontró un documento emitido con código ${args.codigo} en ${emp.rut} ` +
+                `tras revisar ${paginas} página(s) del listado. Revisa \`factura emitidas\`.`,
         );
       }
       await runtime.clock.sleep(pacingMs());

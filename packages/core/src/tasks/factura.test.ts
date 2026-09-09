@@ -363,3 +363,111 @@ describe('documentos emitidos (#91)', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 });
+
+describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
+  class TimeoutErr extends Error {
+    override name = 'TimeoutError';
+  }
+  /** A runtime whose emitted-listing read fails `fail()` every time, counting the chooser POSTs
+   *  and the listing reads separately — so a retry can be seen to repeat ONE and not the other. */
+  const runtimeCounting = (fail: () => never, counts: { sel: number; list: number }): Runtime => ({
+    clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
+    audit: new RecordingAuditSink(),
+    store: new InMemoryKeyValueStore(),
+    portal: new FakePortalDriver({
+      restoreSession: {
+        requestForm: (url: string) => {
+          if (url.includes('mipeSelEmpresa.cgi?')) {
+            counts.sel += 1;
+            return EMPRESAS_HTML;
+          }
+          if (url.includes('mipeSelEmpresa.cgi')) return '<html>formulario</html>';
+          if (url.includes('mipeAdminDocsEmi.cgi')) {
+            counts.list += 1;
+            fail();
+          }
+          return '';
+        },
+      },
+    }),
+  });
+
+  it('retries the LISTING only — the empresa selection is session state, never replayed', async () => {
+    const counts = { sel: 0, list: 0 };
+    const rt = runtimeCounting(() => {
+      throw new TimeoutErr('apiRequestContext.fetch: Timeout 30000ms exceeded.');
+    }, counts);
+    await seed(rt);
+    await expect(facturaEmitidas(rt, { empresa: EMPRESA })).rejects.toThrow(/Timeout/);
+    expect(counts.list).toBe(3); // initial + 2 retries
+    expect(counts.sel).toBe(1); // the chooser GET/POST happened exactly once
+  });
+
+  it('still never retries a SII block on the listing', async () => {
+    const counts = { sel: 0, list: 0 };
+    const rt = runtimeCounting(() => {
+      throw new FacturaError('429 Too Many Requests');
+    }, counts);
+    await seed(rt);
+    await expect(facturaEmitidas(rt, { empresa: EMPRESA })).rejects.toThrow(/429/);
+    expect(counts.list).toBe(1);
+  });
+
+  /** Pages the emitted listing: page 1 holds CODIGO=99001, page 2 holds CODIGO=99002. */
+  const pagedRuntime = (reads: string[]): Runtime => ({
+    clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
+    audit: new RecordingAuditSink(),
+    store: new InMemoryKeyValueStore(),
+    files: { write: async (dir: string, name: string) => `${dir}/${name}` } as FileSink,
+    portal: new FakePortalDriver({
+      restoreSession: {
+        requestForm: (url: string) => {
+          if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;
+          if (url.includes('mipeSelEmpresa.cgi')) return '<html>formulario</html>';
+          if (url.includes('mipeAdminDocsEmi.cgi')) {
+            reads.push(url);
+            const pag = /NUM_PAG=(\d+)/.exec(url)?.[1] ?? '1';
+            if (pag === '1') return EMITIDAS_HTML;
+            if (pag === '2') return EMITIDAS_HTML.replace(/99001/g, '99002').replace('>7<', '>8<');
+            return '<html><h1>Documentos Emitidos</h1>No se encontraron documentos</html>';
+          }
+          return '';
+        },
+        requestBinary: () => PDF,
+      },
+    }),
+  });
+
+  it('walks pages to reach a document by codigo, and paces the walk', async () => {
+    const reads: string[] = [];
+    const rt = pagedRuntime(reads);
+    await seed(rt);
+    const res = await facturaPdf(rt, {
+      empresa: EMPRESA,
+      codigo: '99002',
+      directorio: '/tmp/docs',
+    });
+    expect(res.documento.codigo).toBe('99002');
+    expect(reads.map((u) => /NUM_PAG=(\d+)/.exec(u)?.[1])).toEqual(['1', '2']);
+  });
+
+  it('a folio is filtered server-side — one read, whatever page it lives on', async () => {
+    const reads: string[] = [];
+    const rt = pagedRuntime(reads);
+    await seed(rt);
+    await facturaPdf(rt, { empresa: EMPRESA, folio: 7, directorio: '/tmp/docs' });
+    expect(reads).toHaveLength(1);
+    expect(reads[0]).toContain('FOLIO=7');
+  });
+
+  it('an unreachable codigo reports how far it looked, and stops at the bound', async () => {
+    const reads: string[] = [];
+    const rt = pagedRuntime(reads);
+    await seed(rt);
+    await expect(
+      facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
+    ).rejects.toThrow(/tras revisar 3 página\(s\)/);
+    // page 3 comes back empty, which ends the walk before the 20-page bound
+    expect(reads).toHaveLength(3);
+  });
+});

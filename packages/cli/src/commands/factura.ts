@@ -70,6 +70,18 @@ const parseTipo = (v: string): number => {
   return n;
 };
 
+/** `--folio` / `--pagina` are positive integers, not DTE types — same check, honest name and
+ *  message, so a bad value says what it actually is. */
+const parsePositiveInt =
+  (flag: string) =>
+  (v: string): number => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n <= 0) {
+      throw new Error(`${flag} inválido: "${v}" (un entero positivo).`);
+    }
+    return n;
+  };
+
 const tipoOpt = (tipo?: number): { tipoDte?: number } =>
   tipo === undefined ? {} : { tipoDte: tipo };
 
@@ -271,11 +283,11 @@ export function registerFactura(program: Command, runtime: Runtime): void {
     .requiredOption('--empresa <rut>', 'RUT de la empresa emisora.')
     .option('--tipo-doc <n>', 'Filtra por tipo de DTE (33, 34, 61, 52, …).', parseTipo)
     .option('--estado <estado>', 'emitido | preview.')
-    .option('--folio <n>', 'Filtra por folio.', parseTipo)
+    .option('--folio <n>', 'Filtra por folio.', parsePositiveInt('--folio'))
     .option('--receptor <rut>', 'Filtra por RUT receptor.')
     .option('--desde <YYYY-MM-DD>', 'Fecha de emisión desde.')
     .option('--hasta <YYYY-MM-DD>', 'Fecha de emisión hasta.')
-    .option('--pagina <n>', 'Página del listado (por defecto 1).', parseTipo)
+    .option('--pagina <n>', 'Página del listado (por defecto 1).', parsePositiveInt('--pagina'))
     .action(
       async (opts: {
         empresa: string;
