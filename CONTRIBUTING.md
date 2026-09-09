@@ -11,8 +11,8 @@ boilerplate, it is how the project stays coherent.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the non-negotiable realities of
   SII and the two-surfaces-one-core design.
 - [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — code style, architecture patterns,
-  SII domain rules, security & PII rules. **This file is the source of the rules;
-  everything below points at it rather than restating it.**
+  SII domain rules, security & PII rules. **It is the source of truth: where this
+  file summarizes a rule for convenience and the two ever disagree, it wins.**
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what is shipped, in progress, or planned,
   plus the "Where a new surface goes" placement table.
 - [`docs/decisions/`](docs/decisions/) — the ADRs. Decisions are recorded *before*
@@ -28,44 +28,54 @@ as slash commands.
 **You do not need Claude Code to contribute.** Each command is a plain markdown
 file describing steps you can follow by hand. The checklists in those files are
 the contract; the slash command is only the convenience that runs them for you.
+The file name does not always mirror the command name — `/decision:new` lives in
+`new-decision.md` and `/context:validate` in `validate-context.md` — so each step
+below names its file.
 
 Run them in this order:
 
-1. **`/session:start`** — orient: `ROADMAP.md`, the ADR index, open issues. Produces
-   a ~1k-token picture of what moved last and what is blocked. *Optional, but it is
-   how you avoid duplicating work already in flight.*
-2. **`/issue:new`** — the unit of work, written in the fixed **6-section body**
-   (`Context`, `Target`, `ADRs to load`, `Acceptance criteria`, `Reproduction`
-   (fixes only), `Estimated sessions`). Produces the GitHub issue. *Mandatory —
-   `/issue:start` parses that body by section header, so a free-form issue cannot
-   be picked up. Open the issue before you write code.*
-3. **`/issue:start <n>`** — loads the issue and **its listed ADRs before touching
-   code**, then creates the branch. Produces the branch + the acceptance checklist
-   you will paste into the PR. *Mandatory — the ADRs named in the issue are the
-   constraints your implementation has to satisfy.*
-4. **`/decision:new`** — run this **before implementing any decision that has no
-   ADR yet**: adding a dependency, moving a layer boundary, choosing between two
-   plausible patterns, or naming a new surface. Produces `docs/decisions/NNN-*.md`
-   (≤100 lines, 5 mandatory sections) plus its `_index.md` row. *Mandatory for such
-   changes, and the **ADR lands in the same PR as the code — never after**.*
-5. **`/context:validate`** — the same guards CI runs (ADR index integrity, ADR
-   completeness, the core boundary, third-party SII, PII), plus context-layer
-   health. Produces a PASS/WARN/FAIL checklist. *Run it before every push.*
-6. **`/review-pr <n>`** — **self-review against the ADRs + `CONVENTIONS.md` + your
-   issue's acceptance criteria, BEFORE opening the PR**, and again after every
-   push. Produces the structured report below. *Mandatory. The maintainer runs the
-   identical command on your PR, so a clean self-review is what makes the
-   maintainer's review a confirmation instead of a first pass.*
-7. **`/session:close`** — close out: tick the `ROADMAP.md` row, fold any correction
-   into `CONVENTIONS.md`, propose an ADR for anything decided informally. Produces a
-   session summary you can paste into the PR description. *Run it when you stop
-   working, not only when you finish.*
+1. **`/session:start`** (`session-start.md`) — orient: `ROADMAP.md`, the ADR index,
+   open issues. Produces a ~1k-token picture of what moved last and what is
+   blocked. *Optional, but it is how you avoid duplicating work already in flight.*
+2. **`/issue:new`** (`issue-new.md`) — the unit of work, written in the fixed
+   **6-section body** (`Context`, `Target`, `ADRs to load`, `Acceptance criteria`,
+   `Reproduction` (fixes only), `Estimated sessions`). Produces the GitHub issue.
+   *Mandatory — `/issue:start` parses that body by section header, so a free-form
+   issue cannot be picked up. Open the issue before you write code, and if
+   `Estimated sessions` is more than 1, split it into sub-issues before starting.*
+3. **`/issue:start <n>`** (`issue-start.md`) — loads the issue and **its listed ADRs
+   before touching code**, then creates the branch. Produces the branch + the
+   acceptance checklist you will paste into the PR. *Mandatory — the ADRs named in
+   the issue are the constraints your implementation has to satisfy.*
+4. **`/decision:new`** (`new-decision.md`) — run this **before implementing any
+   decision that has no ADR yet**: adding a dependency, moving a layer boundary,
+   choosing between two plausible patterns, or naming a new surface. Produces
+   `docs/decisions/NNN-*.md` (≤100 lines, 5 mandatory sections) plus its
+   `_index.md` row. *Mandatory for such changes, and the **ADR lands in the same PR
+   as the code — never after**.*
+5. **`/context:validate`** (`validate-context.md`) — context-layer health, plus the
+   three guards it shares with CI: ADR index integrity, ADR completeness, and the
+   ADR-003 surface boundary. It does **not** run CI's PII or third-party-SII greps —
+   those are CI-only, and the PII one is skipped on forks (see
+   [below](#what-ci-checks--and-what-it-does-not-check-on-your-fork)). Produces a
+   PASS/WARN/FAIL checklist. *Run it before every push.*
+6. **`/review-pr <n>`** (`review-pr.md`) — **self-review against the ADRs +
+   `CONVENTIONS.md` + your issue's acceptance criteria, BEFORE opening the PR**, and
+   again after every push. Checks the diff against
+   [the PR checklist](#the-pr-checklist) below and produces a Critical /
+   Suggestions / Nits report. *Mandatory. The maintainer runs the identical command
+   on your PR, so a clean self-review is what makes the maintainer's review a
+   confirmation instead of a first pass.*
+7. **`/session:close`** (`session-close.md`) — close out: tick the `ROADMAP.md` row,
+   fold any correction into `CONVENTIONS.md`, propose an ADR for anything decided
+   informally. Produces a session summary you can paste into the PR description.
+   *Run it when you stop working, not only when you finish.*
 
 ## The PR checklist
 
 This is [`.claude/commands/review-pr.md`](.claude/commands/review-pr.md) in
 checklist form. **The checklist is the contract**; run it by hand if you do not use
-Claude Code. Every item cites the rule it enforces.
+Claude Code. Every group cites the ADRs it enforces.
 
 ### GitHub workflow
 
@@ -111,7 +121,7 @@ Claude Code. Every item cites the rule it enforces.
 - [ ] The surface's auth mode (session-keyed / body-RUT / empresa-keyed / public) is
       declared on the first line of its `--help` (ADR-024).
 
-### Credentials & PII
+### Credentials & PII (ADR-006)
 
 - [ ] No hard-coded credentials, RUTs, passwords, cookies or tokens. Any RUT in
       source or fixtures is **synthetic and Mod-11-valid** (`11111111-1`,
@@ -122,7 +132,7 @@ Claude Code. Every item cites the rule it enforces.
       dropping `raw` over a denylist whenever the own-PII field set cannot be proven
       complete.
 
-### TypeScript
+### TypeScript (ADR-002 / ADR-009)
 
 - [ ] `strict` honored (plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`):
       no `any` without an inline justification; `unknown` + narrowing at boundaries.
@@ -131,7 +141,7 @@ Claude Code. Every item cites the rule it enforces.
       output only.
 - [ ] `pnpm build`, `pnpm lint`, `pnpm format:check` are clean.
 
-### Testing
+### Testing (ADR-003)
 
 - [ ] New logic has vitest tests (`<module>.test.ts`) with **synthetic** fixtures.
 - [ ] Tests never hit production SII; any live check is gated behind an explicit
@@ -220,7 +230,7 @@ anything**. The maintainer runs it before merge. Do not read a green check as
 confirmation that your diff is PII-clean — that remains your responsibility, and
 `CONVENTIONS.md` § "Security, secrets & PII" is the standard.
 
-### What "live-validated" must mean in a PR body
+## What "live-validated" must mean in a PR body
 
 Most of this project cannot be verified against a fixture alone: the SII portal is
 the source of truth and it changes without notice. If your PR body says a path was
