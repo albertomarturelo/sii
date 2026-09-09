@@ -16,7 +16,7 @@ SII", `Portal001` CGIs on `www1.sii.cl`). It is the surface a small contribuyent
 to issue facturas, and it supports a **borrador** (draft) lifecycle: save, list, re-open, preview
 and delete a document before committing to it.
 
-A live capture on 2026-09-08 (`docs/sii-contract/factura.md`) mapped the whole flow and surfaced
+A live capture on 2026-09-08 (`docs/sii-contract/dte-mipyme.md`) mapped the whole flow and surfaced
 one decisive fact:
 
 > **Signing is server-side.** The `Firmar` button posts to `mipeGenXMLFirma.cgi`; there is no
@@ -51,7 +51,7 @@ navigation away from any borrador this tool writes.
 
 **2. A borrador is a write, but not a destructive one.**
 
-Unlike `bte emit` (ADR-017), `factura_borrador_save` needs no double-entry confirm and no
+Unlike `bte emit` (ADR-017), `dte_borrador_save` needs no double-entry confirm and no
 `destructiveHint`: it is reversible and legally inert. **Deleting** a borrador is irreversible,
 so it does get the gate — CLI `--confirm <id>` (double-entry of the id) and MCP
 `destructiveHint: true` + an explicit `confirmar: true`.
