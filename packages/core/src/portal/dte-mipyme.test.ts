@@ -488,6 +488,61 @@ describe('documentos emitidos', () => {
     expect(Object.keys(rows[1] ?? {})).not.toContain('raw');
   });
 
+  /** One row whose folio cell is rendered blank — the shape a `PRV` (vista previa) document
+   *  produces, since a preview carries no folio. SYNTHETIC: capturing the real PRV markup is the
+   *  follow-up half of #92 (no pre-view document existed on the account when it was probed). */
+  const filaFolio = (folio: string, nombre = 'ACME REPUESTOS SPA'): string =>
+    `<table><tr> <td> <a href="/cgi-bin/Portal001/mipeGesDocEmi.cgi?CODIGO=99000003"><img src="/Portal001/button_edit.gif"></a></td>
+      <td>76192083-9 <td>${nombre}</td> <td>Factura Electronica</td> <td>${folio}</td>
+      <td>2026-09-08</td> <td>990000</td> <td>Vista Previa</td> </tr></table>`;
+
+  // #92: dropping the blank cell slid fecha into folio, monto into fecha and estado into monto —
+  // a plausible row with the values under the wrong names, and no error.
+  it.each([
+    ['empty', ''],
+    ['a raw non-breaking space', '\u00a0'],
+    ['an &nbsp; entity', '&nbsp;'],
+  ])('keeps every column in place when the folio cell is %s', (_label, folio) => {
+    expect(parseEmitidas(filaFolio(folio))).toEqual([
+      {
+        codigo: '99000003',
+        receptorRut: '76192083-9',
+        receptorNombre: 'ACME REPUESTOS SPA',
+        tipoDteDesc: 'Factura Electronica',
+        folio: null,
+        fecha: '2026-09-08',
+        monto: 990000,
+        estado: 'Vista Previa',
+      },
+    ]);
+  });
+
+  it('reads a blank receptor name as null without shifting the rest', () => {
+    expect(parseEmitidas(filaFolio('5', ''))[0]).toMatchObject({
+      receptorNombre: null,
+      folio: 5,
+      fecha: '2026-09-08',
+      monto: 990000,
+      estado: 'Vista Previa',
+    });
+  });
+
+  it('raises "scraper roto" on a row that gained a leading blank cell', () => {
+    // A blank cell BEFORE the receptor RUT shifts the row exactly as badly as a dropped one.
+    const larga = `<table><tr> <td> <a href="/cgi-bin/Portal001/mipeGesDocEmi.cgi?CODIGO=99000005"><img></a></td>
+      <td></td> <td>76192083-9 <td>ACME REPUESTOS SPA</td> <td>Factura Electronica</td> <td>5</td>
+      <td>2026-09-08</td> <td>990000</td> <td>Documento Emitido</td> </tr></table>`;
+    expect(() => parseEmitidas(larga)).toThrow(/8 celda\(s\) y se esperan 7/);
+  });
+
+  it('raises "scraper roto" on a row that lost a column, instead of realigning', () => {
+    const corta = `<table><tr> <td> <a href="/cgi-bin/Portal001/mipeGesDocEmi.cgi?CODIGO=99000004"><img></a></td>
+      <td>76192083-9 <td>ACME REPUESTOS SPA</td> <td>Factura Electronica</td> <td>5</td>
+      <td>2026-09-08</td> <td>990000</td> </tr></table>`;
+    expect(() => parseEmitidas(corta)).toThrow(DteError);
+    expect(() => parseEmitidas(corta)).toThrow(/6 celda\(s\) y se esperan 7/);
+  });
+
   it('sends every filter as a query param and treats an empty result as zero rows', async () => {
     const s = new FakePortalSession({
       requestForm: () => '<html>No se encontraron documentos</html>',
