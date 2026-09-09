@@ -28,3 +28,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 021 | [Publish the CLI + MCP surfaces to public npm](021-publish-cli-mcp-surfaces-npm.md) | Accepted | 2026-07-03 |
 | 022 | [Binary download seam + document output contract (F29 PDFs)](022-document-download-seams.md) | Accepted | 2026-08-31 |
 | 023 | [Factura electrónica (Portal MIPYME): borradores only, no emission](023-factura-borradores-only.md) | Accepted | 2026-09-08 |
+| 024 | [Surfaces are named by SII artifact; portal and auth mode are implementation axes](024-surfaces-named-by-artifact.md) | Accepted | 2026-09-09 |

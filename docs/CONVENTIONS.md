@@ -272,6 +272,15 @@ Python `sii-cli`, adapted to TypeScript.
   entrenched Spanish term exists (`status`, `login`, `profile`), Spanish where
   one does (`rcv`, `f29`, `bte`).
 - Form/document codes stay numeric (`F29`, `F22`, DTE `33`/`39`).
+- **Surfaces are named by SII artifact (ADR-024).** The top-level CLI verb / MCP prefix
+  is the tax artifact (`f29`, `rcv`, `dte`, `bte`…) — never the portal or transport
+  (`mipyme`, `sdi`), and never a document subclass of an artifact that already has a verb
+  (`factura` is DTE 33 ⇒ `dte`). Document types are numeric parameters (`--tipo 61`), not
+  verbs. Two transports for one artifact share the verb and differ by prerequisites in
+  `--help`. Portal-layer files are `portal/<artifact>-<transport>.ts` (`dte-public`,
+  `dte-mipyme`). **The first line of every surface's `--help` declares its auth mode**
+  (session-keyed / body-RUT / empresa-keyed / public). A verb not in ROADMAP's
+  "Where a new surface goes" table needs an ADR before it lands.
 
 ## Commits & PRs
 
