@@ -33,7 +33,6 @@ import { registerF29 } from './commands/f29.js';
 import { registerDte } from './commands/dte.js';
 import { registerBte } from './commands/bte.js';
 import { registerPeticiones } from './commands/peticiones.js';
-import { registerFactura } from './commands/factura.js';
 
 // The published version, read from this package's own package.json at runtime (one
 // level up from dist/) so `sii --version` never drifts from the release.
@@ -187,7 +186,6 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
   registerDte(program, runtime);
   registerBte(program, runtime);
   registerPeticiones(program, runtime);
-  registerFactura(program, runtime);
 
   // Make `--json`/`--human` parse after a subcommand too (`sii f22 status --human`), by
   // adding them to every leaf command — after the register fns have built their subtrees.

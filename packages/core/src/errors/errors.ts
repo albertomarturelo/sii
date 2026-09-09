@@ -66,13 +66,9 @@ export class PeticionesError extends SiiError {}
  *  the network/CGI failed, a non-200 came back, or the portal HTML changed shape
  *  ("scraper roto"). A RUT that is simply not a DTE emisor is NOT this error: it is a
  *  clean negative result (`autorizado: false` + SII's verbatim message). Fail loud,
- *  never retry (ADR-004 / ADR-014). */
+ *  never retry (ADR-004 / ADR-014).
+ *  Also the MIPYME portal surface (ADR-023 / ADR-024): SII rejected a borrador operation, its
+ *  own client-side validator refused the document (surfaced VERBATIM), or the portal form
+ *  changed shape. Empresa-keyed. Never retried after a SII error; a `LOGIN_HOST` bounce is
+ *  `SessionExpiredError`, not this. */
 export class DteError extends SiiError {}
-
-/** SII rejected a MIPYME factura operation, its own client-side validation refused the
- *  document (the message is surfaced VERBATIM — ADR-004), or the portal form changed
- *  shape ("scraper roto"). EMPRESA-KEYED: the working empresa comes from the MIPYME
- *  authorized list (`mipeSelEmpresa.cgi`), not the operate pointer (ADR-023). Borradores
- *  only — this surface never signs or emits a DTE. Never retried after a SII error; a
- *  `LOGIN_HOST` bounce surfaces as `SessionExpiredError`, not this. */
-export class FacturaError extends SiiError {}

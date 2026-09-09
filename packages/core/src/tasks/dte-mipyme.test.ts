@@ -11,18 +11,18 @@ import {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { FileSink, Runtime } from '../seams/index.js';
-import { FacturaError, ValidationError } from '../errors/index.js';
+import { DteError, ValidationError } from '../errors/index.js';
 import { initOperateState } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import {
-  facturaEmpresas,
-  facturaEmitidas,
-  facturaPdf,
-  facturaBorradorDelete,
-  facturaBorradorList,
-  facturaBorradorSave,
-  facturaPreviewPdf,
-} from './factura.js';
+  dteEmpresas,
+  dteEmitidos,
+  dtePdf,
+  dteBorradorDelete,
+  dteBorradorList,
+  dteBorradorSave,
+  dtePreviewPdf,
+} from './dte.js';
 
 const SELF = '11111111-1';
 const EMPRESA = '76192083-9';
@@ -128,7 +128,7 @@ describe('factura tasks (fakes, no SII)', () => {
     const rt = makeRuntime();
     await seed(rt);
 
-    const res = await facturaBorradorSave(rt, DOC);
+    const res = await dteBorradorSave(rt, DOC);
     expect(res).toMatchObject({
       id: '5000001',
       actualizado: false,
@@ -138,7 +138,7 @@ describe('factura tasks (fakes, no SII)', () => {
 
     const a = entries(rt).at(-1)!;
     expect(a).toMatchObject({
-      action: 'factura_borrador_save',
+      action: 'dte_borrador_save',
       result: 'ok',
       borradorId: '5000001',
     });
@@ -153,7 +153,7 @@ describe('factura tasks (fakes, no SII)', () => {
   it('updates in place when borradorId is given (no id diffing)', async () => {
     const rt = makeRuntime();
     await seed(rt);
-    const res = await facturaBorradorSave(rt, { ...DOC, borradorId: '5000002' });
+    const res = await dteBorradorSave(rt, { ...DOC, borradorId: '5000002' });
     expect(res).toMatchObject({ id: '5000002', actualizado: true });
   });
 
@@ -167,7 +167,7 @@ describe('factura tasks (fakes, no SII)', () => {
       },
     ]);
     await seed(rt);
-    const res = await facturaBorradorList(rt, { empresa: EMPRESA });
+    const res = await dteBorradorList(rt, { empresa: EMPRESA });
     expect(res.empresa).toEqual({ rut: EMPRESA, nombre: 'ACME SPA' });
     expect(res.borradores).toHaveLength(1);
     expect(res.borradores[0]).toMatchObject({ id: '5000002', total: 990000 });
@@ -178,7 +178,7 @@ describe('factura tasks (fakes, no SII)', () => {
     // confusingly, so the type comes from the borrador's own row.
     const rt = makeRuntime([{ ehdr_CODIGO: '5000001', ptdc_CODIGO: '34' }]);
     await seed(rt);
-    const res = await facturaBorradorDelete(rt, { empresa: EMPRESA, borradorId: '5000001' });
+    const res = await dteBorradorDelete(rt, { empresa: EMPRESA, borradorId: '5000001' });
     expect(res).toMatchObject({ borradorId: '5000001', tipoDte: 34, eliminado: true });
     expect(entries(rt).at(-1)).toMatchObject({ tipoDte: 34 });
   });
@@ -187,17 +187,17 @@ describe('factura tasks (fakes, no SII)', () => {
     const rt = makeRuntime([]);
     await seed(rt);
     await expect(
-      facturaBorradorDelete(rt, { empresa: EMPRESA, borradorId: '9999999' }),
+      dteBorradorDelete(rt, { empresa: EMPRESA, borradorId: '9999999' }),
     ).rejects.toThrow(/no existe/);
   });
 
   it('deletes a borrador and audits the id', async () => {
     const rt = makeRuntime([{ ehdr_CODIGO: '5000001', ptdc_CODIGO: '33' }]);
     await seed(rt);
-    const res = await facturaBorradorDelete(rt, { empresa: EMPRESA, borradorId: '5000001' });
+    const res = await dteBorradorDelete(rt, { empresa: EMPRESA, borradorId: '5000001' });
     expect(res).toMatchObject({ borradorId: '5000001', eliminado: true });
     expect(entries(rt).at(-1)).toMatchObject({
-      action: 'factura_borrador_delete',
+      action: 'dte_borrador_delete',
       result: 'ok',
       borradorId: '5000001',
     });
@@ -206,7 +206,7 @@ describe('factura tasks (fakes, no SII)', () => {
   it('writes the preview PDF through FileSink and returns a DESCRIPTOR, never bytes', async () => {
     const rt = makeRuntime();
     await seed(rt);
-    const res = await facturaPreviewPdf(rt, { ...DOC, directorio: '/tmp/docs' });
+    const res = await dtePreviewPdf(rt, { ...DOC, directorio: '/tmp/docs' });
     expect(res).toMatchObject({ bytes: PDF.length, contentType: 'application/pdf' });
     expect(res.archivo).toBe('borrador-33-76192083-9-2026-09-08-64000001.pdf');
     expect(rt.written).toEqual(['/tmp/docs/borrador-33-76192083-9-2026-09-08-64000001.pdf']);
@@ -238,14 +238,14 @@ describe('factura tasks (fakes, no SII)', () => {
         { ...DOC, items: [{ nombre: 'x', cantidad: 1, precioUnitario: 10, descuentoPct: 100 }] },
       ],
     ])('rejects %s without touching SII', async (_label, doc) => {
-      await expect(facturaBorradorSave(noSession(), doc as never)).rejects.toBeInstanceOf(
+      await expect(dteBorradorSave(noSession(), doc as never)).rejects.toBeInstanceOf(
         ValidationError,
       );
     });
 
     it('rejects a non-numeric borrador id on delete', async () => {
       await expect(
-        facturaBorradorDelete(noSession(), { empresa: EMPRESA, borradorId: 'abc' }),
+        dteBorradorDelete(noSession(), { empresa: EMPRESA, borradorId: 'abc' }),
       ).rejects.toBeInstanceOf(ValidationError);
     });
   });
@@ -275,10 +275,10 @@ describe('retry policy (CONVENTIONS: never retry after a SII block)', () => {
   it('does NOT retry a 429 / rate-limit answered by SII', async () => {
     const calls = { n: 0 };
     const rt = runtimeWith(() => {
-      throw new FacturaError('429 Too Many Requests');
+      throw new DteError('429 Too Many Requests');
     }, calls);
     await seed(rt);
-    await expect(facturaEmpresas(rt, {})).rejects.toThrow(/429/);
+    await expect(dteEmpresas(rt, {})).rejects.toThrow(/429/);
     expect(calls.n).toBe(1); // one attempt only — a block is never retried
   });
 
@@ -288,7 +288,7 @@ describe('retry policy (CONVENTIONS: never retry after a SII block)', () => {
       throw new Error('El folio 512 no existe');
     }, calls);
     await seed(rt);
-    await expect(facturaEmpresas(rt, {})).rejects.toThrow(/folio 512/);
+    await expect(dteEmpresas(rt, {})).rejects.toThrow(/folio 512/);
     expect(calls.n).toBe(1);
   });
 
@@ -298,12 +298,12 @@ describe('retry policy (CONVENTIONS: never retry after a SII block)', () => {
       throw new Timeout('apiRequestContext.fetch: Timeout 30000ms exceeded.');
     }, calls);
     await seed(rt);
-    await expect(facturaEmpresas(rt, {})).rejects.toThrow(/Timeout/);
+    await expect(dteEmpresas(rt, {})).rejects.toThrow(/Timeout/);
     expect(calls.n).toBe(3); // initial + 2 retries
   });
 
   it('uses the Clock for jitter, so the core stays deterministic', () => {
-    const src = readFileSync(fileURLToPath(new URL('./factura.ts', import.meta.url)), 'utf8');
+    const src = readFileSync(fileURLToPath(new URL('./dte.ts', import.meta.url)), 'utf8');
     expect(src).not.toContain('Math.random');
     expect(src).toContain('runtime.clock.now().getTime() % 250');
   });
@@ -313,11 +313,11 @@ describe('documentos emitidos (#91)', () => {
   it('lists emitted documents and audits count only (no PII)', async () => {
     const rt = makeRuntime();
     await seed(rt);
-    const res = await facturaEmitidas(rt, { empresa: EMPRESA });
+    const res = await dteEmitidos(rt, { empresa: EMPRESA });
     expect(res.documentos).toHaveLength(1);
     expect(res.documentos[0]).toMatchObject({ folio: 7, codigo: '99001' });
     const a = entries(rt).at(-1)!;
-    expect(a).toMatchObject({ action: 'factura_emitidas', result: 'ok', count: 1 });
+    expect(a).toMatchObject({ action: 'dte_emitidos', result: 'ok', count: 1 });
     expect(JSON.stringify(a)).not.toContain('CLIENTE DE PRUEBA');
   });
 
@@ -329,38 +329,38 @@ describe('documentos emitidos (#91)', () => {
       portal: new FakePortalDriver({}),
     };
     await expect(
-      facturaEmitidas(noSession, { empresa: EMPRESA, receptor: '64000001-9' }),
+      dteEmitidos(noSession, { empresa: EMPRESA, receptor: '64000001-9' }),
     ).rejects.toBeInstanceOf(ValidationError);
     await expect(
-      facturaEmitidas(noSession, { empresa: EMPRESA, desde: '08-09-2026' }),
+      dteEmitidos(noSession, { empresa: EMPRESA, desde: '08-09-2026' }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
   it('downloads by folio and returns a DESCRIPTOR, never the bytes', async () => {
     const rt = makeRuntime();
     await seed(rt);
-    const res = await facturaPdf(rt, { empresa: EMPRESA, folio: 7, directorio: '/tmp/docs' });
+    const res = await dtePdf(rt, { empresa: EMPRESA, folio: 7, directorio: '/tmp/docs' });
     expect(res).toMatchObject({ bytes: PDF.length, contentType: 'application/pdf' });
     expect(res.archivo).toBe('factura-7-76192083-9-2026-09-08.pdf');
     expect(rt.written).toEqual(['/tmp/docs/factura-7-76192083-9-2026-09-08.pdf']);
     expect(JSON.stringify(res)).not.toContain('%PDF');
-    expect(entries(rt).at(-1)).toMatchObject({ action: 'factura_pdf', result: 'ok', folio: 7 });
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'dte_pdf', result: 'ok', folio: 7 });
   });
 
   it('fails clearly when the folio is not in the listing', async () => {
     const rt = makeRuntime();
     await seed(rt);
     await expect(
-      facturaPdf(rt, { empresa: EMPRESA, folio: 999, directorio: '/tmp/docs' }),
+      dtePdf(rt, { empresa: EMPRESA, folio: 999, directorio: '/tmp/docs' }),
     ).rejects.toThrow(/No se encontró un documento emitido con folio 999/);
   });
 
   it('requires a folio or a codigo', async () => {
     const rt = makeRuntime();
     await seed(rt);
-    await expect(
-      facturaPdf(rt, { empresa: EMPRESA, directorio: '/tmp/docs' }),
-    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(dtePdf(rt, { empresa: EMPRESA, directorio: '/tmp/docs' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
   });
 });
 
@@ -398,7 +398,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
       throw new TimeoutErr('apiRequestContext.fetch: Timeout 30000ms exceeded.');
     }, counts);
     await seed(rt);
-    await expect(facturaEmitidas(rt, { empresa: EMPRESA })).rejects.toThrow(/Timeout/);
+    await expect(dteEmitidos(rt, { empresa: EMPRESA })).rejects.toThrow(/Timeout/);
     expect(counts.list).toBe(3); // initial + 2 retries
     expect(counts.sel).toBe(1); // the chooser GET/POST happened exactly once
   });
@@ -406,10 +406,10 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
   it('still never retries a SII block on the listing', async () => {
     const counts = { sel: 0, list: 0 };
     const rt = runtimeCounting(() => {
-      throw new FacturaError('429 Too Many Requests');
+      throw new DteError('429 Too Many Requests');
     }, counts);
     await seed(rt);
-    await expect(facturaEmitidas(rt, { empresa: EMPRESA })).rejects.toThrow(/429/);
+    await expect(dteEmitidos(rt, { empresa: EMPRESA })).rejects.toThrow(/429/);
     expect(counts.list).toBe(1);
   });
 
@@ -442,7 +442,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     const reads: string[] = [];
     const rt = pagedRuntime(reads);
     await seed(rt);
-    const res = await facturaPdf(rt, {
+    const res = await dtePdf(rt, {
       empresa: EMPRESA,
       codigo: '99002',
       directorio: '/tmp/docs',
@@ -455,7 +455,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     const reads: string[] = [];
     const rt = pagedRuntime(reads);
     await seed(rt);
-    await facturaPdf(rt, { empresa: EMPRESA, folio: 7, directorio: '/tmp/docs' });
+    await dtePdf(rt, { empresa: EMPRESA, folio: 7, directorio: '/tmp/docs' });
     expect(reads).toHaveLength(1);
     expect(reads[0]).toContain('FOLIO=7');
   });
@@ -465,7 +465,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     const rt = pagedRuntime(reads);
     await seed(rt);
     await expect(
-      facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
+      dtePdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
     ).rejects.toThrow(/recorrer el listado completo \(3 página\(s\)\)/);
     // page 3 comes back empty, which ends the walk before the 20-page bound
     expect(reads).toHaveLength(3);
@@ -499,7 +499,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     const rt = clampingRuntime(reads);
     await seed(rt);
     await expect(
-      facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
+      dtePdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
     ).rejects.toThrow(/recorrer el listado completo \(2 página\(s\)\)/);
     expect(reads).toHaveLength(2); // page 1, page 2 == page 1 ⇒ stop, not 20 requests
   });
@@ -532,7 +532,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     const rt = endlessRuntime(reads);
     await seed(rt);
     await expect(
-      facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
+      dtePdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
     ).rejects.toThrow(/tras revisar 20 página\(s\), el tope del recorrido/);
     expect(reads).toHaveLength(20);
   });

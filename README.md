@@ -130,7 +130,7 @@ herramienta (lectura vs escritura). Las de **escritura** —iniciar/cerrar sesi�
 operar como, y **emitir** una BHE— quedan controladas: `bte_emit` es la única
 `destructive` y exige confirmación explícita.
 
-Las herramientas que **descargan documentos** (`f29_pdf`) escriben el archivo en tu
+Las herramientas que **descargan documentos** (`f29_pdf`, `dte_pdf`, `dte_preview_pdf`) escriben el archivo en tu
 disco y devuelven **solo su ruta y tamaño, nunca el contenido**: un F29 lleva razón
 social, domicilio y tu posición financiera completa, así que el documento no entra
 en la conversación — lo abres tú desde la ruta que indica.
@@ -149,6 +149,8 @@ en la conversación — lo abres tú desde la ruta que indica.
 - «Dame la propuesta del F29 de mayo 2026, agrupada por línea.» → `f29_formulario`
 - «Descárgame el PDF del F29 de mayo 2026 con su comprobante de pago.» → `f29_pdf`
 - «¿Qué documentos tributarios está autorizado a emitir el RUT 77.777.777-7?» → `dte_authorized` (público, sin login)
+- «Prepara un borrador de factura a mi cliente por $1.000.000 y muéstrame el PDF de vista previa.» → `dte_borrador_save` + `dte_preview_pdf` (nunca emite)
+- «¿Qué facturas emití en agosto por el portal MIPYME? Bájame el PDF del folio 7.» → `dte_emitidos` + `dte_pdf`
 - «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
 - «¿Tengo peticiones administrativas detenidas ante el SII (en espera de antecedentes)?» → `peticiones_list`
 - «¿A nombre de quién estoy registrado — razón social y correo?» → `whoami`
@@ -185,12 +187,19 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
+| `sii dte empresas` | Empresas del Portal MIPYME para las que estás autorizado a facturar |
+| `sii dte borrador list\|save\|delete …` | Borradores de factura (33/34) en el Portal MIPYME — crea, actualiza, lista, elimina; **nunca emite** |
+| `sii dte preview <json> [--out]` | PDF de vista previa del documento sin emitir ("DOCUMENTO NO VÁLIDO", sin folio) |
+| `sii dte emitidos --empresa <rut> [filtros]` | Documentos ya emitidos vía el Portal MIPYME (todos los tipos), con filtros y paginación |
+| `sii dte pdf <folio> --empresa <rut> [--out]` | Descarga el PDF de un documento emitido |
 | `sii peticiones list [--rut]` | Peticiones administrativas (SISPAD) + su timeline de estados |
 | `sii whoami` | Razón social/nombre + correo de la cuenta autenticada |
 
 Las superficies **session-keyed** (`f22`, `f29`, `bte`) leen siempre el principal
 de la sesión (sin `--rut`); la **body-RUT** (`rcv`) acepta `--rut` / `operate`
-para llegar a una empresa representada (ADR-005).
+para llegar a una empresa representada (ADR-005); la **empresa-keyed** (`dte` vía Portal MIPYME)
+valida `--empresa` contra la lista del propio portal (ADR-023). Cada `--help` abre con su modo
+de autenticación (ADR-024).
 
 ## Modelo de identidad
 

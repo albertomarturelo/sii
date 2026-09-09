@@ -71,32 +71,32 @@ export { dteAuthorized } from './tasks/dte.js';
 export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';
 export { bteList, bteEmitPreview, bteEmit } from './tasks/bte.js';
 export {
-  facturaEmpresas,
-  facturaBorradorList,
-  facturaBorradorSave,
-  facturaBorradorDelete,
-  facturaPreviewPdf,
-  facturaEmitidas,
-  facturaPdf,
+  dteEmpresas,
+  dteBorradorList,
+  dteBorradorSave,
+  dteBorradorDelete,
+  dtePreviewPdf,
+  dteEmitidos,
+  dtePdf,
   TIPOS_DTE,
   MAX_ITEMS,
-} from './tasks/factura.js';
+} from './tasks/dte.js';
 export type {
-  FacturaBorradorArgs,
-  FacturaBorradorRow,
-  FacturaBorradorSaved,
-  FacturaEmpresa,
-  FacturaItem,
-  FacturaPreviewDoc,
-  FacturaEmitida,
-  FacturaEmitidaDoc,
-  FacturaEmitidasFiltro,
+  DteBorradorArgs,
+  DteBorradorRow,
+  DteBorradorSaved,
+  DteEmpresa,
+  DteItem,
+  DtePreviewDoc,
+  DteEmitido,
+  DteEmitidoDoc,
+  DteEmitidosFiltro,
   EstadoEmitido,
-  FacturaSelectAviso,
-  FacturaTotales,
+  DteSelectAviso,
+  DteTotales,
   FormaPago,
   TipoDte,
-} from './tasks/factura.js';
+} from './tasks/dte.js';
 export type {
   BteMensual,
   BteBoleta,

@@ -1,9 +1,9 @@
 // Facade tests for the MIPYME factura surface. No real SII: the fake session scripts the
-// observed wire shapes (docs/sii-contract/factura.md, captured 2026-09-08). Synthetic,
+// observed wire shapes (docs/sii-contract/dte-mipyme.md, captured 2026-09-08). Synthetic,
 // Mod-11-valid RUTs only — never real PII.
 import { describe, expect, it } from 'vitest';
 import { FakePortalSession } from '../adapters/fake/index.js';
-import { FacturaError } from '../errors/index.js';
+import { DteError } from '../errors/index.js';
 import { LOGIN_HOST } from '../config/index.js';
 import { Rut } from '../rut/index.js';
 import {
@@ -19,9 +19,9 @@ import {
   grabaBorrador,
   loadBorrador,
   resolveAndSelectEmpresa,
-} from './factura.js';
-import type { FacturaEmpresa } from './factura.js';
-import { repairMojibake, frameFields, contribuyenteError, latin1FormBody } from './factura.js';
+} from './dte-mipyme.js';
+import type { DteEmpresa } from './dte-mipyme.js';
+import { repairMojibake, frameFields, contribuyenteError, latin1FormBody } from './dte-mipyme.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
  *  selectors, select-aware assignment, no event on the receptor RUT) are asserted against the
  *  source directly — a browser-level test would need a live SII page. */
 const facturaSource = (): string =>
-  readFileSync(fileURLToPath(new URL('./factura.ts', import.meta.url)), 'utf8');
+  readFileSync(fileURLToPath(new URL('./dte-mipyme.ts', import.meta.url)), 'utf8');
 const fillScriptSource = (): string => {
   const src = facturaSource();
   return src.slice(src.indexOf('function fillScript'));
@@ -44,7 +44,7 @@ const EMPRESAS_HTML = `<form name="fPrmEmpPOP" method="post">
     </optgroup>
   </select></form>`;
 
-const EMPRESA: FacturaEmpresa = { rut: '76192083-9', nombre: 'ACME REPUESTOS SPA' };
+const EMPRESA: DteEmpresa = { rut: '76192083-9', nombre: 'ACME REPUESTOS SPA' };
 
 const INPUT = {
   empresa: '76192083-9',
@@ -84,7 +84,7 @@ describe('fetchEmpresas', () => {
 
   it('fails loudly when the select is gone (scraper roto)', async () => {
     const s = new FakePortalSession({ requestForm: () => '<html>mantención</html>' });
-    await expect(fetchEmpresas(s, 33)).rejects.toBeInstanceOf(FacturaError);
+    await expect(fetchEmpresas(s, 33)).rejects.toBeInstanceOf(DteError);
   });
 });
 
@@ -431,7 +431,7 @@ describe('regressions (live 2026-09-08)', () => {
     });
     await expect(
       eliminaBorrador(s, { fields: {}, totales: { neto: 0, iva: 0, total: 0 }, avisos: [] }),
-    ).rejects.toBeInstanceOf(FacturaError);
+    ).rejects.toBeInstanceOf(DteError);
     // and the matching page IS accepted
     const ok = new FakePortalSession({ requestText: () => 'El borrador ha sido eliminado' });
     await expect(
@@ -505,7 +505,7 @@ describe('documentos emitidos', () => {
 
   it('fails loudly when the listing changes shape (scraper roto)', async () => {
     const s = new FakePortalSession({ requestForm: () => '<html>mantención</html>' });
-    await expect(fetchEmitidas(s)).rejects.toBeInstanceOf(FacturaError);
+    await expect(fetchEmitidas(s)).rejects.toBeInstanceOf(DteError);
   });
 
   it('relays a SII rejection page verbatim', async () => {
@@ -596,7 +596,7 @@ describe('GH-95: parseChooser classifies the three observed chooser shapes', () 
     expect(parseChooser(LAUNCHER_HTML)).toEqual({ kind: 'launcher' });
   });
   it('anything else is scraper roto, never silently one of the three', () => {
-    expect(() => parseChooser('<html>mantención</html>')).toThrow(FacturaError);
+    expect(() => parseChooser('<html>mantención</html>')).toThrow(DteError);
     expect(() => parseChooser('<html>mantención</html>')).toThrow(/forma conocida/);
   });
 });

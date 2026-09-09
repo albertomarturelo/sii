@@ -46,7 +46,11 @@ export function registerRcv(program: Command, runtime: Runtime): void {
 
   rcv
     .command('list')
-    .description('Detalle de documentos de un tipo para un período.')
+    .description(
+      'Detalle de documentos de un tipo para un período. Es el REGISTRO del SII: todo lo ' +
+        'emitido/recibido por cualquier software; para lo emitido vía el Portal MIPYME con su ' +
+        'PDF, usa `dte emitidos`.',
+    )
     .argument('<periodo>', 'Período tributario (YYYYMM o YYYY-MM).')
     .requiredOption('--tipo <codigo>', 'Código de tipo de documento DTE (ej. 33, 34, 39).')
     .option('--venta', 'Consulta el registro de VENTAS (por defecto: COMPRAS).')

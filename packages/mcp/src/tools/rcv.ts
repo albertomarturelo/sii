@@ -47,6 +47,8 @@ export function registerRcvTools(server: McpServer, runtime: Runtime): void {
       title: 'RCV detalle',
       description:
         'Detalle de documentos de un tipo (codigoTipoDoc, ej. "33") del RCV para un período. ' +
+        'Es el REGISTRO del SII (todo lo emitido/recibido por cualquier software); para lo ' +
+        'emitido vía el Portal MIPYME con su PDF, usa dte_emitidos. ' +
         'COMPRAS por defecto; venta=true para VENTAS. Body-RUT: usa rut para una empresa representada.',
       inputSchema: {
         periodo: z.string(),

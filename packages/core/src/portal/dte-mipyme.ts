@@ -1,6 +1,6 @@
 // MIPYME FACTURA (borradores) — the SII's FREE facturación electrónica portal, `Portal001`
 // CGIs on www1.sii.cl. Wire contract captured live 2026-09-08 (own session, a real borrador
-// created/listed/deleted end-to-end); see docs/sii-contract/factura.md. NOT a third-party
+// created/listed/deleted end-to-end); see docs/sii-contract/dte-mipyme.md. NOT a third-party
 // library (ADR-004): every field, endpoint and selector below is first-hand-observed.
 //
 // BORRADORES ONLY (ADR-023). The portal's emisión path is `mipeDisplayPreView.cgi` →
@@ -24,7 +24,7 @@
 // instead of the select) and the session is already scoped; then the empresa is read off the
 // factura form's DTE header box and nothing is POSTed (observed 2026-09-09, #95).
 import { HOSTS } from '../config/index.js';
-import { FacturaError } from '../errors/index.js';
+import { DteError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import type { PortalSession, PublicResponse } from '../seams/index.js';
 
@@ -77,12 +77,12 @@ export type FormaPago = keyof typeof FORMA_PAGO;
 export const MAX_ITEMS = 10;
 
 /** An empresa the authenticated user may invoice for, as offered by `mipeSelEmpresa.cgi`. */
-export interface FacturaEmpresa {
+export interface DteEmpresa {
   readonly rut: string; // canonical `<body>-<dv>` exactly as SII serves it
   readonly nombre: string;
 }
 
-export interface FacturaReceptor {
+export interface DteReceptor {
   readonly rut: string; // body digits, no DV
   readonly dv: string;
   readonly razonSocial: string;
@@ -93,7 +93,7 @@ export interface FacturaReceptor {
   readonly contacto?: string;
 }
 
-export interface FacturaItem {
+export interface DteItem {
   readonly nombre: string;
   readonly descripcion?: string;
   readonly cantidad: number;
@@ -105,20 +105,20 @@ export interface FacturaItem {
 /** Everything the caller supplies. The EMISOR block (razón social, giro, domicilio, acteco,
  *  sucursal) is read from the live form — except `ciudadEmisor`, which SII leaves BLANK yet
  *  its own validation demands, so the caller must provide it (observed 2026-09-08). */
-export interface FacturaBorradorInput {
+export interface DteBorradorInput {
   readonly empresa: string; // emisor RUT, from the MIPYME authorized list
   readonly tipoDte: TipoDte;
   readonly fechaEmision: string; // YYYY-MM-DD
   readonly ciudadEmisor: string;
-  readonly receptor: FacturaReceptor;
-  readonly items: readonly FacturaItem[];
+  readonly receptor: DteReceptor;
+  readonly items: readonly DteItem[];
   readonly formaPago: FormaPago;
   /** Set to UPDATE an existing borrador in place; omit to create a new one. */
   readonly borradorId?: string;
 }
 
 /** Server-side totals, computed by the form's own JS (so the arithmetic is SII's, not ours). */
-export interface FacturaTotales {
+export interface DteTotales {
   readonly neto: number;
   readonly iva: number;
   readonly total: number;
@@ -129,7 +129,7 @@ export const ESTADO_EMITIDO = { emitido: 'EMI', preview: 'PRV' } as const;
 export type EstadoEmitido = keyof typeof ESTADO_EMITIDO;
 
 /** Filters the emitted listing accepts, all optional (observed as query params). */
-export interface FacturaEmitidasFiltro {
+export interface DteEmitidosFiltro {
   readonly tipoDoc?: number;
   readonly estado?: EstadoEmitido;
   readonly folio?: number;
@@ -140,7 +140,7 @@ export interface FacturaEmitidasFiltro {
 }
 
 /** One emitted DTE — CURATED, no `raw` (the row is receptor identity, ADR-004). */
-export interface FacturaEmitida {
+export interface DteEmitido {
   /** `DHDR_CODIGO` — SII's internal id and the key the PDF is fetched by. */
   readonly codigo: string;
   readonly receptorRut: string | null;
@@ -153,7 +153,7 @@ export interface FacturaEmitida {
 }
 
 /** One row of the borradores list — CURATED. */
-export interface FacturaBorradorRow {
+export interface DteBorradorRow {
   readonly id: string; // ehdr_CODIGO
   readonly tipoDte: number;
   readonly tipoDteDesc: string;
@@ -178,7 +178,7 @@ export interface FacturaBorradorRow {
  *                         there is nothing to POST (observed 2026-09-09, #95, for BOTH wired DTE
  *                         types: `OPCION=33` and `OPCION=34` answer the identical shim). */
 export type ChooserShape =
-  | { readonly kind: 'chooser'; readonly empresas: FacturaEmpresa[] }
+  | { readonly kind: 'chooser'; readonly empresas: DteEmpresa[] }
   | { readonly kind: 'sinAutorizacion' }
   | { readonly kind: 'launcher' };
 
@@ -191,12 +191,12 @@ export function parseChooser(html: string): ChooserShape {
   }
   const select = /<select[^>]*name="RUT_EMP"[\s\S]*?<\/select>/i.exec(html)?.[0];
   if (!select) {
-    throw new FacturaError(
+    throw new DteError(
       'La página de selección de empresa del Portal MIPYME (mipeSelEmpresa.cgi) no tiene una ' +
         'forma conocida: ni selector RUT_EMP ni launcher. El portal puede haber cambiado.',
     );
   }
-  const empresas: FacturaEmpresa[] = [];
+  const empresas: DteEmpresa[] = [];
   const re = /<option\s+value="([^"]+)"\s*>([^<\n]*)/gi;
   for (let m = re.exec(select); m; m = re.exec(select)) {
     const rut = (m[1] ?? '').trim();
@@ -236,11 +236,11 @@ function assertCgiOk(html: string, step: string): void {
   const expected = CGI_OK[step];
   if (expected && expected.test(html)) return;
   const rejection = serverAlert(html);
-  if (rejection) throw new FacturaError(`El SII rechazó el documento: ${rejection}`);
+  if (rejection) throw new DteError(`El SII rechazó el documento: ${rejection}`);
   const msg = /<(?:p|div|td|span|h\d)[^>]*>\s*([^<]{15,300}?)\s*<\//i.exec(
     html.replace(/<script[\s\S]*?<\/script>/gi, ''),
   )?.[1];
-  throw new FacturaError(
+  throw new DteError(
     `El SII no confirmó la operación de borrador (paso: ${step}).` +
       (msg ? ` Respuesta: ${msg.replace(/\s+/g, ' ').trim()}` : ''),
   );
@@ -556,15 +556,15 @@ interface FillResult {
   readonly ok?: boolean;
   readonly msgs?: string[];
   readonly missing?: string[];
-  readonly coerced?: FacturaSelectAviso[];
+  readonly coerced?: DteSelectAviso[];
   readonly fields?: Record<string, string>;
-  readonly totales?: FacturaTotales;
+  readonly totales?: DteTotales;
 }
 
 /** A receptor field SII renders as a <select> where the requested value matched no option.
  *  SII's own selection was KEPT (assigning a non-matching value blanks the select — observed
  *  2026-09-08), and `opciones` lists what it actually offers so a caller can choose a real one. */
-export interface FacturaSelectAviso {
+export interface DteSelectAviso {
   readonly campo: string;
   readonly solicitado: string;
   readonly usado: string;
@@ -572,11 +572,11 @@ export interface FacturaSelectAviso {
 }
 
 /** A filled, SII-validated form: the exact body to POST plus the totals SII computed. */
-export interface FacturaFilled {
+export interface DteFilled {
   readonly fields: Record<string, string>;
-  readonly totales: FacturaTotales;
+  readonly totales: DteTotales;
   /** Non-fatal: <select> fields where SII's own option was kept. Surfaced to the user. */
-  readonly avisos: readonly FacturaSelectAviso[];
+  readonly avisos: readonly DteSelectAviso[];
 }
 
 /** POST a form body encoded as ISO-8859-1. Uses `requestText` (raw authenticated body) rather
@@ -638,16 +638,16 @@ const SCOPED_EMPRESA_SCRIPT = `(async () => {
  *  fails where it should — on the document — not on resolving the empresa. */
 const IDENTITY_TIPO_DTE: TipoDte = 33;
 
-async function readScopedEmpresa(session: PortalSession): Promise<FacturaEmpresa> {
+async function readScopedEmpresa(session: PortalSession): Promise<DteEmpresa> {
   const landed = await session.goto(`${FORM_URL}?PTDC_CODIGO=${IDENTITY_TIPO_DTE}`);
   if (!landed.includes('mipeGenFacEx.cgi')) {
-    throw new FacturaError(`El SII no entregó el formulario de factura (llegamos a ${landed}).`);
+    throw new DteError(`El SII no entregó el formulario de factura (llegamos a ${landed}).`);
   }
   const r = await session.evaluate<{ scraper?: string; rut?: string; nombre?: string } | null>(
     SCOPED_EMPRESA_SCRIPT,
   );
   if (!r || r.scraper || !r.rut || !r.nombre) {
-    throw new FacturaError(
+    throw new DteError(
       `Formulario de factura del SII no reconocido (${r?.scraper ?? 'sin RUT/razón social del emisor'}).`,
     );
   }
@@ -658,7 +658,7 @@ async function readScopedEmpresa(session: PortalSession): Promise<FacturaEmpresa
   try {
     empresa = Rut.parse(r.rut);
   } catch {
-    throw new FacturaError(
+    throw new DteError(
       `El RUT del emisor leído del formulario no es válido ("${r.rut}") — el portal cambió de forma.`,
     );
   }
@@ -673,7 +673,7 @@ async function resolveChooser(
   session: PortalSession,
   tipoDte: TipoDte,
   sleep: () => Promise<void>,
-): Promise<{ empresas: FacturaEmpresa[]; scoped: boolean }> {
+): Promise<{ empresas: DteEmpresa[]; scoped: boolean }> {
   const res = await session.requestForm(
     `${SEL_EMPRESA_URL}?DESDE_DONDE_URL=${encodeURIComponent(desdeDonde(tipoDte))}`,
     { method: 'GET' },
@@ -681,7 +681,7 @@ async function resolveChooser(
   const shape = parseChooser(res.body);
   if (shape.kind === 'chooser') return { empresas: shape.empresas, scoped: false };
   if (shape.kind === 'sinAutorizacion') {
-    throw new FacturaError(
+    throw new DteError(
       'Tu cuenta no figura como usuario autorizado de ninguna empresa en el Portal MIPYME ' +
         '(mipeSelEmpresa.cgi sin opciones). El portal se opera normalmente con la PERSONA que ' +
         'representa a la empresa, no con la cuenta de la empresa: si entraste como empresa, ' +
@@ -699,7 +699,7 @@ export async function fetchEmpresas(
   session: PortalSession,
   tipoDte: TipoDte,
   sleep: () => Promise<void> = () => Promise.resolve(),
-): Promise<FacturaEmpresa[]> {
+): Promise<DteEmpresa[]> {
   return (await resolveChooser(session, tipoDte, sleep)).empresas;
 }
 
@@ -707,7 +707,7 @@ export async function fetchEmpresas(
  *  the form, the borrador CRUD and the borradores list are all scoped to it (observed). */
 async function selectEmpresa(
   session: PortalSession,
-  empresa: FacturaEmpresa,
+  empresa: DteEmpresa,
   tipoDte: TipoDte,
 ): Promise<void> {
   const res = await session.requestForm(SEL_EMPRESA_URL, {
@@ -715,7 +715,7 @@ async function selectEmpresa(
   });
   // The redirect target IS the factura form; a bounce back to the chooser means SII refused.
   if (/name="RUT_EMP"/i.test(res.body)) {
-    throw new FacturaError(
+    throw new DteError(
       `El SII no aceptó la empresa ${empresa.rut} en el Portal MIPYME. ` +
         'Verifica que sigas siendo usuario autorizado de esa empresa.',
     );
@@ -729,11 +729,11 @@ export async function resolveAndSelectEmpresa(
   rut: Rut,
   tipoDte: TipoDte,
   sleep: () => Promise<void> = () => Promise.resolve(),
-): Promise<FacturaEmpresa> {
+): Promise<DteEmpresa> {
   const { empresas, scoped } = await resolveChooser(session, tipoDte, sleep);
   const match = empresas.find((e) => e.rut.split('-')[0] === String(rut.body));
   if (!match) {
-    throw new FacturaError(
+    throw new DteError(
       `${rut.formatted} no está en tus empresas del Portal MIPYME. Disponibles: ` +
         empresas.map((e) => `${e.rut} (${e.nombre})`).join(', ') +
         '.',
@@ -752,9 +752,9 @@ export async function resolveAndSelectEmpresa(
  *  + SII's computed totals, which every downstream CGI (graba / elimina / preview) consumes. */
 export async function fillFactura(
   session: PortalSession,
-  empresa: FacturaEmpresa,
-  input: FacturaBorradorInput,
-): Promise<FacturaFilled> {
+  empresa: DteEmpresa,
+  input: DteBorradorInput,
+): Promise<DteFilled> {
   const [body, dv] = empresa.rut.split('-');
   const url = input.borradorId
     ? `${FORM_URL}?PTDC_CODIGO=${input.tipoDte}&ES_BORR=TRUE&VALOR=${input.borradorId}` +
@@ -762,7 +762,7 @@ export async function fillFactura(
     : `${FORM_URL}?PTDC_CODIGO=${input.tipoDte}`;
   const landed = await session.goto(url);
   if (!landed.includes('mipeGenFacEx.cgi')) {
-    throw new FacturaError(
+    throw new DteError(
       `El SII no entregó el formulario de factura (llegamos a ${landed}). ` +
         'Puede que la empresa no esté autorizada a emitir este tipo de documento.',
     );
@@ -785,16 +785,16 @@ export async function fillFactura(
     }),
   );
   if (r.scraper) {
-    throw new FacturaError(`Formulario de factura del SII no reconocido (${r.scraper}).`);
+    throw new DteError(`Formulario de factura del SII no reconocido (${r.scraper}).`);
   }
   if (r.missing && r.missing.length > 0) {
-    throw new FacturaError(
+    throw new DteError(
       `El formulario del SII cambió de forma: faltan los campos ${r.missing.join(', ')}.`,
     );
   }
   // SII's own validator refused — pass its Spanish message through UNCHANGED (ADR-004).
-  if (!r.ok) throw new FacturaError((r.msgs ?? []).join(' ') || 'El SII rechazó el documento.');
-  if (!r.fields || !r.totales) throw new FacturaError('El formulario del SII no entregó datos.');
+  if (!r.ok) throw new DteError((r.msgs ?? []).join(' ') || 'El SII rechazó el documento.');
+  if (!r.fields || !r.totales) throw new DteError('El formulario del SII no entregó datos.');
   return { fields: r.fields, totales: r.totales, avisos: r.coerced ?? [] };
 }
 
@@ -803,17 +803,17 @@ export async function fillFactura(
  *  form as SII rendered it. */
 export async function loadBorrador(
   session: PortalSession,
-  empresa: FacturaEmpresa,
+  empresa: DteEmpresa,
   tipoDte: TipoDte,
   borradorId: string,
-): Promise<FacturaFilled> {
+): Promise<DteFilled> {
   const [body, dv] = empresa.rut.split('-');
   const landed = await session.goto(
     `${FORM_URL}?PTDC_CODIGO=${tipoDte}&ES_BORR=TRUE&VALOR=${borradorId}` +
       `&IGUAL=CODIGO&RUT=${body}&DV=${dv}&TPO_DOC_GEN=${tipoDte}`,
   );
   if (!landed.includes('mipeGenFacEx.cgi')) {
-    throw new FacturaError(`El SII no entregó el borrador ${borradorId} (llegamos a ${landed}).`);
+    throw new DteError(`El SII no entregó el borrador ${borradorId} (llegamos a ${landed}).`);
   }
   const r = await session.evaluate<FillResult>(`(async () => {
     const f = document.forms['VIEW_EFXP'];
@@ -849,23 +849,20 @@ export async function loadBorrador(
       neto: num('EFXP_MNT_NETO'), iva: num('EFXP_IVA'), total: num('EFXP_MNT_TOTAL'),
     } };
   })()`);
-  if (r.scraper) throw new FacturaError(`No se pudo leer el borrador ${borradorId}: ${r.scraper}.`);
-  if (!r.fields || !r.totales) throw new FacturaError(`El borrador ${borradorId} llegó vacío.`);
+  if (r.scraper) throw new DteError(`No se pudo leer el borrador ${borradorId}: ${r.scraper}.`);
+  if (!r.fields || !r.totales) throw new DteError(`El borrador ${borradorId} llegó vacío.`);
   return { fields: r.fields, totales: r.totales, avisos: [] };
 }
 
 /** Persist the filled form as a borrador (create, or update when `EHDR_CODIGO` is set).
  *  `ES_BORR=TRUE` is what tells the CGI this is a draft, not a document to sign (observed). */
-export async function grabaBorrador(session: PortalSession, filled: FacturaFilled): Promise<void> {
+export async function grabaBorrador(session: PortalSession, filled: DteFilled): Promise<void> {
   const res = await postLatin1(session, GRABA_URL, { ...filled.fields, ES_BORR: 'TRUE' });
   assertCgiOk(res.body, 'grabaBorrador');
 }
 
 /** Delete a borrador. SII takes the WHOLE form back, keyed by `EHDR_CODIGO` (observed). */
-export async function eliminaBorrador(
-  session: PortalSession,
-  filled: FacturaFilled,
-): Promise<void> {
+export async function eliminaBorrador(session: PortalSession, filled: DteFilled): Promise<void> {
   const res = await postLatin1(session, ELIMINA_URL, { ...filled.fields, ES_BORR: 'TRUE' });
   assertCgiOk(res.body, 'eliminaBorrador');
 }
@@ -896,10 +893,10 @@ export function repairMojibake(v: string): string {
  *  envelope — observed), served ISO-8859-1; the seam decodes it. Rows carry ~250 mostly-null
  *  form columns; only the listing columns are curated (no `raw` — the row is receptor +
  *  emisor identity, i.e. PII, ADR-004). */
-export async function fetchBorradores(session: PortalSession): Promise<FacturaBorradorRow[]> {
+export async function fetchBorradores(session: PortalSession): Promise<DteBorradorRow[]> {
   const data = await session.requestJson(LISTA_BORRADOR_URL, { method: 'GET' });
   if (!Array.isArray(data)) {
-    throw new FacturaError('El SII no entregó la lista de borradores en el formato esperado.');
+    throw new DteError('El SII no entregó la lista de borradores en el formato esperado.');
   }
   const num = (v: unknown): number | null =>
     typeof v === 'string' && v.trim() !== '' ? Number(v) : null;
@@ -932,8 +929,8 @@ const cellText = (html: string): string =>
 /** Parse the emitted-documents table. The markup is MALFORMED — SII leaves the receptor cell
  *  unclosed (`<td>64000001-5 <td>NOMBRE</td>`, observed 2026-09-08) — so rows are split on the
  *  `mipeGesDocEmi.cgi?...CODIGO=` anchor and cells on `<td`, never with a strict parser. */
-export function parseEmitidas(html: string): FacturaEmitida[] {
-  const out: FacturaEmitida[] = [];
+export function parseEmitidas(html: string): DteEmitido[] {
+  const out: DteEmitido[] = [];
   const re = /<a[^>]*mipeGesDocEmi\.cgi\?[^"']*CODIGO=(\d+)[^>]*>[\s\S]*?<\/tr>/gi;
   for (let m = re.exec(html); m; m = re.exec(html)) {
     const codigo = m[1];
@@ -967,8 +964,8 @@ export function parseEmitidas(html: string): FacturaEmitida[] {
  *  params and answers ISO-8859-1 HTML (observed 2026-09-08). */
 export async function fetchEmitidas(
   session: PortalSession,
-  filtro: FacturaEmitidasFiltro = {},
-): Promise<FacturaEmitida[]> {
+  filtro: DteEmitidosFiltro = {},
+): Promise<DteEmitido[]> {
   const q = new URLSearchParams({
     RUT_RECP: filtro.receptor ?? '',
     FOLIO: filtro.folio === undefined ? '' : String(filtro.folio),
@@ -982,12 +979,12 @@ export async function fetchEmitidas(
   });
   const res = await session.requestForm(`${EMITIDOS_URL}?${q.toString()}`, { method: 'GET' });
   const rejection = serverAlert(res.body);
-  if (rejection) throw new FacturaError(`El SII rechazó la consulta: ${rejection}`);
+  if (rejection) throw new DteError(`El SII rechazó la consulta: ${rejection}`);
   if (
     !/mipeGesDocEmi\.cgi/i.test(res.body) &&
     !/Documentos Emitidos|No se encontraron/i.test(res.body)
   ) {
-    throw new FacturaError(
+    throw new DteError(
       'El SII no entregó el listado de documentos emitidos (mipeAdminDocsEmi.cgi). ' +
         'Puede que la sesión ya no esté viva o que el portal haya cambiado.',
     );
@@ -1011,7 +1008,7 @@ export async function fetchEmitidaPdf(session: PortalSession, codigo: string): P
   );
   if (!isPdfBytes(res.bytes, res.contentType)) {
     const sii = contribuyenteError(res.bytes, res.contentType);
-    throw new FacturaError(
+    throw new DteError(
       sii
         ? `El SII no entregó el documento emitido: ${sii}`
         : `El SII no devolvió un PDF del documento emitido (content-type: ${res.contentType ?? 'desconocido'}).`,
@@ -1036,7 +1033,7 @@ export async function fetchEmitidaPdf(session: PortalSession, codigo: string): P
  *  200 for its own error page and for the login-wall bounce too (the ADR-022 rule). */
 export async function fetchPreviewPdf(
   session: PortalSession,
-  filled: FacturaFilled,
+  filled: DteFilled,
   sleep: () => Promise<void> = () => Promise.resolve(),
 ): Promise<Uint8Array> {
   const review = await postLatin1(session, PREVIEW_URL, filled.fields);
@@ -1044,10 +1041,10 @@ export async function fetchPreviewPdf(
   // alert() + history.go(-1) (observed 2026-09-08). Surface ITS message verbatim (ADR-004)
   // instead of a generic failure — that is the real reason the PDF never came back.
   const rejection = serverAlert(review.body);
-  if (rejection) throw new FacturaError(`El SII rechazó el documento: ${rejection}`);
+  if (rejection) throw new DteError(`El SII rechazó el documento: ${rejection}`);
   const fields = parseHiddenInputs(review.body, 'PreViewDTE');
   if (Object.keys(fields).length === 0) {
-    throw new FacturaError(
+    throw new DteError(
       'El SII no entregó la vista previa del documento (no se encontró el formulario PreViewDTE). ' +
         'Puede que haya rechazado algún dato del documento.',
     );
@@ -1065,7 +1062,7 @@ export async function fetchPreviewPdf(
   const frame = await session.requestForm(PREVIEW_FRAME_URL, { method: 'GET' });
   const wanted = frameFields(frame.body);
   if (wanted.length === 0) {
-    throw new FacturaError(
+    throw new DteError(
       'El SII cambió PreViewFrame.html: no se pudo determinar los campos de la vista previa.',
     );
   }
@@ -1094,7 +1091,7 @@ export async function fetchPreviewPdf(
   if (!isPdfBytes(res.bytes, res.contentType)) {
     // Relay SII's own message when it gave one (ADR-004) instead of a bare content-type.
     const sii = contribuyenteError(res.bytes, res.contentType);
-    throw new FacturaError(
+    throw new DteError(
       sii
         ? `El SII no generó la vista previa: ${sii}`
         : `El SII no devolvió un PDF de vista previa (content-type: ${res.contentType ?? 'desconocido'}).`,
