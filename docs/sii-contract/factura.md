@@ -18,15 +18,19 @@ list: the empresas that registered the authenticated user as *usuario autorizado
 empresa is whatever RUT was last POSTed to `mipeSelEmpresa.cgi`, and it scopes the form, the
 borrador CRUD **and** the borradores listing. Every operation therefore selects the empresa first.
 
-## 1. Empresa chooser
+## 1. Empresa chooser — THREE observed shapes
 
 ```
 GET  /cgi-bin/Portal001/mipeSelEmpresa.cgi?DESDE_DONDE_URL=OPCION%3D33%26TIPO%3D4
 POST /cgi-bin/Portal001/mipeSelEmpresa.cgi   { DESDE_DONDE_URL: "OPCION=33&TIPO=4", RUT_EMP: "76192083-9" }
 ```
 
-`Content-Type: text/html; charset=ISO-8859-1`. The GET returns the chooser; the options are
-**unclosed** and repeat the RUT in the label:
+`Content-Type: text/html; charset=ISO-8859-1`. What the GET answers depends on **how many
+empresas list the account as *usuario autorizado***:
+
+### (a) Two or more — the chooser (observed 2026-09-08)
+
+The options are **unclosed** and repeat the RUT in the label:
 
 ```html
 <select class="form-control" name="RUT_EMP">
@@ -38,6 +42,49 @@ POST /cgi-bin/Portal001/mipeSelEmpresa.cgi   { DESDE_DONDE_URL: "OPCION=33&TIPO=
 ```
 
 The POST forwards to the factura form. Getting the chooser **back** means SII refused the empresa.
+
+### (b) None — an empty chooser (observed 2026-09-09)
+
+The same `<select>` with an empty `<optgroup>` and zero `<option>` (163 bytes). Seen on an
+**empresa** account: the portal is normally operated by the representing **persona**, which is the
+account SII registers as usuario autorizado — the empresa account itself usually is not. This is
+the only shape that means "not authorized".
+
+### (c) Exactly one — a launcher, NO chooser (observed 2026-09-09, #95)
+
+HTTP 200, 593 bytes, no form and no select — a JS shim that jumps straight to the destination.
+The session is **already scoped** to that empresa; nothing is POSTed (a POST has no chooser to
+accept it).
+
+```html
+<title>Facturacion Electronica - Launcher</title>
+<script language=JavaScript>
+function start_pop() {
+  var     nwp;
+  window.location = "/Portal001/menuFacturaElectronica.html";
+  FacturaOpenEnlace("/cgi-bin/Portal001/mipeGenFacEx.cgi?PTDC_CODIGO=33");
+  return true;
+}
+</script>
+<body onLoad="javascript:start_pop();">
+```
+
+`mipeLaunchPage.cgi?OPCION=33&TIPO=4` answers the identical shim; `OPCION=2&TIPO=4` the same
+shape pointing at `mipeAdminDocsEmi.cgi?…&NUM_PAG=1`.
+
+**Where the empresa's identity comes from on (c).** The chooser never names it, so it is read
+off the factura form itself (`mipeGenFacEx.cgi?PTDC_CODIGO=33`, `goto` + `evaluate`):
+
+- **RUT** — the DTE header box, the recuadro every documento tributario carries top-right:
+  `<div class="well well-sm"><strong>Rut 76192083-9</strong> FACTURA ELECTRÓNICA N° folio no
+  asignado</div>`. That box shows the **emisor** by construction of the document.
+- **Razón social** — `EFXP_RZN_SOC`, JS-populated like the rest of the emisor block (wait for it).
+
+**Not** the navbar's `Rut:` (`ul#conAutenticacion`, drawn by `imprimeRutEncabezado()`), not the
+page global `cook_rut`, and not the `NETSCAPE_LIVEWIRE.rut`/`.dv` or `RUT_NS`/`DV_NS` cookies —
+all of those are the **logged-in principal**, which on a persona account is a different RUT from
+the empresa it invoices for (verified 2026-09-09 by comparison against the session RUT). A
+`--empresa` that does not match the scoped one is refused exactly as on (a).
 
 `DESDE_DONDE_URL` is an unkeyed `OPCION=<tipo DTE>&TIPO=4` pair; `OPCION` is the DTE code
 (33 factura, 34 exenta, 46 factura de compra, 43 liquidación, 110 exportación).

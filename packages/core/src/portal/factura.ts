@@ -19,7 +19,10 @@
 //
 // EMPRESA-KEYED (ADR-023): the working empresa is whichever RUT was last POSTed to
 // `mipeSelEmpresa.cgi` — the MIPYME "usuario autorizado" list, which is its OWN value domain,
-// distinct from the operate pointer's operable set. Every operation selects it first.
+// distinct from the operate pointer's operable set. Every operation selects it first — except
+// on an account authorized for a SINGLE empresa, where SII skips the chooser (a JS launcher
+// instead of the select) and the session is already scoped; then the empresa is read off the
+// factura form's DTE header box and nothing is POSTed (observed 2026-09-09, #95).
 import { HOSTS } from '../config/index.js';
 import { FacturaError } from '../errors/index.js';
 import type { Rut } from '../rut/index.js';
@@ -164,17 +167,35 @@ export interface FacturaBorradorRow {
 
 // --- HTML parsing (in-house, no third-party lib — ADR-004) ------------------------
 
-/** Read the `<option value="RUT">NOMBRE RUT` rows of the `RUT_EMP` select. SII closes neither
- *  the `<option>` nor quotes the label, so match up to the next `<` or newline (observed). */
-function parseEmpresas(html: string): FacturaEmpresa[] {
+/** What `mipeSelEmpresa.cgi` answers. THREE shapes observed, decided by how many empresas list
+ *  the account as "usuario autorizado":
+ *   * `chooser`         — two or more: the `RUT_EMP` select (observed 2026-09-08).
+ *   * `sinAutorizacion` — none: the same select with an EMPTY `<optgroup>` (observed 2026-09-09
+ *                         on an empresa account that is not itself a usuario autorizado).
+ *   * `launcher`        — exactly one: NO chooser at all — a 593-byte JS shim titled
+ *                         "Facturacion Electronica - Launcher" whose `start_pop()` jumps straight
+ *                         to the destination. The session is ALREADY scoped to that empresa, so
+ *                         there is nothing to POST (observed 2026-09-09, #95). */
+export type ChooserShape =
+  | { readonly kind: 'chooser'; readonly empresas: FacturaEmpresa[] }
+  | { readonly kind: 'sinAutorizacion' }
+  | { readonly kind: 'launcher' };
+
+/** Classify the chooser response. Read the `<option value="RUT">NOMBRE RUT` rows when there is
+ *  a select: SII closes neither the `<option>` nor quotes the label, so match up to the next
+ *  `<` or newline (observed). A page that is none of the three shapes is "scraper roto". */
+export function parseChooser(html: string): ChooserShape {
+  if (/Facturacion Electronica - Launcher/i.test(html) && /FacturaOpenEnlace\(/.test(html)) {
+    return { kind: 'launcher' };
+  }
   const select = /<select[^>]*name="RUT_EMP"[\s\S]*?<\/select>/i.exec(html)?.[0];
   if (!select) {
     throw new FacturaError(
-      'El SII no entregó la lista de empresas del Portal MIPYME (mipeSelEmpresa.cgi). ' +
-        'Verifica que estés registrado como usuario autorizado de alguna empresa.',
+      'La página de selección de empresa del Portal MIPYME (mipeSelEmpresa.cgi) no tiene una ' +
+        'forma conocida: ni selector RUT_EMP ni launcher. El portal puede haber cambiado.',
     );
   }
-  const out: FacturaEmpresa[] = [];
+  const empresas: FacturaEmpresa[] = [];
   const re = /<option\s+value="([^"]+)"\s*>([^<\n]*)/gi;
   for (let m = re.exec(select); m; m = re.exec(select)) {
     const rut = (m[1] ?? '').trim();
@@ -183,10 +204,9 @@ function parseEmpresas(html: string): FacturaEmpresa[] {
       .trim()
       .replace(new RegExp(`\\s*${rut.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`), '')
       .trim();
-    if (rut) out.push({ rut, nombre });
+    if (rut) empresas.push({ rut, nombre });
   }
-  if (out.length === 0) throw new FacturaError('El Portal MIPYME no ofrece ninguna empresa.');
-  return out;
+  return empresas.length === 0 ? { kind: 'sinAutorizacion' } : { kind: 'chooser', empresas };
 }
 
 /** Read the message out of SII's server-side rejection page: a 200 "Redireccionando" document
@@ -575,17 +595,95 @@ async function postLatin1(
 
 // --- Operations ---------------------------------------------------------------------
 
-/** The empresas the authenticated user may invoice for. This is the MIPYME "usuario
- *  autorizado" list — its own value domain, NOT the operate pointer's operable set. */
-export async function fetchEmpresas(
+/** In-page: read the empresa the portal ALREADY scoped this session to, off the factura form.
+ *  Two sources, both observed 2026-09-09 on a single-empresa persona account:
+ *   * the RUT is the DTE header box — `<div class="well well-sm"><strong>Rut 76192083-9</strong>
+ *     FACTURA ELECTRÓNICA N° folio no asignado</div>` — the EMISOR by construction of the
+ *     document. NOT the navbar's `Rut:` (`ul#conAutenticacion`), not `cook_rut`, not the
+ *     `NETSCAPE_LIVEWIRE.rut` / `RUT_NS` cookies: those are the LOGGED-IN principal, which on a
+ *     persona account is a different RUT from the empresa it invoices for.
+ *   * the razón social is `EFXP_RZN_SOC`, JS-populated like the rest of the emisor block.
+ *  Both are awaited with a deadline-bounded 50 ms poll, never a blind sleep (like fillScript). */
+const SCOPED_EMPRESA_SCRIPT = `(async () => {
+  const RUT = /^\\s*Rut\\s+([\\d.]{7,10}-[\\dkK])\\s*$/i;
+  const header = () => {
+    for (const s of document.querySelectorAll('div.well strong')) {
+      const m = RUT.exec(s.textContent || '');
+      if (m) return m[1].replace(/\\./g, '');
+    }
+    return null;
+  };
+  const f = document.forms['VIEW_EFXP'];
+  if (!f) return { scraper: 'no se encontró el formulario VIEW_EFXP' };
+  const el = f.elements['EFXP_RZN_SOC'] || null;
+  if (!el) return { scraper: 'falta el campo EFXP_RZN_SOC (razón social del emisor)' };
+  const deadline = Date.now() + 10000;
+  let rut = header();
+  while ((!rut || !String(el.value || '').trim()) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 50));
+    rut = rut || header();
+  }
+  if (!rut) return { scraper: 'no se encontró el RUT del emisor en el cuadro del documento (div.well strong "Rut …")' };
+  const nombre = String(el.value || '').trim();
+  if (!nombre) return { scraper: 'EFXP_RZN_SOC quedó vacío' };
+  return { rut, nombre };
+})()`;
+
+async function readScopedEmpresa(
   session: PortalSession,
   tipoDte: TipoDte,
-): Promise<FacturaEmpresa[]> {
+): Promise<FacturaEmpresa> {
+  const landed = await session.goto(`${FORM_URL}?PTDC_CODIGO=${tipoDte}`);
+  if (!landed.includes('mipeGenFacEx.cgi')) {
+    throw new FacturaError(`El SII no entregó el formulario de factura (llegamos a ${landed}).`);
+  }
+  const r = await session.evaluate<{ scraper?: string; rut?: string; nombre?: string } | null>(
+    SCOPED_EMPRESA_SCRIPT,
+  );
+  if (!r || r.scraper || !r.rut || !r.nombre) {
+    throw new FacturaError(
+      `Formulario de factura del SII no reconocido (${r?.scraper ?? 'sin RUT/razón social del emisor'}).`,
+    );
+  }
+  return { rut: r.rut, nombre: r.nombre };
+}
+
+/** GET the chooser and resolve the authorized empresas for this session. `scoped` says the
+ *  portal already pointed the session at the single empresa (launcher shape) — the caller must
+ *  then NOT POST `mipeSelEmpresa.cgi`. `sinAutorizacion` is the only path to the "not
+ *  authorized" message, so the wording can be actionable (#95). */
+async function resolveChooser(
+  session: PortalSession,
+  tipoDte: TipoDte,
+  sleep: () => Promise<void>,
+): Promise<{ empresas: FacturaEmpresa[]; scoped: boolean }> {
   const res = await session.requestForm(
     `${SEL_EMPRESA_URL}?DESDE_DONDE_URL=${encodeURIComponent(desdeDonde(tipoDte))}`,
     { method: 'GET' },
   );
-  return parseEmpresas(res.body);
+  const shape = parseChooser(res.body);
+  if (shape.kind === 'chooser') return { empresas: shape.empresas, scoped: false };
+  if (shape.kind === 'sinAutorizacion') {
+    throw new FacturaError(
+      'Tu cuenta no figura como usuario autorizado de ninguna empresa en el Portal MIPYME ' +
+        '(mipeSelEmpresa.cgi sin opciones). El portal se opera normalmente con la PERSONA que ' +
+        'representa a la empresa, no con la cuenta de la empresa: si entraste como empresa, ' +
+        'cierra sesión (`sii auth logout`) y entra con tu RUT personal.',
+    );
+  }
+  await sleep(); // the chooser GET and the form load are two hops — pace them (ADR-004)
+  return { empresas: [await readScopedEmpresa(session, tipoDte)], scoped: true };
+}
+
+/** The empresas the authenticated user may invoice for. This is the MIPYME "usuario
+ *  autorizado" list — its own value domain, NOT the operate pointer's operable set. On a
+ *  single-empresa account (no chooser) it is the one empresa the portal scoped the session to. */
+export async function fetchEmpresas(
+  session: PortalSession,
+  tipoDte: TipoDte,
+  sleep: () => Promise<void> = () => Promise.resolve(),
+): Promise<FacturaEmpresa[]> {
+  return (await resolveChooser(session, tipoDte, sleep)).empresas;
 }
 
 /** Point the MIPYME session at `empresa`. EVERY other operation depends on this having run:
@@ -615,7 +713,7 @@ export async function resolveAndSelectEmpresa(
   tipoDte: TipoDte,
   sleep: () => Promise<void> = () => Promise.resolve(),
 ): Promise<FacturaEmpresa> {
-  const empresas = await fetchEmpresas(session, tipoDte);
+  const { empresas, scoped } = await resolveChooser(session, tipoDte, sleep);
   const match = empresas.find((e) => e.rut.split('-')[0] === String(rut.body));
   if (!match) {
     throw new FacturaError(
@@ -624,6 +722,9 @@ export async function resolveAndSelectEmpresa(
         '.',
     );
   }
+  // Launcher shape: SII already scoped the session to this empresa — a POST would be a
+  // no-op at best and there is no chooser to accept it (observed 2026-09-09, #95).
+  if (scoped) return match;
   await sleep(); // pace the two consecutive hops like every other pair (ADR-004)
   await selectEmpresa(session, match, tipoDte);
   return match;

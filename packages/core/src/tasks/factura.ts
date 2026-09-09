@@ -245,7 +245,9 @@ export async function facturaEmpresas(
     // browser context on every attempt — and, worse, replay `mipeSelEmpresa.cgi`, which is
     // server-side session state, not a read.
     const res = await withSession(runtime, (session) =>
-      readOnlyRetry(runtime, () => fetchEmpresas(session, tipoDte)),
+      readOnlyRetry(runtime, () =>
+        fetchEmpresas(session, tipoDte, () => runtime.clock.sleep(pacingMs())),
+      ),
     );
     audit(runtime, 'factura_empresas', 'ok', { count: res.length });
     return res;

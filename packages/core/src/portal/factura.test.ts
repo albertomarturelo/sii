@@ -14,6 +14,7 @@ import {
   fetchBorradores,
   fetchEmpresas,
   fetchPreviewPdf,
+  parseChooser,
   fillFactura,
   grabaBorrador,
   loadBorrador,
@@ -535,5 +536,149 @@ describe('documentos emitidos', () => {
     await expect(fetchEmitidaPdf(s, '1')).rejects.toThrow(
       /no entregó el documento|no devolvió un PDF/,
     );
+  });
+});
+
+// --- GH-95: single-empresa accounts get a launcher, not a chooser --------------------------
+
+/** What SII answers INSTEAD of the chooser when the account is a usuario autorizado of exactly
+ *  one empresa: a JS shim that jumps straight to the destination (observed 2026-09-09, #95). */
+const LAUNCHER_HTML = `<!DOCTYPE HTML>
+<html>
+	<head>
+		<title>Facturacion Electronica - Launcher</title>
+		<script language=JavaScript>
+		function start_pop() {
+			var     nwp;
+			window.location = "/Portal001/menuFacturaElectronica.html";
+      FacturaOpenEnlace("/cgi-bin/Portal001/mipeGenFacEx.cgi?PTDC_CODIGO=33");
+		  return true;
+		}
+		</script>
+	</head>
+	<body onLoad="javascript:start_pop();">
+	</body>
+</html>`;
+/** The chooser with NO options — an account that is not a usuario autorizado of any empresa
+ *  (observed 2026-09-09 on an empresa account). */
+const EMPTY_CHOOSER_HTML = `<form name="fPrmEmpPOP" method="post">
+  <select class="form-control" name="RUT_EMP">
+    <optgroup label="Seleccione una opcion">
+
+    </optgroup>
+  </select></form>`;
+/** What the scoped-empresa script reads off the form's DTE header box + EFXP_RZN_SOC. */
+const SCOPED = { rut: '76192083-9', nombre: 'ACME REPUESTOS SPA' };
+/** A fake that answers the launcher to the chooser GET and counts every chooser POST. */
+const launcherSession = (evaluate: () => unknown = () => SCOPED) => {
+  let posts = 0;
+  const s = new FakePortalSession({
+    requestForm: (_url, options) => {
+      if (options?.form) posts += 1;
+      return LAUNCHER_HTML;
+    },
+    evaluate,
+  });
+  return { s, posts: () => posts };
+};
+
+describe('GH-95: parseChooser classifies the three observed chooser shapes', () => {
+  it('chooser — two or more empresas', () => {
+    expect(parseChooser(EMPRESAS_HTML)).toEqual({
+      kind: 'chooser',
+      empresas: [EMPRESA, { rut: '77111222-6', nombre: 'TALLER DEL SUR LTDA' }],
+    });
+  });
+  it('sinAutorizacion — the select is there but empty', () => {
+    expect(parseChooser(EMPTY_CHOOSER_HTML)).toEqual({ kind: 'sinAutorizacion' });
+  });
+  it('launcher — no select at all, a JS shim', () => {
+    expect(parseChooser(LAUNCHER_HTML)).toEqual({ kind: 'launcher' });
+  });
+  it('anything else is scraper roto, never silently one of the three', () => {
+    expect(() => parseChooser('<html>mantención</html>')).toThrow(FacturaError);
+    expect(() => parseChooser('<html>mantención</html>')).toThrow(/forma conocida/);
+  });
+});
+
+describe('GH-95: fetchEmpresas on the launcher path', () => {
+  it('resolves the single scoped empresa off the form instead of failing', async () => {
+    const { s } = launcherSession();
+    await expect(fetchEmpresas(s, 33)).resolves.toEqual([EMPRESA]);
+    // the identity comes from the FORM (goto + evaluate), reached with the requested DTE type
+    expect(s.gotos).toEqual([expect.stringContaining('mipeGenFacEx.cgi?PTDC_CODIGO=33')]);
+  });
+
+  it('paces the chooser GET and the form load as two hops', async () => {
+    const { s } = launcherSession();
+    let slept = 0;
+    await fetchEmpresas(s, 33, async () => {
+      slept += 1;
+    });
+    expect(slept).toBe(1);
+  });
+
+  it('is scraper roto when the form has no DTE header box / razón social', async () => {
+    const { s } = launcherSession(() => ({ scraper: 'no se encontró el RUT del emisor' }));
+    await expect(fetchEmpresas(s, 33)).rejects.toThrow(/no reconocido.*RUT del emisor/);
+  });
+
+  it('rejects a login-wall / wrong landing on the form hop', async () => {
+    const s = new FakePortalSession({
+      requestForm: () => LAUNCHER_HTML,
+      landingUrl: `https://${LOGIN_HOST}/AUT2000/x`,
+    });
+    await expect(fetchEmpresas(s, 33)).rejects.toThrow(/no entregó el formulario/);
+  });
+});
+
+describe('GH-95: the "not authorized" message is reached ONLY by the empty chooser', () => {
+  it('names the cause and the actionable path (persona, not empresa account)', async () => {
+    const s = new FakePortalSession({ requestForm: () => EMPTY_CHOOSER_HTML });
+    await expect(fetchEmpresas(s, 33)).rejects.toThrow(/usuario autorizado/);
+    await expect(fetchEmpresas(s, 33)).rejects.toThrow(/RUT personal/);
+  });
+});
+
+describe('GH-95: resolveAndSelectEmpresa on the launcher path', () => {
+  it('resolves the scoped empresa and issues NO chooser POST — the session is already scoped', async () => {
+    const { s, posts } = launcherSession();
+    await expect(resolveAndSelectEmpresa(s, Rut.parse('76192083-9'), 33)).resolves.toEqual(EMPRESA);
+    expect(posts()).toBe(0);
+  });
+
+  it('still refuses an --empresa that is not the scoped one (ADR-023 / ADR-005)', async () => {
+    const { s, posts } = launcherSession();
+    await expect(resolveAndSelectEmpresa(s, Rut.parse('77777777-7'), 33)).rejects.toThrow(
+      /no está en tus empresas.*76192083-9 \(ACME REPUESTOS SPA\)/s,
+    );
+    expect(posts()).toBe(0);
+  });
+
+  it('the chooser path is untouched: a listed empresa is still POSTed', async () => {
+    let posts = 0;
+    const s = new FakePortalSession({
+      requestForm: (_url, options) => {
+        if (options?.form) {
+          posts += 1;
+          return '<html>formulario</html>';
+        }
+        return EMPRESAS_HTML;
+      },
+    });
+    await expect(resolveAndSelectEmpresa(s, Rut.parse('76192083-9'), 33)).resolves.toEqual(EMPRESA);
+    expect(posts).toBe(1);
+  });
+});
+
+describe('GH-95: the scoped-empresa script reads the DTE header box, bounded', () => {
+  it('anchors on the document header (div.well strong "Rut …"), not the navbar or cookies', () => {
+    const src = facturaSource();
+    expect(src).toContain("querySelectorAll('div.well strong')");
+    expect(src).toContain('const RUT = /^\\\\s*Rut\\\\s+');
+    // the razón social is the form field, awaited (JS-populated), never guessed
+    expect(src).toContain("f.elements['EFXP_RZN_SOC'] || null");
+    // bounded by a deadline; the 100 ms-timer ban is asserted globally in BUG-2
+    expect(src.slice(src.indexOf('SCOPED_EMPRESA_SCRIPT'))).toContain('Date.now() + 10000');
   });
 });
