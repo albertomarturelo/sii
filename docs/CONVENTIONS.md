@@ -289,6 +289,8 @@ Python `sii-cli`, adapted to TypeScript.
 - **One feature / work-unit per PR.** Don't bundle two distinct features even on
   the same branch — when a second feature emerges mid-branch, give it its own
   branch/PR (stacked if it depends on the first). Split BEFORE opening the PR.
+  For a FORK PR, "stacked" means SEQUENCED AFTER the first merge: the dependent
+  feature waits, then branches off the updated `main` — never two in one branch.
 - **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
   bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
