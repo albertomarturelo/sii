@@ -93,6 +93,16 @@ Python `sii-cli`, adapted to TypeScript.
   wrapper is REQUIRED (the maps are JS Arrays with string keys a bare read would drop).
   NEVER scrape the rendered DOM (the cells still hold the filling JS). Cite the CGI +
   observation date; pace pagination via `Clock.sleep`. (ADR-003 / ADR-004)
+- **An HTML table parser preserves blank cells, maps by POSITION, and fails loud on an
+  unexpected cell count.** Never drop empty cells before indexing: SII renders a legitimately
+  absent value as a blank cell (a `PRV` document has no folio), so filtering it slides every
+  later column one place left and yields a plausible row with the values under the wrong names —
+  no error, and `Number('2026-09-08')` ⇒ `NaN` ⇒ `null` in the JSON, so even the broken value
+  disappears. Read a blank cell (empty, a raw U+00A0, or `&nbsp;`) as `null`, and raise "scraper
+  roto" when the row's cell count is not EXACTLY the observed one — exactly, not a minimum,
+  because a blank cell BEFORE the first mapped column shifts the row just as badly as a dropped
+  one. `dte-public.ts` (`cell()`) is the template; `dte-mipyme.ts` `parseEmitidas` was fixed into
+  it (#92). (ADR-004)
 - **Unauthenticated public consultas go through `PortalDriver.requestPublic`.** A
   login-free CGI (DTE-authorized) is a cold, session-less, browser-free HTTP request
   (Node `fetch`, charset-aware) — not a `PortalSession`. Still a task + seam (audited),

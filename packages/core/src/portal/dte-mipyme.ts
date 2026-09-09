@@ -920,15 +920,40 @@ export async function fetchBorradores(session: PortalSession): Promise<DteBorrad
   });
 }
 
-/** Strip tags from one HTML cell and normalise whitespace. */
+/** Strip tags from one HTML cell and normalise whitespace. `&nbsp;` counts as whitespace here:
+ *  a cell holding only a spacer entity is a BLANK cell, and the callers below decide what a blank
+ *  means positionally — they must not receive the literal string `&nbsp;` as a value (#92). */
 const cellText = (html: string): string =>
   unescapeHtml(html.replace(/<[^>]*>/g, ' '))
+    .replace(/&nbsp;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
+/** A blank cell is a MISSING value, not an absent column. Deliberately a twin of `cell()` in
+ *  `dte-public.ts`: both are portal modules, and ADR-007 forbids one importing the other's
+ *  internals — sharing would mean a new leaf, which this fix does not warrant. */
+const cellValue = (v: string | undefined): string | null =>
+  v === undefined || v === '' ? null : v;
+
+/** Same, for a numeric cell: SII pads amounts with separators, and a blank reads as absent. */
+const cellNumber = (v: string | undefined): number | null => {
+  const d = (v ?? '').replace(/[^\d-]/g, '');
+  return d === '' ? null : Number(d);
+};
+
+/** The cells the emitted row carries after the "Ver" cell, in order: receptor RUT · receptor
+ *  nombre · tipo · folio · fecha · monto · estado (observed 2026-09-08). */
+const CELDAS_EMITIDA = 7;
+
 /** Parse the emitted-documents table. The markup is MALFORMED — SII leaves the receptor cell
  *  unclosed (`<td>64000001-5 <td>NOMBRE</td>`, observed 2026-09-08) — so rows are split on the
- *  `mipeGesDocEmi.cgi?...CODIGO=` anchor and cells on `<td`, never with a strict parser. */
+ *  `mipeGesDocEmi.cgi?...CODIGO=` anchor and cells on `<td`, never with a strict parser.
+ *
+ *  Cells map POSITIONALLY and a blank one is NEVER dropped. A `PRV` (vista previa) document has
+ *  no folio; dropping that cell before indexing slid every later column one place left — fecha
+ *  into folio, monto into fecha, estado into monto — producing a plausible row with the values
+ *  under the wrong names and no error at all (#92). A row that does not carry the known cells is
+ *  a changed portal, so it raises instead of realigning silently. */
 export function parseEmitidas(html: string): DteEmitido[] {
   const out: DteEmitido[] = [];
   const re = /<a[^>]*mipeGesDocEmi\.cgi\?[^"']*CODIGO=(\d+)[^>]*>[\s\S]*?<\/tr>/gi;
@@ -939,21 +964,26 @@ export function parseEmitidas(html: string): DteEmitido[] {
     const cells = m[0]
       .split(/<td[^>]*>/i)
       .slice(1)
-      .map(cellText)
-      .filter((c) => c !== '');
-    const num = (v: string | undefined): number | null => {
-      const d = (v ?? '').replace(/[^\d-]/g, '');
-      return d === '' ? null : Number(d);
-    };
+      .map(cellText);
+    // EXACT, not "at least": a blank cell BEFORE the receptor RUT would shift the row just as
+    // badly as a dropped one, and the old filter hid both. Any count but the observed seven is a
+    // changed portal, and a loud, countable error is diagnosable where a mislabeled row is not.
+    if (cells.length !== CELDAS_EMITIDA) {
+      throw new DteError(
+        `La tabla de documentos emitidos del Portal MIPYME cambió de forma: la fila ${codigo} ` +
+          `trae ${cells.length} celda(s) y se esperan ${CELDAS_EMITIDA} ` +
+          `(RUT receptor, nombre, tipo, folio, fecha, monto, estado). El scraper está roto.`,
+      );
+    }
     out.push({
       codigo,
-      receptorRut: cells[0] ?? null,
-      receptorNombre: cells[1] ?? null,
-      tipoDteDesc: cells[2] ?? null,
-      folio: num(cells[3]),
-      fecha: cells[4] ?? null,
-      monto: num(cells[5]),
-      estado: cells[6] ?? null,
+      receptorRut: cellValue(cells[0]),
+      receptorNombre: cellValue(cells[1]),
+      tipoDteDesc: cellValue(cells[2]),
+      folio: cellNumber(cells[3]),
+      fecha: cellValue(cells[4]),
+      monto: cellNumber(cells[5]),
+      estado: cellValue(cells[6]),
     });
   }
   return out;

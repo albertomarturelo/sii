@@ -310,6 +310,21 @@ So rows are split on the `mipeGesDocEmi.cgi?…CODIGO=` anchor and cells on `<td
 strict HTML parser. Columns: receptor RUT · razón social · tipo · folio · fecha · monto · estado.
 `CODIGO` is `DHDR_CODIGO`, SII's internal id and the key the PDF is fetched by.
 
+**The seven cells are positional and a blank one is never dropped (#92).** A `PRV` document has
+no folio, so its folio cell is expected to come back blank. Discarding blank cells before mapping
+by index slides every later column one place left — fecha into folio (`Number('2026-09-08')` ⇒
+`NaN`), monto into fecha, estado into monto — which yields a plausible row with the values under
+the wrong names and raises nothing. The parser therefore maps by position, reads a blank cell
+(empty, a raw U+00A0, or `&nbsp;`) as `null`, and raises "scraper roto" on any row whose cell
+count is not exactly seven rather than realigning — a blank cell *before* the receptor RUT would
+shift the row just as badly as a dropped one, and the old filter hid both directions.
+
+> **Not yet observed live.** `ESTADO=PRV` returned **0 rows** on 2026-09-09 (no pre-view document
+> existed on the account), while `ESTADO=EMI` returned 9 rows, all with the full seven cells and
+> no blank. The blank-folio shape above is derived from the parser's contract, not from captured
+> markup; the fixtures covering it are synthetic. Capture a real `PRV` row and replace this note
+> with the observed `<td>` markup + its date.
+
 ### The emitted document's PDF
 
 ```
