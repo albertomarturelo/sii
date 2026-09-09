@@ -682,3 +682,16 @@ describe('GH-95: the scoped-empresa script reads the DTE header box, bounded', (
     expect(src.slice(src.indexOf('SCOPED_EMPRESA_SCRIPT'))).toContain('Date.now() + 10000');
   });
 });
+
+describe('GH-95 review: the scraped emisor RUT is Mod-11 checked, not trusted', () => {
+  it('normalises SII dotted rendering to canonical', async () => {
+    const { s } = launcherSession(() => ({ rut: '76.192.083-9', nombre: 'ACME REPUESTOS SPA' }));
+    await expect(fetchEmpresas(s, 33)).resolves.toEqual([EMPRESA]);
+  });
+
+  it('a garbled scrape is scraper roto, never a silent wrong empresa', async () => {
+    // Bad DV: trusting it would reject the user's legitimate --empresa instead of failing.
+    const { s } = launcherSession(() => ({ rut: '76192083-0', nombre: 'ACME REPUESTOS SPA' }));
+    await expect(fetchEmpresas(s, 33)).rejects.toThrow(/no es válido.*cambió de forma/s);
+  });
+});

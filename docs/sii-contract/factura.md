@@ -70,7 +70,13 @@ function start_pop() {
 ```
 
 `mipeLaunchPage.cgi?OPCION=33&TIPO=4` answers the identical shim; `OPCION=2&TIPO=4` the same
-shape pointing at `mipeAdminDocsEmi.cgi?…&NUM_PAG=1`.
+shape pointing at `mipeAdminDocsEmi.cgi?…&NUM_PAG=1`. Both wired DTE types were checked:
+`DESDE_DONDE_URL=OPCION=33` and `OPCION=34` return byte-identical shims apart from the
+`PTDC_CODIGO` they launch (observed 2026-09-09).
+
+The RUT read off the header box is **Mod-11 checked** before it is used: it becomes the value
+`--empresa` is validated against, so a garbled scrape must fail as "scraper roto" rather than
+silently reject a legitimate empresa.
 
 **Where the empresa's identity comes from on (c).** The chooser never names it, so it is read
 off the factura form itself (`mipeGenFacEx.cgi?PTDC_CODIGO=33`, `goto` + `evaluate`):

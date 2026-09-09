@@ -25,7 +25,7 @@
 // factura form's DTE header box and nothing is POSTed (observed 2026-09-09, #95).
 import { HOSTS } from '../config/index.js';
 import { FacturaError } from '../errors/index.js';
-import type { Rut } from '../rut/index.js';
+import { Rut } from '../rut/index.js';
 import type { PortalSession, PublicResponse } from '../seams/index.js';
 
 const CGI = HOSTS.mipeCgi;
@@ -175,7 +175,8 @@ export interface FacturaBorradorRow {
  *   * `launcher`        — exactly one: NO chooser at all — a 593-byte JS shim titled
  *                         "Facturacion Electronica - Launcher" whose `start_pop()` jumps straight
  *                         to the destination. The session is ALREADY scoped to that empresa, so
- *                         there is nothing to POST (observed 2026-09-09, #95). */
+ *                         there is nothing to POST (observed 2026-09-09, #95, for BOTH wired DTE
+ *                         types: `OPCION=33` and `OPCION=34` answer the identical shim). */
 export type ChooserShape =
   | { readonly kind: 'chooser'; readonly empresas: FacturaEmpresa[] }
   | { readonly kind: 'sinAutorizacion' }
@@ -645,7 +646,18 @@ async function readScopedEmpresa(
       `Formulario de factura del SII no reconocido (${r?.scraper ?? 'sin RUT/razón social del emisor'}).`,
     );
   }
-  return { rut: r.rut, nombre: r.nombre };
+  // The scraped RUT is load-bearing: it becomes the value `--empresa` is checked against, so a
+  // garbled scrape would silently reject the user's legitimate empresa. Mod-11 it here and fail
+  // as "scraper roto" instead (ADR-004); `canonical` also normalises SII's dotted rendering.
+  let empresa: Rut;
+  try {
+    empresa = Rut.parse(r.rut);
+  } catch {
+    throw new FacturaError(
+      `El RUT del emisor leído del formulario no es válido ("${r.rut}") — el portal cambió de forma.`,
+    );
+  }
+  return { rut: empresa.canonical, nombre: r.nombre };
 }
 
 /** GET the chooser and resolve the authorized empresas for this session. `scoped` says the
