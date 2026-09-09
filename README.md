@@ -150,7 +150,7 @@ en la conversación — lo abres tú desde la ruta que indica.
 - «Descárgame el PDF del F29 de mayo 2026 con su comprobante de pago.» → `f29_pdf`
 - «¿Qué documentos tributarios está autorizado a emitir el RUT 77.777.777-7?» → `dte_authorized` (público, sin login)
 - «Prepara un borrador de factura a mi cliente por $1.000.000 y muéstrame el PDF de vista previa.» → `dte_borrador_save` + `dte_preview_pdf` (nunca emite)
-- «¿Qué facturas emití en agosto por el portal MIPYME? Bájame el PDF del folio 7.» → `dte_emitidos` + `dte_pdf`
+- «¿Qué documentos emití en agosto por el portal MIPYME? Bájame el PDF del folio 7.» → `dte_emitidos` + `dte_pdf`
 - «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
 - «¿Tengo peticiones administrativas detenidas ante el SII (en espera de antecedentes)?» → `peticiones_list`
 - «¿A nombre de quién estoy registrado — razón social y correo?» → `whoami`

@@ -1,7 +1,6 @@
 // `dte_*` MCP tools — Documentos Tributarios Electrónicos, the whole artifact (ADR-024):
 // `dte_authorized` (PUBLIC, login-free, ADR-014) + the Portal MIPYME surface (empresa-keyed,
 // ADR-023). Thin calls into @albertomarturelo/sii-core tasks (ADR-003), zod inputs (ADR-011).
-// (ADR-003), zod input schemas (ADR-011).
 //
 // BORRADORES ONLY (ADR-023). There is deliberately NO emit/sign tool: the model can draft,
 // list, preview and delete drafts, but cannot produce a legally-binding document.
@@ -134,7 +133,9 @@ export function registerDteTools(server: McpServer, runtime: Runtime): void {
     'dte_emitidos',
     {
       description:
-        'Empresa-keyed (--empresa validado contra el Portal MIPYME). Sólo lo emitido vía el Portal MIPYME, con acceso a su PDF; para el REGISTRO del SII de todo lo emitido por cualquier software, usa rcv_list. Documentos tributarios ya EMITIDOS por una empresa en el Portal MIPYME (facturas, ' +
+        'Empresa-keyed (--empresa validado contra el Portal MIPYME). Documentos tributarios ya EMITIDOS por una empresa en el Portal MIPYME (facturas,  ' +
+        'Sólo lo emitido vía el Portal MIPYME, con acceso a su PDF; para el REGISTRO del SII de ' +
+        'todo lo emitido por cualquier software, usa rcv_list.' +
         'notas de crédito/débito, guías…). Sólo lectura: no emite ni firma nada. Expone datos ' +
         'del RECEPTOR (RUT y razón social), folio y montos — PII de terceros.',
       inputSchema: {

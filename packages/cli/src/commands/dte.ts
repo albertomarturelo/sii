@@ -1,7 +1,6 @@
 // `sii dte …` — Documentos Tributarios Electrónicos, the whole artifact (ADR-024): `authorized`
 // (consulta PÚBLICA, ADR-014) + the Portal MIPYME surface (facturación gratuita del SII,
 // empresa-keyed, ADR-023). Thin calls into @albertomarturelo/sii-core tasks (ADR-003).
-// Thin calls into @albertomarturelo/sii-core tasks (ADR-003).
 //
 // BORRADORES ONLY (ADR-023): this command can create, listar, previsualizar y eliminar
 // borradores. NO emite documentos — firmar/emitir queda fuera de alcance a propósito.
@@ -222,7 +221,9 @@ export function registerDte(program: Command, runtime: Runtime): void {
       });
     });
 
-  const borrador = dte.command('borrador').description('Borradores de factura.');
+  const borrador = dte
+    .command('borrador')
+    .description('Empresa-keyed. Borradores de factura (33/34) en el Portal MIPYME — nunca emite.');
 
   borrador
     .command('list')
@@ -325,7 +326,10 @@ export function registerDte(program: Command, runtime: Runtime): void {
   dte
     .command('emitidos')
     .description(
-      'Empresa-keyed (--empresa validado contra el Portal MIPYME). Sólo lo emitido vía el Portal MIPYME, con acceso a su PDF; para el REGISTRO del SII de todo lo emitido por cualquier software, usa `rcv list`. Documentos ya EMITIDOS por la empresa (sólo lectura; no emite nada).',
+      'Empresa-keyed (--empresa validado contra el Portal MIPYME). Documentos ya EMITIDOS por la ' +
+        'empresa vía el Portal MIPYME — todos los tipos, con acceso a su PDF (sólo lectura; no ' +
+        'emite nada). Para el REGISTRO del SII de todo lo emitido por cualquier software, usa ' +
+        '`rcv list`.',
     )
     .requiredOption('--empresa <rut>', 'RUT de la empresa emisora.')
     .option('--tipo-doc <n>', 'Filtra por tipo de DTE (33, 34, 61, 52, …).', parseTipo)

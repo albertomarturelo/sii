@@ -2,8 +2,7 @@
 // `dteAuthorized` (public, login-free, palena — ADR-014) at the bottom, and the MIPYME portal
 // surface (borradores + emitidos, empresa-keyed — ADR-023) below this header.
 //
-// Public factura (MIPYME) task API the surfaces call (ADR-003). BORRADORES ONLY — this
-// surface creates, lists, previews and deletes DRAFT facturas in the SII's free facturación
+// The MIPYME half — BORRADORES ONLY: it creates, lists, previews and deletes DRAFT facturas in the SII's free facturación
 // portal. It NEVER signs or emits a DTE (ADR-023): the portal's `mipeGenXMLFirma.cgi` step is
 // out of scope, so nothing here can produce a legally-binding document.
 //
@@ -606,13 +605,13 @@ export async function dtePdf(
         throw new DteError(
           args.folio !== undefined
             ? `No se encontró un documento emitido con folio ${args.folio} en ${emp.rut}. ` +
-                'Revisa `factura emitidas`.'
+                'Revisa `dte emitidos`.'
             : `No se encontró un documento emitido con código ${args.codigo} en ${emp.rut} ` +
                 (listadoAgotado
                   ? `tras recorrer el listado completo (${paginas} página(s)). `
                   : `tras revisar ${paginas} página(s), el tope del recorrido — si conoces el ` +
                     'folio, búscalo con `--folio`, que el SII filtra server-side. ') +
-                'Revisa `factura emitidas`.',
+                'Revisa `dte emitidos`.',
         );
       }
       await runtime.clock.sleep(pacingMs());

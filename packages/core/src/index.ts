@@ -67,10 +67,9 @@ export type {
   F29PdfTipo,
   F29PdfTipoArg,
 } from './tasks/f29.js';
-export { dteAuthorized } from './tasks/dte.js';
-export type { DteAutorizados, DteAutorizado } from './tasks/dte.js';
 export { bteList, bteEmitPreview, bteEmit } from './tasks/bte.js';
 export {
+  dteAuthorized,
   dteEmpresas,
   dteBorradorList,
   dteBorradorSave,
@@ -82,6 +81,8 @@ export {
   MAX_ITEMS,
 } from './tasks/dte.js';
 export type {
+  DteAutorizados,
+  DteAutorizado,
   DteBorradorArgs,
   DteBorradorRow,
   DteBorradorSaved,

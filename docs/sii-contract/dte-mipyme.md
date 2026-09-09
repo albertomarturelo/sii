@@ -1,4 +1,4 @@
-# Wire contract — Factura electrónica (Portal MIPYME)
+# Wire contract — DTE via the Portal MIPYME (facturación electrónica gratuita)
 
 The SII's **free** facturación electrónica portal ("Sistema de facturación gratuito del SII",
 `www.sii.cl/servicios_online/1039-1183.html`). All CGIs live under

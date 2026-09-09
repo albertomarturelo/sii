@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted — 2026-09-08.
+Accepted — 2026-09-08. The surface was renamed `factura` → `dte` by ADR-024 (2026-09-09);
+its wire contract is now `docs/sii-contract/dte-mipyme.md`. The decision — borradores only,
+never emission — is unchanged.
 
 Relates to: ADR-003 (seams), ADR-004 (guardrails), ADR-005 (identity),
 ADR-006 (secrets/PII), ADR-017 (write posture), ADR-022 (document downloads).
