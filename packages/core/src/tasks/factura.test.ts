@@ -466,8 +466,74 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     await seed(rt);
     await expect(
       facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
-    ).rejects.toThrow(/tras revisar 3 página\(s\)/);
+    ).rejects.toThrow(/recorrer el listado completo \(3 página\(s\)\)/);
     // page 3 comes back empty, which ends the walk before the 20-page bound
     expect(reads).toHaveLength(3);
+  });
+
+  /** A listing whose CGI CLAMPS an out-of-range NUM_PAG to the last page instead of emptying
+   *  it — the legacy behaviour the walk must not spin on. Every page returns page 1's rows. */
+  const clampingRuntime = (reads: string[]): Runtime => ({
+    clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
+    audit: new RecordingAuditSink(),
+    store: new InMemoryKeyValueStore(),
+    files: { write: async (dir: string, name: string) => `${dir}/${name}` } as FileSink,
+    portal: new FakePortalDriver({
+      restoreSession: {
+        requestForm: (url: string) => {
+          if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;
+          if (url.includes('mipeSelEmpresa.cgi')) return '<html>formulario</html>';
+          if (url.includes('mipeAdminDocsEmi.cgi')) {
+            reads.push(url);
+            return EMITIDAS_HTML; // same rows forever
+          }
+          return '';
+        },
+        requestBinary: () => PDF,
+      },
+    }),
+  });
+
+  it('stops when a page repeats the previous one — a clamping CGI is not spun on', async () => {
+    const reads: string[] = [];
+    const rt = clampingRuntime(reads);
+    await seed(rt);
+    await expect(
+      facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
+    ).rejects.toThrow(/recorrer el listado completo \(2 página\(s\)\)/);
+    expect(reads).toHaveLength(2); // page 1, page 2 == page 1 ⇒ stop, not 20 requests
+  });
+
+  /** Every page distinct and non-empty: the walk can only end at the bound. */
+  const endlessRuntime = (reads: string[]): Runtime => ({
+    clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
+    audit: new RecordingAuditSink(),
+    store: new InMemoryKeyValueStore(),
+    files: { write: async (dir: string, name: string) => `${dir}/${name}` } as FileSink,
+    portal: new FakePortalDriver({
+      restoreSession: {
+        requestForm: (url: string) => {
+          if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;
+          if (url.includes('mipeSelEmpresa.cgi')) return '<html>formulario</html>';
+          if (url.includes('mipeAdminDocsEmi.cgi')) {
+            reads.push(url);
+            const pag = /NUM_PAG=(\d+)/.exec(url)?.[1] ?? '1';
+            return EMITIDAS_HTML.replace(/99001/g, `99${pag.padStart(3, '0')}`);
+          }
+          return '';
+        },
+        requestBinary: () => PDF,
+      },
+    }),
+  });
+
+  it('respects the 20-page bound and says the walk was cut short', async () => {
+    const reads: string[] = [];
+    const rt = endlessRuntime(reads);
+    await seed(rt);
+    await expect(
+      facturaPdf(rt, { empresa: EMPRESA, codigo: '99999', directorio: '/tmp/docs' }),
+    ).rejects.toThrow(/tras revisar 20 página\(s\), el tope del recorrido/);
+    expect(reads).toHaveLength(20);
   });
 });

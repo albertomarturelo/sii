@@ -331,6 +331,11 @@ it lives on — one request. `CODIGO` (`DHDR_CODIGO`) has **no** filter, so reac
 by its internal id means walking `NUM_PAG` until it appears; the walk is paced and bounded, and
 the not-found error reports how many pages were read.
 
+**Behaviour past the last page is NOT observed** — this CGI may return an empty listing or, as
+legacy CGIs often do, CLAMP to the last page. The walk therefore stops on an empty page **or on
+a page whose rows repeat the previous one**, so a clamping CGI costs two requests rather than the
+full bound.
+
 ## 7. Emission — OUT OF SCOPE (documented for the boundary only)
 The review page's `Firmar` button:
 

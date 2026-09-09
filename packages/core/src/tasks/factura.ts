@@ -567,22 +567,32 @@ export async function facturaPdf(
       await runtime.clock.sleep(pacingMs());
       let doc: FacturaEmitida | undefined;
       let paginas = 0;
+      let listadoAgotado = false;
       const folio = args.folio;
       if (folio !== undefined) {
         // SII filters on the folio server-side, so one page is enough whatever page it is on.
-        paginas = 1;
         doc = (await readOnlyRetry(runtime, () => fetchEmitidas(session, { folio }))).find(
           (d) => d.folio === folio,
         );
       } else {
         // `codigo` has no server-side filter — walk the listing, paced (ADR-004), bounded.
+        let previa = '';
         for (let pagina = 1; pagina <= MAX_PAGINAS_EMITIDAS; pagina += 1) {
           if (pagina > 1) await runtime.clock.sleep(pacingMs());
           const page = await readOnlyRetry(runtime, () => fetchEmitidas(session, { pagina }));
           paginas = pagina;
-          if (page.length === 0) break;
           doc = page.find((d) => d.codigo === args.codigo);
           if (doc) break;
+          // Stop on an empty page OR on a page identical to the previous one. A legacy CGI may
+          // CLAMP an out-of-range `NUM_PAG` to the last page rather than emptying it, and this
+          // one's behaviour past the end is NOT observed — without this guard a wrong codigo
+          // would re-scan the same rows until the bound, hammering SII (ADR-004).
+          const firma = page.map((d) => d.codigo).join(',');
+          if (page.length === 0 || firma === previa) {
+            listadoAgotado = true;
+            break;
+          }
+          previa = firma;
         }
       }
       if (!doc) {
@@ -591,7 +601,11 @@ export async function facturaPdf(
             ? `No se encontró un documento emitido con folio ${args.folio} en ${emp.rut}. ` +
                 'Revisa `factura emitidas`.'
             : `No se encontró un documento emitido con código ${args.codigo} en ${emp.rut} ` +
-                `tras revisar ${paginas} página(s) del listado. Revisa \`factura emitidas\`.`,
+                (listadoAgotado
+                  ? `tras recorrer el listado completo (${paginas} página(s)). `
+                  : `tras revisar ${paginas} página(s), el tope del recorrido — si conoces el ` +
+                    'folio, búscalo con `--folio`, que el SII filtra server-side. ') +
+                'Revisa `factura emitidas`.',
         );
       }
       await runtime.clock.sleep(pacingMs());
