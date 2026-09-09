@@ -372,7 +372,7 @@ export async function dteBorradorDelete(
       const row = (await fetchBorradores(session)).find((b) => b.id === args.borradorId);
       if (!row) {
         throw new DteError(
-          `El borrador ${args.borradorId} no existe en ${emp.rut}. Revisa \`factura borrador list\`.`,
+          `El borrador ${args.borradorId} no existe en ${emp.rut}. Revisa \`dte borrador list\`.`,
         );
       }
       const tipoDte = isTipoDte(row.tipoDte) ? row.tipoDte : hinted;
