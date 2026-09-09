@@ -341,8 +341,8 @@ describe('documentos emitidos (#91)', () => {
     await seed(rt);
     const res = await dtePdf(rt, { empresa: EMPRESA, folio: 7, directorio: '/tmp/docs' });
     expect(res).toMatchObject({ bytes: PDF.length, contentType: 'application/pdf' });
-    expect(res.archivo).toBe('factura-7-76192083-9-2026-09-08.pdf');
-    expect(rt.written).toEqual(['/tmp/docs/factura-7-76192083-9-2026-09-08.pdf']);
+    expect(res.archivo).toBe('dte-7-76192083-9-2026-09-08.pdf');
+    expect(rt.written).toEqual(['/tmp/docs/dte-7-76192083-9-2026-09-08.pdf']);
     expect(JSON.stringify(res)).not.toContain('%PDF');
     expect(entries(rt).at(-1)).toMatchObject({ action: 'dte_pdf', result: 'ok', folio: 7 });
   });

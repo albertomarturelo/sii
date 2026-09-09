@@ -619,7 +619,7 @@ export async function dtePdf(
       const bytes = await fetchEmitidaPdf(session, doc.codigo);
       // SII's Content-Disposition is just `<rut>.pdf` — carries no folio, so compose the name
       // here (ADR-022): deterministic, so re-downloading refreshes in place.
-      const archivo = `factura-${doc.folio ?? doc.codigo}-${empresa.canonical}-${
+      const archivo = `dte-${doc.folio ?? doc.codigo}-${empresa.canonical}-${
         doc.fecha ?? 'sin-fecha'
       }.pdf`;
       const path = await files.write(args.directorio, archivo, bytes);
