@@ -4,6 +4,78 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.8.0 — 2026-09-09
+
+### Added
+
+- **The Portal MIPYME DTE surface — borradores, preview and emitted documents (#90, #91,
+  ADR-023).** SII's own FREE facturación portal (`Portal001` CGIs), reached with the Clave
+  alone. New tasks: `dteEmpresas`, `dteBorradorList`, `dteBorradorSave`,
+  `dteBorradorDelete`, `dtePreviewPdf`, `dteEmitidos`, `dtePdf`, plus `TIPOS_DTE` and
+  `MAX_ITEMS`. DTE **33** and **34** wired; more types arrive as a `--tipo` parameter, not
+  as new verbs (ADR-024).
+- **BORRADORES ONLY — emission is deliberately out of scope (ADR-023).** Signing on this
+  portal is SERVER-SIDE (`mipeGenXMLFirma.cgi`, no certificado digital required), so a
+  Clave alone would be enough to issue a legally binding factura. `mipeGenXMLFirma.cgi` is
+  never called from this codebase, and a test asserts its absence from the compiled output.
+  Everything needed to *prepare* a document is automated; the one irreversible click stays
+  with a human in SII's own UI, one navigation away from any borrador this writes.
+- **A third authorization mode: EMPRESA-KEYED (ADR-023).** Besides body-RUT (RCV) and
+  session-keyed (F22/F29/BTE), the MIPYME portal keeps its OWN authorized-empresa list
+  (`mipeSelEmpresa.cgi` — the empresas that registered this user as *usuario autorizado*),
+  which is neither the operate pointer's operable set nor the session principal. `empresa`
+  is validated against that LIVE list and re-selected before every operation, since the
+  choice scopes the form, the borrador CRUD and the listing. An unknown RUT fails with the
+  available list.
+- **Single-empresa accounts resolve instead of failing (#95).** Such an account gets no
+  chooser at all — SII answers a JS launcher — so the empresa is read off the form's DTE
+  header box and nothing is POSTed. `parseChooser` returns a `launcher` / `chooser` /
+  `sinAutorizacion` shape rather than assuming a `<select>`.
+- **SII's own validator judges the document, in-page, before anything is POSTed
+  (ADR-023).** The factura form ships `validaFacEx()`; it is run via `evaluate` with
+  `window.alert` captured, and its Spanish refusals surface VERBATIM (ADR-004). It produces
+  exactly the refusals the server would bounce, so an invalid document never costs a round
+  trip — posting past it was observed to redirect back to the form with the same alert.
+- **A draft is a write, but not a destructive one (ADR-023).** `dteBorradorSave` is
+  reversible and legally inert, so it carries no double-entry confirm and no
+  `destructiveHint` — that ceremony (ADR-017) is for the irreversible step. The DELETE is
+  gated instead.
+- **The preview PDF and the emitted document follow the ADR-022 descriptor contract.**
+  `mipePreView.cgi` (stamped "VISTA PREVIA · DOCUMENTO NO VALIDO", no folio) and
+  `mipeDisplayPDF.cgi?DHDR_CODIGO=` are fetched with `requestBinary`, written through
+  `FileSink`, and the task returns `{path, archivo, bytes, …}` — never the bytes. The local
+  filename is composed here: SII's `Content-Disposition` carries only the RUT.
+- **`PortalSession.requestForm`** now backs the borrador CRUD (`mipeGrabaBorrador` /
+  `mipeEliminaBorrador`, `ES_BORR=TRUE`); the borradores listing is a bare JSON array on
+  www4 with no SDI envelope, and the emitted listing is ISO-8859-1 HTML whose rows are
+  MALFORMED — SII never closes the receptor cell — so it is parsed by anchor + `<td` split,
+  never with a strict parser.
+- **PII posture.** Curated rows, **NO `raw`** anywhere on this surface (a row is counterparty
+  identity, ADR-004). The audit records the empresa RUT, the borrador id or folio and row
+  counts — never the counterparty, the amounts or free text.
+
+### Fixed
+
+- **`parseEmitidas` no longer drops blank cells before mapping the row by index (#92).** A
+  `PRV` (vista previa) document has no folio, so its folio cell comes back blank; filtering
+  it slid every later column one place left — fecha into folio
+  (`Number('2026-09-08')` ⇒ `NaN` ⇒ `null` once serialised), monto into fecha, estado into
+  monto — producing a plausible row with the values under the wrong names and raising
+  nothing. Cells now map positionally, a blank one reads as `null`, and a row whose cell
+  count is not EXACTLY the observed seven raises "scraper roto" (exact rather than a
+  minimum: a blank cell *before* the receptor RUT shifts the row just as badly). `cellText`
+  folds `&nbsp;` into whitespace so a spacer-only cell is a blank cell. Shipped unreleased,
+  so no published version carried the mislabelling.
+
+### Changed
+
+- **Surfaces are named by SII artifact (ADR-024).** The MIPYME work landed under a
+  `factura` verb and was folded into `dte` before release: a factura is DTE 33, and the
+  artifact already had a verb. `portal/factura.ts` → `portal/dte-mipyme.ts`,
+  `tasks/factura.ts` → `tasks/dte.ts`. Nothing published ever exposed `factura`, so this
+  breaks no consumer. `ROADMAP.md` § "Where a new surface goes" is now the placement table
+  a new verb is checked against.
+
 ## 0.7.0 — 2026-08-31
 
 ### Breaking
