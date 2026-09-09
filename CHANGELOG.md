@@ -15,6 +15,34 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.8.0 — 2026-09-09 — Facturación por el Portal MIPYME (borradores)
+
+`sii dte empresas` / `borrador list|save|delete` / `preview` / `emitidos` / `pdf`: SII's own
+**free** facturación portal, driven with the Clave alone — no certificado digital. Prepare a
+factura (DTE 33/34), save and update it as a **borrador**, get the preview PDF, and read the
+documents an empresa has already emitted, with their PDFs.
+
+**Borradores only — emission is deliberately not implemented (ADR-023).** Signing on this
+portal happens SERVER-SIDE, so a Clave alone would be enough to issue a legally binding
+document. That one irreversible step stays with a human in SII's own UI; the signing CGI is
+never called from this codebase, and a test asserts its absence from the build. Everything
+that *prepares* a document is automated.
+
+A **third authorization mode** joins body-RUT and session-keyed: **empresa-keyed**. The
+portal keeps its own list of the empresas that registered you as *usuario autorizado*, which
+is neither the `operate` pointer's operable set nor the session principal — so `--empresa` is
+validated against that live list before every operation.
+
+Surfaces are now named by **SII artifact** (ADR-024): the verb is `dte`, not the portal
+(`mipyme`) or the transport, and document types are parameters (`--tipo 61`), not verbs.
+`docs/ROADMAP.md` § "Where a new surface goes" is the placement table a new verb is checked
+against. This work landed under a `factura` verb and was folded into `dte` before release,
+so no published command or tool was renamed.
+
+Also in this release: `CONTRIBUTING.md` now carries the CFD ceremony, the PR checklist in a
+form a contributor without Claude Code can walk by hand, and what CI does **not** check on a
+fork PR.
+
 ## 0.7.0 — 2026-08-31 — F29 document downloads
 
 The first **document-download** surface: `sii f29 pdf` / `f29_pdf` saves the filed F29 of

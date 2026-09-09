@@ -9,6 +9,40 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.8.0 — 2026-09-09
+
+### Added
+
+- **`sii dte empresas`** — the empresas the Portal MIPYME lists this account as *usuario
+  autorizado* for (#90, ADR-023). This is a **third auth mode, empresa-keyed**: the list is
+  the portal's own, neither the `operate` pointer's operable set nor the session principal,
+  and `--empresa` is validated against it live. `--tipo <n>` scopes the DTE type (33
+  factura, 34 exenta).
+- **`sii dte borrador list|save|delete`** — prepare a factura on SII's FREE facturación
+  portal, **borradores only, never emission** (ADR-023). `save <json>` takes the document
+  as a file or on STDIN, with `--empresa`, `--ciudad`, `--fecha` and `--borrador <id>` to
+  update an existing draft; `delete <id>` is gated by `--confirm <id>` (double-entry of the
+  id), since deleting is the irreversible half. SII's own `validaFacEx()` runs in-page
+  first, so its Spanish refusals reach you verbatim before anything is sent.
+- **`sii dte preview <json>`** — the preview PDF of a document that was never issued,
+  stamped "VISTA PREVIA · DOCUMENTO NO VÁLIDO" and carrying no folio. `--out <dir>` chooses
+  the destination; prints the path and size, never the contents.
+- **`sii dte emitidos --empresa <rut>`** — the documents an empresa has already emitted
+  through the portal (#91), with `--tipo-doc`, `--estado emitido|preview`, `--folio`,
+  `--receptor`, `--desde` / `--hasta` and paging.
+- **`sii dte pdf <folio> --empresa <rut>`** — the PDF of an emitted document, resolved by
+  folio through the listing so a wrong one fails clearly. `--out <dir>` (default
+  `~/.sii/documentos/dte`).
+
+Every `--help` on this surface opens by declaring its auth mode (ADR-024), and none of
+these commands can issue a document: the signing CGI is never called.
+
+### Changed
+
+- **The MIPYME commands live under `sii dte`, not `sii factura` (ADR-024).** The verb is
+  the SII artifact, and a factura is DTE 33 — an artifact that already had a verb. The
+  `factura` spelling was never published, so no released command changed.
+
 ## 0.7.0 — 2026-08-31
 
 ### Added
