@@ -605,7 +605,7 @@ describe('GH-95: fetchEmpresas on the launcher path', () => {
   it('resolves the single scoped empresa off the form instead of failing', async () => {
     const { s } = launcherSession();
     await expect(fetchEmpresas(s, 33)).resolves.toEqual([EMPRESA]);
-    // the identity comes from the FORM (goto + evaluate), reached with the requested DTE type
+    // identity comes from the FORM (goto + evaluate), always via PTDC_CODIGO=33
     expect(s.gotos).toEqual([expect.stringContaining('mipeGenFacEx.cgi?PTDC_CODIGO=33')]);
   });
 
@@ -693,5 +693,18 @@ describe('GH-95 review: the scraped emisor RUT is Mod-11 checked, not trusted', 
     // Bad DV: trusting it would reject the user's legitimate --empresa instead of failing.
     const { s } = launcherSession(() => ({ rut: '76192083-0', nombre: 'ACME REPUESTOS SPA' }));
     await expect(fetchEmpresas(s, 33)).rejects.toThrow(/no es válido.*cambió de forma/s);
+  });
+});
+
+describe('GH-95 review: identity resolution is independent of the requested DTE type', () => {
+  it('reads the emisor off the 33 form even when 34 was asked for', async () => {
+    // An account not authorized for exenta gets PTDC_CODIGO=34 back with NO forms at all
+    // (observed 2026-09-09), so pinning identity to 33 keeps "who am I" separate from
+    // "may I emit this type" — --tipo 34 must fail on the document, not on the empresa.
+    const { s } = launcherSession();
+    await expect(fetchEmpresas(s, 34)).resolves.toEqual([EMPRESA]);
+    expect(s.gotos).toEqual([expect.stringContaining('PTDC_CODIGO=33')]);
+    // the chooser GET still asks for the requested type
+    expect(s.lastFormRequest?.url).toContain(encodeURIComponent('OPCION=34'));
   });
 });

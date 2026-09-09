@@ -615,7 +615,7 @@ const SCOPED_EMPRESA_SCRIPT = `(async () => {
     return null;
   };
   const f = document.forms['VIEW_EFXP'];
-  if (!f) return { scraper: 'no se encontró el formulario VIEW_EFXP' };
+  if (!f) return { scraper: 'la página no trae el formulario VIEW_EFXP — puede que tu cuenta no esté habilitada para emitir facturas en el Portal MIPYME' };
   const el = f.elements['EFXP_RZN_SOC'] || null;
   if (!el) return { scraper: 'falta el campo EFXP_RZN_SOC (razón social del emisor)' };
   const deadline = Date.now() + 10000;
@@ -630,11 +630,16 @@ const SCOPED_EMPRESA_SCRIPT = `(async () => {
   return { rut, nombre };
 })()`;
 
-async function readScopedEmpresa(
-  session: PortalSession,
-  tipoDte: TipoDte,
-): Promise<FacturaEmpresa> {
-  const landed = await session.goto(`${FORM_URL}?PTDC_CODIGO=${tipoDte}`);
+/** The DTE type used to READ the emisor identity. The scoped empresa is the same whichever
+ *  document you are about to write, but the per-type forms are NOT equally available: an
+ *  account not authorized for factura exenta gets `PTDC_CODIGO=34` back as a page with NO
+ *  forms at all (title "SISTEMA DE FACTURACIÓN SII", observed 2026-09-09). Pinning identity
+ *  to 33 keeps "who am I operating as" independent of "may I emit this type", so `--tipo 34`
+ *  fails where it should — on the document — not on resolving the empresa. */
+const IDENTITY_TIPO_DTE: TipoDte = 33;
+
+async function readScopedEmpresa(session: PortalSession): Promise<FacturaEmpresa> {
+  const landed = await session.goto(`${FORM_URL}?PTDC_CODIGO=${IDENTITY_TIPO_DTE}`);
   if (!landed.includes('mipeGenFacEx.cgi')) {
     throw new FacturaError(`El SII no entregó el formulario de factura (llegamos a ${landed}).`);
   }
@@ -684,7 +689,7 @@ async function resolveChooser(
     );
   }
   await sleep(); // the chooser GET and the form load are two hops — pace them (ADR-004)
-  return { empresas: [await readScopedEmpresa(session, tipoDte)], scoped: true };
+  return { empresas: [await readScopedEmpresa(session)], scoped: true };
 }
 
 /** The empresas the authenticated user may invoice for. This is the MIPYME "usuario
