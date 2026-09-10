@@ -15,6 +15,35 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.9.0 — 2026-09-09 — Login desde el llavero del sistema
+
+`sii auth login --keyring`: the Clave is read from the OS keyring (Secret Service on Linux,
+Keychain on macOS) instead of being typed, minting the same cookies-only session as
+`--console`. Built for unattended use — one attempt, never a retry, never a prompt, and
+**no automatic re-login**: an expired session still asks you to run the verb, because the
+alternative is the shape that turns one stale entry into a locked account (ADR-025).
+
+This resolves the `SecretStore` backend that ADR-006 left open, and it is **more
+conservative than ADR-006 allowed**: the CLI never *writes* the Clave — storing it is your
+own act with your own tool — and `Runtime.secrets` is typed read-only so no task can, even
+by mistake.
+
+**The MCP server gains nothing and holds no keyring.** The adapter is wired by the CLI's
+composition root alone, never as a runtime default, so the MCP process carries no
+`SecretStore` at all — asserted in both packages. The Clave still never crosses an MCP tool
+argument.
+
+`@napi-rs/keyring` `2.0.0`, pinned exactly: a native module that reads the OS credential
+store must not roll a new major forward on a plain `pnpm install`.
+
+**Breaking (core, type-level):** `Runtime.secrets` is now a `SecretReader` (`get` only), and
+`AuthLoginResult.reason` gains `'keyring_login'`. Nothing shipped ever wired `secrets`, so no
+runtime behaviour changes.
+
+0.8.0 already shipped an outside contribution (#90); this is the first one taken through
+the full review cycle `CONTRIBUTING.md` documents — issue, request-changes, fix, approve
+(#101 → #105).
+
 ## 0.8.0 — 2026-09-09 — Facturación por el Portal MIPYME (borradores)
 
 `sii dte empresas` / `borrador list|save|delete` / `preview` / `emitidos` / `pdf`: SII's own
