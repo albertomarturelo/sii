@@ -9,6 +9,27 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.9.0 — 2026-09-09
+
+### Added
+
+- **`sii auth login --keyring [--rut <rut>]`** — reads the Clave from the OS keyring
+  instead of the terminal and mints the same cookies-only session as `--console` (#101,
+  ADR-025). Service `sii`, username = your RUT; the entry is tried canonical → dotted →
+  body-only. **Exactly one attempt**, SII's message verbatim on failure, **no automatic
+  re-login** — an expired session still asks you to run the verb. Built for unattended use,
+  so it **never prompts**: without `--rut` it takes the RUT of the last local session, and
+  with neither it fails naming the flag. A missing entry errors with the exact command that
+  stores one, on both platforms:
+
+  ```sh
+  secret-tool store --label='SII' service sii username <rut>     # Linux (Secret Service)
+  security add-generic-password -s sii -a <rut> -w                # macOS (Keychain)
+  ```
+
+  The CLI **never writes** to the keyring; storing the Clave is your own act with your own
+  tool. `@napi-rs/keyring` `2.0.0` (exact pin) is a dependency of this package only.
+
 ## 0.8.0 — 2026-09-09
 
 ### Added

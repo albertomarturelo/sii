@@ -25,6 +25,13 @@ Superficies de **lectura** operativas y validadas en vivo: autenticación
 observaciones / historial), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
 (consulta pública), **whoami** y **peticiones administrativas** (SISPAD).
 
+Tres formas de iniciar sesión, todas cookies-only: **navegador** (tecleas la Clave en
+la página real del SII), **consola** (`--console`, Clave oculta por terminal) y
+**llavero del sistema** (`--keyring`: la Clave que tú guardaste en Keychain / Secret
+Service, un intento, sin re-login automático —
+[ADR-025](docs/decisions/025-keyring-secret-store.md)). La CLI nunca escribe la Clave
+en ningún lado, y el servidor MCP no tiene acceso al llavero en absoluto.
+
 Primera superficie de **descarga de documentos**: `f29 pdf`, que guarda en disco
 el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuando el
 período fue pagado, **su comprobante de pago**— y el Certificado de Declaración.

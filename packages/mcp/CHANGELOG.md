@@ -9,6 +9,20 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.9.0 — 2026-09-09
+
+### Security
+
+- **No keyring on the MCP runtime, by construction (ADR-025).** This release adds a keyring
+  login path to the CLI. The MCP server gains **nothing** from it — no tool, no argument, no
+  keyring read — and, more to the point, the runtime it is built from carries **no
+  `SecretStore` at all**: the keyring adapter is wired by the CLI's composition root alone,
+  never as a `createNodeRuntime` default, and `main.test.ts` pins `secrets` as `undefined`.
+  Keeping the Clave-handling tasks off the main barrel controls which *task* the model can
+  reach; this controls which *seam* the process holds, so "the MCP never reads the keyring"
+  is true because the keyring is not there — not because no code happens to call it. The
+  Clave still never crosses an MCP tool argument (ADR-006).
+
 ## 0.8.0 — 2026-09-09
 
 ### Added

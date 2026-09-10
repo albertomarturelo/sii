@@ -4,6 +4,61 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.9.0 — 2026-09-09
+
+### Breaking (type-level only)
+
+- **`Runtime.secrets` is now a `SecretReader`** (`Pick<SecretStore, 'get'>`), no longer a
+  full `SecretStore`. A consumer that *supplies* one is unaffected — a `SecretStore` is
+  assignable to a `SecretReader`. A consumer that *called* `runtime.secrets.set(…)` or
+  `.delete(…)` from a task no longer compiles, which is the point: storing the Clave is
+  the user's own act with their own tool, so no task can write to the keyring even by
+  mistake (ADR-025). `secrets` was never wired by any default runtime before this release,
+  so no shipped code path changes.
+- **`AuthLoginResult.reason` gains `'keyring_login'`.** An exhaustive `switch` over the
+  union needs the new arm.
+
+### Added
+
+- **`keyringLogin` — the Clave from the OS keyring, for an explicit login only (#101,
+  #105, ADR-025).** Resolves the `SecretStore` backend ADR-006 left open. Exported from
+  the **CLI-only `@albertomarturelo/sii-core/cli` subpath**, never the main barrel — a test
+  pins that neither Clave-handling task (`consoleLogin`, `keyringLogin`) is reachable from
+  `@albertomarturelo/sii-core`, which is all the MCP server imports. Looks the entry up under
+  service `sii` with the RUT as username, tried canonical → dotted → body-only (the keyring
+  is populated by hand, so the code adapts to the human); SII always receives the canonical
+  RUT. Mod-11 runs **before** the keyring is touched. Then it is `consoleLogin`'s flow:
+  **ONE attempt, never retried** (a stale entry must not become a lockout, ADR-004), a
+  cookies-only session, the Clave discarded with the frame. **No automatic re-login** — a
+  task that meets `SessionExpiredError` still says "ejecuta `sii auth login`"; the
+  alternative was considered and rejected in ADR-025 as the shape that turns one stale entry
+  into a locked account.
+- **Read last.** The credentials reach the shared `credentialLoginFlow` as a thunk, so the
+  keyring is consulted only after the live-session probe misses — an already-authenticated
+  user never triggers a keyring-unlock prompt for a value nobody will use. `consoleLogin`
+  passes a resolved thunk; its behaviour is unchanged.
+- **`KeyringSecretStore`** (`./node` subpath) over **`@napi-rs/keyring` `2.0.0`, pinned
+  exactly** — Secret Service on Linux, Keychain on macOS, a prebuilt N-API binding imported
+  LAZILY so composing a runtime loads no native module. It is **not a `createNodeRuntime`
+  default**: the MCP server builds from that same function, so a default would have handed
+  it a live keyring reader. The CLI's composition root wires it explicitly; `createNodeRuntime().secrets`
+  is asserted `undefined`. A failed native import raises its own actionable error (naming
+  `--console`) instead of collapsing into "no entry", which would have sent the user off to
+  re-store a Clave they already stored; entry-level failures (missing, locked, no Secret
+  Service) still read as `null`, so no wording about an entry leaks.
+- **`testing.InMemorySecretStore`** — the keyring stand-in, so a test never reads the real
+  one. **`CredentialNotFoundError`** now carries the exact `secret-tool` (Linux) and
+  `security add-generic-password` (macOS) invocations that store the entry.
+
+### Notes
+
+- The audit receipt for a keyring login records `reason: 'keyring_login'` and the RUT —
+  never the Clave (tested against the serialised receipt). The persisted session is
+  cookies-only, exactly `{rut, cookies, savedAt}` (tested).
+- `SecretReader` is referenced by the public `Runtime` type but not yet re-exported from
+  the main barrel; a consumer typing an override by name should import `SecretStore`, which
+  is assignable. Worth exporting in a follow-up.
+
 ## 0.8.0 — 2026-09-09
 
 ### Added
