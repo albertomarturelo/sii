@@ -190,6 +190,11 @@ Claude Code. Every group cites the ADRs it enforces.
   docs, help text and error strings** before committing — `tsc` cannot see a verb
   inside a string literal, and a rename has already shipped with stale error text
   that told the user to run a command that no longer existed.
+- **After a force-push, gate the merge on the run whose `headSha` is your HEAD — not on
+  `gh pr checks --watch`.** The watch keys on the PR, not on a SHA, and can return the
+  *previous* head's green before the new run registers; a release PR was merged on the old
+  head's checks this way. `gh run list --json databaseId,headSha`, pick the entry matching
+  `git rev-parse HEAD`, then `gh run watch <id> --exit-status`.
 
 ## Where new code goes
 
