@@ -1,5 +1,9 @@
-import { HOSTS, LOGIN_HOST, LOGOUT_URL } from '../config/index.js';
-import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
+import { HOSTS, KEYRING_SERVICE, LOGIN_HOST, LOGOUT_URL } from '../config/index.js';
+import {
+  CredentialNotFoundError,
+  LoginFailedError,
+  NotAuthenticatedError,
+} from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
 import { clearOperateState, initOperateState } from '../identity/index.js';
@@ -56,7 +60,7 @@ export interface AuthStatusLocal {
 export interface AuthLoginResult {
   readonly authenticated: true;
   readonly rut: string;
-  readonly reason: 'browser_login' | 'console_login' | 'already_authenticated';
+  readonly reason: 'browser_login' | 'console_login' | 'keyring_login' | 'already_authenticated';
 }
 
 export interface AuthLogoutResult {
@@ -163,7 +167,7 @@ async function resolveOperable(
 async function finalizeFreshSession(
   runtime: Runtime,
   session: PortalSession,
-  reason: 'browser_login' | 'console_login',
+  reason: 'browser_login' | 'console_login' | 'keyring_login',
   start: number,
 ): Promise<AuthLoginResult> {
   const landed = await session.goto(HOSTS.miSii);
@@ -228,10 +232,25 @@ export async function consoleLogin(
   runtime: Runtime,
   credentials: { rut: string; clave: string },
 ): Promise<AuthLoginResult> {
+  return credentialLoginFlow(runtime, () => Promise.resolve(credentials), 'console_login');
+}
+
+/** The headless fill-and-submit shared by the console (ADR-010) and keyring (ADR-025)
+ *  paths — they differ ONLY in where the Clave came from, so the attempt policy lives
+ *  in one place: ONE attempt, never retried (ADR-004), Clave discarded with the frame.
+ *  The credentials arrive as a THUNK so the Clave is fetched only once the live-session
+ *  probe has missed: an already-authenticated user must not trigger a keyring-unlock
+ *  prompt for a value nobody will use (review of #101). */
+async function credentialLoginFlow(
+  runtime: Runtime,
+  getCredentials: () => Promise<{ rut: string; clave: string }>,
+  reason: 'console_login' | 'keyring_login',
+): Promise<AuthLoginResult> {
   const start = runtime.clock.now().getTime();
   const warm = await reuseLiveSession(runtime);
   if (warm) return warm;
 
+  const credentials = await getCredentials();
   let session: PortalSession | null = null;
   try {
     session = await runtime.portal.credentialLogin({
@@ -240,13 +259,57 @@ export async function consoleLogin(
       destination: HOSTS.miSii,
       timeoutMs: CONSOLE_LOGIN_TIMEOUT_MS,
     });
-    return await finalizeFreshSession(runtime, session, 'console_login', start);
+    return await finalizeFreshSession(runtime, session, reason, start);
   } catch (err) {
-    recordAudit(runtime, { action: 'auth_login', result: 'failed', reason: 'console_login' });
+    recordAudit(runtime, { action: 'auth_login', result: 'failed', reason });
     throw err;
   } finally {
     await session?.close();
   }
+}
+
+/** The RUT renderings a human plausibly stored the entry under, in lookup order. The
+ *  keyring is populated BY HAND (`secret-tool`, Seahorse, Keychain Access), so the code
+ *  adapts to the human rather than the reverse (ADR-025). `Rut.parse` already upper-cases
+ *  a `k`, so the canonical form covers that variant. */
+export function keyringAccounts(rut: Rut): string[] {
+  return [rut.canonical, rut.formatted, String(rut.body)];
+}
+
+/** CLI-only keyring login (ADR-025): the Clave comes from the OS keyring instead of the
+ *  terminal, and everything else matches `consoleLogin` — ONE attempt, cookies-only
+ *  session, Clave never persisted by us nor audited. Nothing calls this implicitly: an
+ *  expired session still requires the user to run the verb again (ADR-019 lineage). */
+export async function keyringLogin(
+  runtime: Runtime,
+  args: { rut: string },
+): Promise<AuthLoginResult> {
+  // Mod-11 BEFORE anything else: a malformed RUT must never become a wasted SII attempt
+  // (ADR-004), and it must not raise a keyring prompt either.
+  const rut = Rut.parse(args.rut);
+  const secrets = runtime.secrets;
+  if (!secrets) {
+    throw new CredentialNotFoundError(
+      'Este runtime no tiene acceso al llavero (SecretStore). Usa `sii auth login --console`.',
+    );
+  }
+  return credentialLoginFlow(
+    runtime,
+    async () => {
+      const accounts = keyringAccounts(rut);
+      for (const account of accounts) {
+        const clave = await secrets.get(account);
+        if (clave) return { rut: rut.canonical, clave };
+      }
+      throw new CredentialNotFoundError(
+        `No hay Clave en el llavero para ${rut.canonical} (servicio "${KEYRING_SERVICE}"). ` +
+          `Guárdala con:\n` +
+          `  Linux:  secret-tool store --label='SII' service ${KEYRING_SERVICE} username ${rut.canonical}\n` +
+          `  macOS:  security add-generic-password -s ${KEYRING_SERVICE} -a ${rut.canonical} -w`,
+      );
+    },
+    'keyring_login',
+  );
 }
 
 /** Server-side close (best-effort) + wipe local session + operate context. */

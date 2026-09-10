@@ -50,6 +50,12 @@ export const LOGIN_URL = `${HOSTS.login}${HOSTS.loginPath}`;
 /** Full server-side logout URL (host + path). The close redirects OFF this path. */
 export const LOGOUT_URL = `${HOSTS.login}${HOSTS.logoutPath}`;
 
+/** The keyring "service" every entry of this tool lives under; the account (`username`
+ *  in keyring terms) is the RUT. Lives here — with the other environment constants —
+ *  because BOTH the pure `keyringLogin` task (for its error message) and the Node
+ *  adapter that reads the store need it (ADR-025). */
+export const KEYRING_SERVICE = 'sii';
+
 export interface Settings {
   /** Max requests/second used to pace portal POSTs (sii-py ADR-011). */
   readonly rateLimitRps: number;

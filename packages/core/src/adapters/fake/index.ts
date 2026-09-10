@@ -15,6 +15,7 @@ import type {
   PortalSession,
   PublicRequest,
   PublicResponse,
+  SecretStore,
   TextRequest,
 } from '../../seams/index.js';
 
@@ -204,5 +205,22 @@ export class InMemoryFileSink implements FileSink {
     const path = `${dir.replace(/\/+$/, '')}/${name}`;
     this.files.set(path, bytes);
     return path;
+  }
+}
+
+/** In-memory SecretStore: the keyring stand-in, so a test never reads the real one
+ *  (ADR-003 / ADR-025). `entries` is keyed by account exactly as the keyring's username. */
+export class InMemorySecretStore implements SecretStore {
+  constructor(readonly entries: Map<string, string> = new Map()) {}
+  readonly reads: string[] = [];
+  async get(account: string): Promise<string | null> {
+    this.reads.push(account);
+    return this.entries.get(account) ?? null;
+  }
+  async set(account: string, secret: string): Promise<void> {
+    this.entries.set(account, secret);
+  }
+  async delete(account: string): Promise<void> {
+    this.entries.delete(account);
   }
 }

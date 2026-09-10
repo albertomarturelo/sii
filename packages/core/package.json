@@ -50,6 +50,7 @@
     }
   },
   "devDependencies": {
+    "@napi-rs/keyring": "2.0.0",
     "playwright": "^1.49.0"
   }
 }

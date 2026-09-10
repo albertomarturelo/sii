@@ -87,6 +87,11 @@ npx playwright install chromium
 #    tecleas tu RUT + Clave ahí. La Clave nunca llega al modelo ni a disco.
 sii auth login
 
+#    Alternativa sin tipear: guarda la Clave en el llavero del sistema y usa --keyring
+#    secret-tool store --label='SII' service sii username <tu-rut>       # Linux
+#    security add-generic-password -s sii -a <tu-rut> -w                  # macOS
+#    sii auth login --keyring --rut <tu-rut>                         # un intento, sin re-login automático
+
 # 4) Úsalo desde la terminal
 sii peticiones list            # ¿tengo trámites detenidos ("en espera de Antecedentes")?
 sii rcv summary 2026-05        # resumen del RCV de compras
@@ -183,7 +188,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 
 | Comando | Qué hace |
 |---|---|
-| `sii auth login [--console]` | Inicia sesión (navegador cookies-only; `--console` pide la Clave por terminal) |
+| `sii auth login [--console\|--keyring]` | Inicia sesión (navegador cookies-only; `--console` pide la Clave por terminal; `--keyring` la lee del llavero del SO) |
 | `sii auth status [--refresh]` | Quién soy / a nombre de quién opero (`--refresh` lee del portal) |
 | `sii auth logout` | Cierra sesión (cierre server best-effort + wipe local) |
 | `sii operate <rut> \| --self \| --list` | Elige el RUT a nombre del cual actuar / lista el set operable |

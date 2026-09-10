@@ -3,12 +3,25 @@ import {
   FakePortalDriver,
   FixedClock,
   InMemoryKeyValueStore,
+  InMemorySecretStore,
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
 import { HOSTS } from '../config/index.js';
-import { LoginFailedError, NotAuthenticatedError } from '../errors/index.js';
-import { consoleLogin, localStatus, login, logout, statusRefresh, whoami } from './auth.js';
+import {
+  CredentialNotFoundError,
+  LoginFailedError,
+  NotAuthenticatedError,
+} from '../errors/index.js';
+import {
+  consoleLogin,
+  keyringLogin,
+  localStatus,
+  login,
+  logout,
+  statusRefresh,
+  whoami,
+} from './auth.js';
 import { readSession } from './session.js';
 import { readOperateState } from '../identity/index.js';
 
@@ -478,5 +491,106 @@ describe('auth — operable fetch on login (ADR-005, synthetic data)', () => {
     expect(op?.accountType).toBe('empresa');
     expect(op?.operable).toHaveLength(1);
     expect(op?.operable[0]).toMatchObject({ rut: '96500000-3', isSelf: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Keyring login (ADR-025): the Clave comes from the SecretStore seam instead of the
+// terminal — same one-attempt, cookies-only outcome as the console path. Synthetic
+// RUT + Clave; the real keyring is never touched (the fake store stands in).
+// ---------------------------------------------------------------------------
+
+const keyringRuntime = (driver: FakePortalDriver, secrets: InMemorySecretStore): Runtime => ({
+  ...makeRuntime(driver),
+  secrets,
+});
+
+describe('auth — keyring login (ADR-025, synthetic data)', () => {
+  it('reads the Clave from the keyring and mints a cookies-only session', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const secrets = new InMemorySecretStore(new Map([['20000042-0', CRED.clave]]));
+    const res = await keyringLogin(keyringRuntime(driver, secrets), { rut: '20000042-0' });
+    expect(res).toMatchObject({ authenticated: true, rut: '20000042-0', reason: 'keyring_login' });
+    expect(driver.lastCredential).toEqual(CRED);
+  });
+
+  it('tries the RUT renderings a human plausibly stored, canonical first', async () => {
+    const driver = credDriver(realPersonaDatos);
+    // Stored the human way, with dots — the canonical lookup misses, the next one hits.
+    const secrets = new InMemorySecretStore(new Map([['20.000.042-0', CRED.clave]]));
+    const rt = keyringRuntime(driver, secrets);
+    await keyringLogin(rt, { rut: '20000042-0' });
+    expect(secrets.reads).toEqual(['20000042-0', '20.000.042-0']);
+    // Whatever rendering the entry used, SII is always given the canonical RUT.
+    expect(driver.lastCredential?.rut).toBe('20000042-0');
+  });
+
+  it('never persists the Clave: the stored session stays cookies-only', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const secrets = new InMemorySecretStore(new Map([['20000042-0', CRED.clave]]));
+    const rt = keyringRuntime(driver, secrets);
+    await keyringLogin(rt, { rut: '20000042-0' });
+    const session = await readSession(rt.store);
+    expect(session && Object.keys(session)).toEqual(['rut', 'cookies', 'savedAt']);
+    expect(JSON.stringify(session)).not.toContain(CRED.clave);
+  });
+
+  it('the audit receipt records the reason + RUT, never the Clave', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const secrets = new InMemorySecretStore(new Map([['20000042-0', CRED.clave]]));
+    const audit = new RecordingAuditSink();
+    const rt: Runtime = { ...keyringRuntime(driver, secrets), audit };
+    await keyringLogin(rt, { rut: '20000042-0' });
+    const entry = audit.entries.find((e) => e.action === 'auth_login');
+    expect(entry).toMatchObject({ result: 'ok', rut: '20000042-0', reason: 'keyring_login' });
+    expect(JSON.stringify(audit.entries)).not.toContain(CRED.clave);
+  });
+
+  it('a live session short-circuits BEFORE the keyring is read (no unlock prompt)', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const secrets = new InMemorySecretStore(new Map([['20000042-0', CRED.clave]]));
+    const rt = keyringRuntime(driver, secrets);
+    await keyringLogin(rt, { rut: '20000042-0' }); // mint
+    secrets.reads.length = 0;
+    const again = await keyringLogin(rt, { rut: '20000042-0' });
+    expect(again).toMatchObject({ reason: 'already_authenticated' });
+    expect(secrets.reads).toEqual([]); // the Clave was never pulled into memory
+  });
+
+  it('no entry in the keyring → CredentialNotFoundError, and SII is never contacted', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = keyringRuntime(driver, new InMemorySecretStore());
+    await expect(keyringLogin(rt, { rut: '20000042-0' })).rejects.toThrow(
+      /secret-tool store[\s\S]*security add-generic-password/,
+    );
+    expect(driver.credentialLoginCalls).toBe(0);
+  });
+
+  it('no SecretStore wired (embedded consumer) → actionable CredentialNotFoundError', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos)); // no `secrets` seam
+    await expect(keyringLogin(rt, { rut: '20000042-0' })).rejects.toBeInstanceOf(
+      CredentialNotFoundError,
+    );
+  });
+
+  it('a malformed RUT is rejected locally — no keyring read, no login attempt (ADR-004)', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const secrets = new InMemorySecretStore(new Map([['20000042-0', CRED.clave]]));
+    await expect(
+      keyringLogin(keyringRuntime(driver, secrets), { rut: '20000042-9' }),
+    ).rejects.toThrow();
+    expect(secrets.reads).toEqual([]);
+    expect(driver.credentialLoginCalls).toBe(0);
+  });
+
+  it('ONE attempt: a rejected Clave propagates and is never retried (ADR-004)', async () => {
+    const driver = new FakePortalDriver({
+      failCredentialLogin: new LoginFailedError('Clave incorrecta'),
+    });
+    const secrets = new InMemorySecretStore(new Map([['20000042-0', 'stale-clave']]));
+    const rt = keyringRuntime(driver, secrets);
+    await expect(keyringLogin(rt, { rut: '20000042-0' })).rejects.toBeInstanceOf(LoginFailedError);
+    expect(driver.credentialLoginCalls).toBe(1);
+    expect(await readSession(rt.store)).toBeNull();
   });
 });

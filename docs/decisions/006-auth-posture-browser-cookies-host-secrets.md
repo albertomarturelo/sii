@@ -2,9 +2,11 @@
 
 ## Status
 
-Accepted — 2026-06-27. Lineage: sii-py ADR-025 (browser login), ADR-019 (only
-login mints), ADR-018 (keyring credential path). Built on the ADR-003 seams
-(`SecretStore` / `SessionStore` / `PortalDriver`).
+Accepted — 2026-06-27. Lineage: sii-py ADR-025 (browser login), sii-py ADR-019
+(only login mints), sii-py ADR-018 (keyring credential path) — all three are the
+PYTHON project's numbers, not this repo's. Built on the ADR-003 seams
+(`SecretStore` / `SessionStore` / `PortalDriver`). The keyring fallback this ADR
+leaves open is chosen and implemented by **ADR-025** (this repo).
 
 ## Context
 

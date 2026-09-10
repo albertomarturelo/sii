@@ -19,12 +19,17 @@ export {
   SII_DIR,
   SystemClock,
 } from './adapters/node/index.js';
+export { KeyringSecretStore } from './adapters/node/keyring.js';
 export { PlaywrightPortalDriver } from './adapters/node/portal.js';
 
 /** Composition root: the Node default adapters, any seam replaceable (ADR-016).
  *  e.g. `createNodeRuntime({ audit: myAuditSink })` keeps the other three defaults.
  *  The default portal is the Playwright driver — its `playwright` OPTIONAL peer is
- *  loaded lazily on first use, so composing (or overriding `portal`) never needs it. */
+ *  loaded lazily on first use, so composing (or overriding `portal`) never needs it.
+ *  `secrets` is DELIBERATELY not defaulted here: the OS keyring is wired by the CLI's
+ *  composition root alone (`createNodeRuntime({ secrets: new KeyringSecretStore() })`),
+ *  so the MCP server — which builds from this same function — carries no keyring at all
+ *  (ADR-006 / ADR-025). */
 export function createNodeRuntime(overrides: Partial<Runtime> = {}): Runtime {
   return {
     clock: new SystemClock(),

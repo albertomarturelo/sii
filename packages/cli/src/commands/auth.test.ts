@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { testing } from '@albertomarturelo/sii-core';
 import { fakePrompters, makeRuntime, run, runWith } from '../test-helpers.js';
 
 describe('sii auth commands (fake runtime, no SII)', () => {
@@ -50,6 +51,28 @@ describe('sii auth commands (fake runtime, no SII)', () => {
         '11111111-1',
       ),
     ).rejects.toThrow(/Clave vacía/);
+  });
+
+  it('auth login --keyring mints a session from the stored Clave, no prompt', async () => {
+    const rt = {
+      ...makeRuntime(),
+      secrets: new testing.InMemorySecretStore(new Map([['11111111-1', 'synthetic-clave']])),
+    };
+    const out = await run(rt, 'auth', 'login', '--keyring', '--rut', '11111111-1');
+    expect(out).toContain('Sesión iniciada como 11.111.111-1 (Clave leída del llavero).');
+  });
+
+  it('auth login --keyring without a stored entry says how to store it', async () => {
+    const rt = { ...makeRuntime(), secrets: new testing.InMemorySecretStore() };
+    await expect(run(rt, 'auth', 'login', '--keyring', '--rut', '11111111-1')).rejects.toThrow(
+      /secret-tool store .* service sii username 11111111-1/,
+    );
+  });
+
+  it('auth login --keyring without --rut and without a session says which flag to pass', async () => {
+    // --keyring is for unattended use: it must fail fast, never block on a prompt.
+    const rt = { ...makeRuntime(), secrets: new testing.InMemorySecretStore() };
+    await expect(run(rt, 'auth', 'login', '--keyring')).rejects.toThrow(/--rut <rut>/);
   });
 
   it('auth status reports the local session after login', async () => {

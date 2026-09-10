@@ -43,6 +43,7 @@
   ],
   "dependencies": {
     "@albertomarturelo/sii-core": "workspace:^",
+    "@napi-rs/keyring": "2.0.0",
     "commander": "^12.1.0",
     "playwright": "^1.49.0"
   },

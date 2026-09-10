@@ -40,6 +40,11 @@ export interface SecretStore {
   delete(account: string): Promise<void>;
 }
 
+/** What a RUNTIME may carry: the read half only. Storing the Clave is the user's own
+ *  act with their own tool, so no task can write to the keyring even by mistake — the
+ *  guarantee is a type, not a promise (ADR-025). */
+export type SecretReader = Pick<SecretStore, 'get'>;
+
 /** A logged-in browser context (cookies loaded). All portal reads go through
  *  here, so the core never imports Playwright. */
 export interface JsonRequest {
@@ -198,5 +203,8 @@ export interface Runtime {
    *  one. `createNodeRuntime` always wires the Node default; a task that needs it and finds
    *  it missing raises an actionable error rather than failing obscurely. */
   readonly files?: FileSink;
-  readonly secrets?: SecretStore;
+  /** OPTIONAL and READ-ONLY: the OS keyring, wired by the CLI's composition root only —
+   *  never by the MCP server's, so that surface has no keyring BY CONSTRUCTION and not
+   *  by "no code happens to call it" (ADR-006 / ADR-025). */
+  readonly secrets?: SecretReader;
 }

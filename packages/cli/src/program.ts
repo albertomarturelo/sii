@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import {
   LoginFailedError,
   Rut,
+  ValidationError,
   authStatus,
   describeOperating,
   formatOperableEntry,
@@ -21,7 +22,7 @@ import {
 } from '@albertomarturelo/sii-core';
 // CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
 // can't wire it (ADR-006 / ADR-010).
-import { consoleLogin } from '@albertomarturelo/sii-core/cli';
+import { consoleLogin, keyringLogin } from '@albertomarturelo/sii-core/cli';
 import { emit, out, setOutputMode, withOutputFlags } from './io.js';
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
@@ -63,14 +64,43 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
   auth
     .command('login')
     .description(
-      'Inicia sesión con Clave Tributaria (navegador por defecto; --console por terminal).',
+      'Inicia sesión con Clave Tributaria (navegador por defecto; --console por terminal, ' +
+        '--keyring desde el llavero del sistema).',
     )
     .option(
       '--console',
       'Introduce RUT y Clave por la terminal (sin navegador); guarda solo cookies.',
     )
-    .option('--rut <rut>', 'RUT para el login por consola (si se omite, se pregunta).')
-    .action(async (opts: { console?: boolean; rut?: string }) => {
+    .option(
+      '--keyring',
+      'Lee la Clave del llavero del sistema: servicio "sii", username = tu RUT. ' +
+        "Guárdala con: secret-tool store --label='SII' service sii username <rut> (Linux) " +
+        'o security add-generic-password -s sii -a <rut> -w (macOS). Con --keyring, si ' +
+        'omites --rut se usa el RUT de la última sesión local; nunca pregunta (uso desatendido).',
+    )
+    .option('--rut <rut>', 'RUT para el login por consola o llavero (si se omite, se pregunta).')
+    .action(async (opts: { console?: boolean; keyring?: boolean; rut?: string }) => {
+      if (opts.keyring) {
+        // --keyring exists for SCRIPTED, unattended use (ADR-025), so it must never block
+        // on a prompt: without --rut it falls back to the last local session's RUT, and
+        // failing that it says which flag to pass. The RUT is Mod-11-checked in the task,
+        // so a typo never becomes a failed SII attempt (ADR-004). ONE attempt, no retry.
+        const rutInput = opts.rut ?? (await authStatus(runtime)).rut;
+        if (!rutInput) {
+          throw new ValidationError(
+            'No hay sesión local previa de la que tomar el RUT. Indica `--rut <rut>`.',
+          );
+        }
+        const result = await keyringLogin(runtime, { rut: rutInput });
+        emit(result, () =>
+          out(
+            result.reason === 'already_authenticated'
+              ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+              : `Sesión iniciada como ${fmt(result.rut)} (Clave leída del llavero).`,
+          ),
+        );
+        return;
+      }
       if (opts.console) {
         // Validate the RUT (Mod-11) LOCALLY before any attempt — a malformed RUT must
         // never become a wasted login that counts toward account lockout (ADR-004).

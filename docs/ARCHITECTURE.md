@@ -66,8 +66,9 @@ or the wall clock:
 
 - `PortalDriver` — navigate the JS-heavy portal / issue HTTP (default: a
   Playwright adapter; tests inject a fake).
-- `SecretStore` — read/write the Clave or cookies-only session secrets (default:
-  OS keyring).
+- `SecretStore` — read the Clave from the OS keyring (`KeyringSecretStore` over
+  `@napi-rs/keyring`; ADR-025). Optional on `Runtime`, typed there as a READER (`get`
+  only), and wired by the CLI's composition root ALONE — the MCP server carries none.
 - `SessionStore` — persist + load cookies-only sessions (default: fs under
   `~/.sii/`).
 - `AuditSink` — append the JSONL receipt (default: fs append).
@@ -85,7 +86,7 @@ hexagonal ceremony (ADR-003).
 | `rut` | RUT parse / canonicalise / Mod-11 DV (in-house) | Done |
 | `periodo` | Tax-time primitives: `Periodo` (YYYYMM, monthly — rcv/f29) + `Anio` (YYYY, año tributario — f22/renta), in-house, mirror `rut` | Done |
 | `config` | Prod hostname constants + rate limits (single source of truth) | Done |
-| `seams` | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` (now + `sleep`, the pacing primitive) interfaces + Node defaults. `PortalSession` includes `requestJson`/`cookie` — the authenticated SPA-JSON-facade primitive (www4 SDI endpoints). `PortalSession.requestBinary` — the UNDECODED-body primitive behind document downloads (F29 PDFs), paired with the `FileSink` seam that writes them to disk (ADR-022). `PortalDriver.requestPublic` — the UNAUTHENTICATED text-HTTP primitive (no session/browser) behind public login-free consultas (palena DTE), Node `fetch` default (ADR-014) | Done |
+| `seams` | `PortalDriver` / `SecretStore` / `KeyValueStore` / `AuditSink` / `Clock` (now + `sleep`, the pacing primitive) interfaces + Node defaults. `PortalSession` includes `requestJson`/`cookie` — the authenticated SPA-JSON-facade primitive (www4 SDI endpoints). `PortalSession.requestBinary` — the UNDECODED-body primitive behind document downloads (F29 PDFs), paired with the `FileSink` seam that writes them to disk (ADR-022). `PortalDriver.requestPublic` — the UNAUTHENTICATED text-HTTP primitive (no session/browser) behind public login-free consultas (palena DTE), Node `fetch` default (ADR-014). `SecretStore` — the OS keyring (`KeyringSecretStore`, `@napi-rs/keyring`, lazy native import), wired only by the CLI's composition root (never `createNodeRuntime`'s defaults, so the MCP holds no keyring) and read ONLY by the CLI-only `keyringLogin` (ADR-025) | Done |
 | `auth` | Session lifecycle: browser cookies-only login, logout, status; only login mints. `withSession` is the consume-path — domain tasks acquire a live `PortalSession` (+ resolved operating RUT) through it; it never mints, raises `NotAuthenticated` when none | login/logout/status + `withSession` + `whoami` (own razón social/nombre + email) done; rest planned |
 | `identity` | Operate-centric model: operating RUT, operable set | Planned |
 | `portal/*` | Portal surfaces as typed facades over `PortalSession.requestJson`. Envelope parsed with zod (ADR-011), per-row curated projection alias-tolerant + `raw` (ADR-004) — except F22/F29, which drop raw (their non-curated data is PII). `representacion` + `rcv` (body-RUT) + `f22` (session-keyed, consultaestadof22ui) + `f29` (session-keyed, propuestaf29ui) landed. Two exceptions to the SDI-JSON shape: `dte-public` (PUBLIC, session-less HTML facade over `PortalDriver.requestPublic` — palena CGI, in-house table parser, no `raw`, ADR-014) and `bte` (session-keyed, reads the legacy `loa.sii.cl` CGIs' inline JS maps via `PortalSession.goto`/`evaluate` — NOT `requestJson` — curated, NO `raw`: the row mixes counterparty data with own-identity PII on both sides, so it joins F22/F29's no-raw camp, live BUG-1) | representación + rcv + f22 + f29 + dte-public + bte done; rest planned |

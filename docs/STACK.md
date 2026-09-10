@@ -35,8 +35,17 @@ These are intended choices; versions are pinned when first installed.
 - **`commander`** `^12.1.0` — the CLI framework for `@albertomarturelo/sii-cli` (ADR-008). Nested
   subcommands (`sii auth login`, `sii operate`). Lives in `@albertomarturelo/sii-cli` only;
   `@albertomarturelo/sii-core` never imports it.
-- **Secret storage** — TBD via ADR (candidate: `keytar` / `@napi-rs/keyring`
-  for the OS keychain). The default `SecretStore` adapter.
+- **`@napi-rs/keyring`** `2.0.0` — **adopted (ADR-025)**, resolving the secret-storage
+  TBD. Backs the `SecretStore` adapter (`adapters/node/keyring.ts`): the freedesktop
+  Secret Service on Linux (gnome-keyring / kwallet), the Keychain on macOS. A prebuilt
+  N-API binding — no node-gyp — imported LAZILY, so composing a runtime never loads it.
+  A dependency of **`@albertomarturelo/sii-cli` only** (plus a core devDependency for typecheck, the
+  playwright arrangement); `@albertomarturelo/sii-mcp` never gets it, and its composition root wires
+  no `secrets` seam at all. Read by exactly one CLI-only task, `keyringLogin`
+  (`sii auth login --keyring`); `keytar` was rejected as unmaintained.
+  **Pinned EXACTLY, not with a caret** — it is a native module that reads the OS
+  credential store and `2.0.0` is a new major, so a `2.x` must never arrive on a plain
+  `pnpm install` without a human reviewing it.
 - **`zod`** `^4.4.3` — **adopted (ADR-011)**. Boundary validation. Direct dependency
   of **both** `@albertomarturelo/sii-mcp` (MCP tool input schemas — the SDK's `registerTool` takes a zod
   shape and emits the protocol JSON Schema) **and `@albertomarturelo/sii-core`** (SII wire-payload

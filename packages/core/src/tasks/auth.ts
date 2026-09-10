@@ -22,6 +22,12 @@ export function consoleLogin(
   return auth.consoleLogin(runtime, credentials);
 }
 
+/** CLI-only (ADR-025): the Clave comes from the OS keyring (service `sii`, username =
+ *  the RUT) instead of the terminal. ONE attempt, no implicit re-login. NEVER over MCP. */
+export function keyringLogin(runtime: Runtime, args: { rut: string }): Promise<AuthLoginResult> {
+  return auth.keyringLogin(runtime, args);
+}
+
 export function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   return auth.logout(runtime);
 }
