@@ -37,6 +37,15 @@ Python `sii-cli`, adapted to TypeScript.
   `@albertomarturelo/sii-core` with Node default implementations; tests inject fakes so they
   never touch the real SII / keyring / clock. The core is otherwise a normal
   Node library (it may use Node APIs directly). (ADR-003)
+- **A seam only ONE surface may use is wired in THAT surface's composition root, never
+  as a `createNodeRuntime` default.** Both surfaces build from `createNodeRuntime()`, so a
+  default there hands the capability to the MCP server too. Keeping a task off the main
+  barrel controls which TASK the model can reach; it does NOT control which SEAM the
+  runtime carries — every barrel task receives `runtime`. The OS keyring is the template:
+  `packages/cli/src/main.ts` passes `secrets: new KeyringSecretStore()` explicitly,
+  `createNodeRuntime().secrets` is asserted `undefined` in both packages, and the type on
+  `Runtime` is the READ half only (`SecretReader`). "The MCP never reads the keyring" must
+  be true by construction, not because no code happens to call it. (ADR-006 / ADR-025)
 - **Authentication is an explicit verb, not a side-effect.** Domain tasks never
   mint a session; they consume a valid one or raise `NotAuthenticated`. Only the
   login task mints. (ported sii-py ADR-019)
