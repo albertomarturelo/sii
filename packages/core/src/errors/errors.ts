@@ -32,9 +32,9 @@ export class ValidationError extends SiiError {}
 
 /** An authenticated `requestJson` got a body that is NOT JSON and NOT the login wall —
  *  the response reached its destination host (no `LOGIN_HOST` bounce, not HTML) but the
- *  body does not parse. Observed 2026-09-11 (GH-111): the cte-api
- *  `carpeta-tributaria/obtenerValorParametro` answers HTTP 200 `text/plain;charset=utf-8`
- *  with a bare URL (the "modificar email" SPA) — a live session, a wrong endpoint. Carries
+ *  body does not parse. Observed 2026-09-11 (GH-111) on the cte-api
+ *  `obtenerValorParametro` (URL cited in `adapters/node/response.ts`): HTTP 200
+ *  `text/plain;charset=utf-8` with a bare URL — a live session, a wrong endpoint. Carries
  *  the endpoint, HTTP status, content-type and the first ~80 chars of the body VERBATIM
  *  (ADR-004), so a facade can tell a SII quirk from a dead session (`SessionExpiredError`)
  *  without a second round-trip. NOT a subclass of NotAuthenticated on purpose: re-login

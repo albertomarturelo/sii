@@ -3,7 +3,8 @@ import { SessionExpiredError, UnexpectedResponseError } from '../../errors/index
 
 /** How much of a non-JSON body the error carries. Enough to recognise the quirk (a bare
  *  URL, an HTML fragment, a SII notice) without dumping a whole page into a message that
- *  may reach the audit log or an MCP client. */
+ *  reaches the terminal or an MCP client (the audit log never records error messages —
+ *  a failed task audits ids/periods only). */
 const BODY_SNIPPET_CHARS = 80;
 
 /** Classify a non-JSON SDI response. A dead/expired session makes an authenticated
@@ -12,10 +13,11 @@ const BODY_SNIPPET_CHARS = 80;
  *  HTML content-type fallback for a same-host wall (ADR-009) — and return an ACTIONABLE
  *  `SessionExpiredError`. Anything else is a genuinely unexpected response →
  *  `UnexpectedResponseError` naming the endpoint, status, content-type and the first
- *  chars of the body verbatim. Observed 2026-09-11 (GH-111): the cte-api
- *  `obtenerValorParametro` answers 200 `text/plain;charset=utf-8` with a bare URL — a
- *  live session hitting the wrong endpoint, NOT a login wall, and the old message
- *  (status + content-type only) hid exactly the body that says so. A json-labelled
+ *  chars of the body verbatim. Observed at
+ *  https://www2.sii.cl/app/cte-api-carpetatributaria/{rut}/recurso/v2/carpeta-tributaria/obtenerValorParametro
+ *  on 2026-09-11 (GH-111): a live session gets HTTP 200 `text/plain;charset=utf-8` with
+ *  the bare URL of the "modificar email" SPA — the wrong endpoint, NOT a login wall, and
+ *  the old message (status + content-type only) hid exactly the body that says so. A json-labelled
  *  non-JSON body gets the same treatment, spelled out (the content-type lied). Neither
  *  is something `requestJson` may return (the seam resolves parsed JSON only — ADR-003;
  *  a facade's zod envelope is where a bare string would fail, ADR-011). Pure, so it is
