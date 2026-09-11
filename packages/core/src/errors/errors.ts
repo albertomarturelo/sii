@@ -83,3 +83,10 @@ export class PeticionesError extends SiiError {}
  *  changed shape. Empresa-keyed. Never retried after a SII error; a `LOGIN_HOST` bounce is
  *  `SessionExpiredError`, not this. */
 export class DteError extends SiiError {}
+
+/** SII rejected a Carpeta Tributaria (`cte-api`) request, the body was not the observed shape
+ *  ("scraper roto" — e.g. `/instituciones` not serving an array), OR the user's `--institucion`
+ *  is not in SII's LIVE list (the message names the valid codes; no round-trip is spent).
+ *  SII's message verbatim where one exists — never translated (ADR-004). Session-keyed like
+ *  F29 (ADR-005). Never retried; a `LOGIN_HOST` bounce is `SessionExpiredError`, not this. */
+export class CarpetaError extends SiiError {}

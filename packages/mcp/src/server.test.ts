@@ -17,6 +17,7 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
       'bte_emit',
       'bte_emit_preview',
       'bte_list',
+      'carpeta_instituciones',
       'dte_authorized',
       'dte_borrador_delete',
       'dte_borrador_list',
