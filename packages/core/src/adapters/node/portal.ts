@@ -98,17 +98,25 @@ class PlaywrightPortalSession implements PortalSession {
       ...(options.headers ? { headers: options.headers } : {}),
       ...(options.body !== undefined ? { data: JSON.stringify(options.body) } : {}),
     });
+    // Read the body as text ONCE (Playwright's response.json() is JSON.parse over the
+    // same text) so a parse failure can carry a verbatim snippet into the error.
+    const text = await response.text();
     try {
-      return await response.json();
+      return JSON.parse(text) as unknown;
     } catch {
-      // A non-JSON body from an authenticated SDI POST means the dead session was
+      // A non-JSON body from an authenticated SDI POST usually means the dead session was
       // bounced to SII's login wall — surface an actionable SessionExpiredError, not a
-      // parse error. No extra round-trip: this first SDI POST IS the liveness test.
+      // parse error. No extra round-trip: this first SDI POST IS the liveness test. But
+      // NOT every non-JSON body is a wall: a live session on the wrong endpoint gets a
+      // 200 `text/plain` bare URL (cte-api obtenerValorParametro, observed 2026-09-11) —
+      // that is an UnexpectedResponseError naming the endpoint + body, never a raw-string
+      // result (the seam resolves parsed JSON only).
       // Classification is a pure helper so it is unit-tested (nonJsonResponseError).
       throw nonJsonResponseError(
         response.url(),
         response.headers()['content-type'] ?? '',
         response.status(),
+        text,
       );
     }
   }

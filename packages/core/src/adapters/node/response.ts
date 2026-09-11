@@ -1,20 +1,54 @@
 import { LOGIN_HOST } from '../../config/index.js';
-import { SessionExpiredError } from '../../errors/index.js';
+import { SessionExpiredError, UnexpectedResponseError } from '../../errors/index.js';
+
+/** How much of a non-JSON body the error carries. Enough to recognise the quirk (a bare
+ *  URL, an HTML fragment, a SII notice) without dumping a whole page into a message that
+ *  reaches the terminal or an MCP client (the audit log never records error messages —
+ *  a failed task audits ids/periods only). */
+const BODY_SNIPPET_CHARS = 80;
 
 /** Classify a non-JSON SDI response. A dead/expired session makes an authenticated
  *  SDI POST get bounced to SII's login wall (HTML) instead of JSON; detect it the same
  *  URL-based way the rest of the auth flow does — landing on `LOGIN_HOST`, with an
  *  HTML content-type fallback for a same-host wall (ADR-009) — and return an ACTIONABLE
- *  `SessionExpiredError`. Anything else is a genuinely unexpected response → a generic
- *  Error (the facade maps it to its own typed error). Pure, so it is unit-tested
- *  without launching Playwright. */
-export function nonJsonResponseError(finalUrl: string, contentType: string, status: number): Error {
+ *  `SessionExpiredError`. Anything else is a genuinely unexpected response →
+ *  `UnexpectedResponseError` naming the endpoint, status, content-type and the first
+ *  chars of the body verbatim. Observed at
+ *  https://www2.sii.cl/app/cte-api-carpetatributaria/{rut}/recurso/v2/carpeta-tributaria/obtenerValorParametro
+ *  on 2026-09-11 (GH-111): a live session gets HTTP 200 `text/plain;charset=utf-8` with
+ *  the bare URL of the "modificar email" SPA — the wrong endpoint, NOT a login wall, and
+ *  the old message (status + content-type only) hid exactly the body that says so. A json-labelled
+ *  non-JSON body gets the same treatment, spelled out (the content-type lied). Neither
+ *  is something `requestJson` may return (the seam resolves parsed JSON only — ADR-003;
+ *  a facade's zod envelope is where a bare string would fail, ADR-011). Pure, so it is
+ *  unit-tested without launching Playwright. */
+export function nonJsonResponseError(
+  finalUrl: string,
+  contentType: string,
+  status: number,
+  body = '',
+): Error {
   const ct = contentType.toLowerCase();
-  const bouncedToLogin = new URL(finalUrl).hostname === LOGIN_HOST;
+  const url = new URL(finalUrl);
+  const bouncedToLogin = url.hostname === LOGIN_HOST;
   if (bouncedToLogin || ct.includes('text/html')) {
     return new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
   }
-  return new Error(`Respuesta no-JSON de SII (HTTP ${status}, ${ct || 'sin content-type'}).`);
+  const snippet = bodySnippet(body);
+  const claimsJson = ct.includes('json');
+  const what = claimsJson
+    ? `SII declaró content-type ${ct} pero el cuerpo no es JSON`
+    : `Respuesta no-JSON de SII (${ct || 'sin content-type'})`;
+  return new UnexpectedResponseError(
+    `${what} — HTTP ${status} en ${url.host}${url.pathname}` +
+      (snippet ? `: "${snippet}"` : ' (cuerpo vacío)'),
+  );
+}
+
+/** The first chars of a body, whitespace-collapsed, for an error message. */
+function bodySnippet(body: string): string {
+  const flat = body.replace(/\s+/g, ' ').trim();
+  return flat.length > BODY_SNIPPET_CHARS ? `${flat.slice(0, BODY_SNIPPET_CHARS)}…` : flat;
 }
 
 /** Login-wall detection for an authenticated FORM POST (ADR-017). Unlike `requestJson`,
