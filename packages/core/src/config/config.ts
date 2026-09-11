@@ -14,6 +14,12 @@ export const HOSTS = {
   portal: 'https://www.sii.cl',
   /** SPA JSON facades (RCV / F29 / F22) live under this host. */
   portalApi: 'https://www4.sii.cl',
+  /** The newer SPA apps + their `/app/<name>-api/*` JSON facades — first the Carpeta
+   *  Tributaria (`/carpetatributaria/…` SPA over `/app/cte-api-carpetatributaria/{rut}/…`).
+   *  The `.sii.cl` session cookie SSO-carries, but every `cte-api` call answers 401 until
+   *  the app's own `GET /app/session/status?originalUrl=…` warm-up ran (observed
+   *  2026-09-11, #110). (#109 / #110) */
+  portalApp: 'https://www2.sii.cl',
   /** Legacy BHE/BTE consulta CGIs (boletas de honorarios). HTML skeleton filled
    *  client-side from inline JS maps; read via `PortalSession.goto`/`evaluate`, NOT
    *  the SDI-JSON facade. The `.sii.cl` session cookie SSO-carries here (observed
