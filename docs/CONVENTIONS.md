@@ -93,6 +93,16 @@ Python `sii-cli`, adapted to TypeScript.
   authenticated JSON POST (the session cookies ride along), never a bespoke HTTP
   client. Cite the endpoint + observation date; surface the `respEstado` error
   envelope verbatim; curated + `raw`. (ADR-003 / ADR-004)
+  **A non-JSON body is classified by URL + content-type, never by "does the body look
+  useful".** `requestJson` resolves parsed JSON ONLY. A `LOGIN_HOST` landing or an HTML
+  body ⇒ `SessionExpiredError` (re-login fixes it). Anything else that fails to parse ⇒
+  `UnexpectedResponseError` carrying the endpoint, status, content-type and the first ~80
+  chars of the body verbatim — observed 2026-09-11 (#111): a LIVE session on the cte-api
+  `obtenerValorParametro` gets `200 text/plain` with a bare URL (the "modificar email"
+  SPA), which is not a dead session and must not read as one, and whose body is exactly
+  what tells you the endpoint is wrong. Never return the raw string from the seam: a bare
+  value would sail past the facade's zod envelope (ADR-011) and hide a broken endpoint;
+  the fix for such an endpoint is to call the RIGHT one, not to relax the seam.
 - **Inline-JS-map facades (legacy CGIs) go through `PortalSession.goto` + `evaluate`,
   NOT `requestJson`.** Some surfaces (BHE/BTE on `loa.sii.cl/cgi_IMT/`) serve an HTML
   skeleton whose tables are filled client-side from global JS maps (`xml_values`,

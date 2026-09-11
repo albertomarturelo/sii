@@ -30,6 +30,17 @@ export class CredentialNotFoundError extends SiiError {}
 /** Invalid user input: bad RUT, an operate target not in the operable set, etc. */
 export class ValidationError extends SiiError {}
 
+/** An authenticated `requestJson` got a body that is NOT JSON and NOT the login wall —
+ *  the response reached its destination host (no `LOGIN_HOST` bounce, not HTML) but the
+ *  body does not parse. Observed 2026-09-11 (GH-111): the cte-api
+ *  `carpeta-tributaria/obtenerValorParametro` answers HTTP 200 `text/plain;charset=utf-8`
+ *  with a bare URL (the "modificar email" SPA) — a live session, a wrong endpoint. Carries
+ *  the endpoint, HTTP status, content-type and the first ~80 chars of the body VERBATIM
+ *  (ADR-004), so a facade can tell a SII quirk from a dead session (`SessionExpiredError`)
+ *  without a second round-trip. NOT a subclass of NotAuthenticated on purpose: re-login
+ *  would not fix it. */
+export class UnexpectedResponseError extends SiiError {}
+
 /** SII rejected a portal/SDI facade request (error envelope or unparseable
  *  response). Carries SII's message verbatim — never translated (ADR-004). */
 export class RepresentacionError extends SiiError {}
