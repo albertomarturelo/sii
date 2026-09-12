@@ -9,7 +9,7 @@ import {
 import type { PortalSession, Runtime } from '../seams/index.js';
 import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
-import { withSession, writeSession } from './session.js';
+import { assertOperatingSelf, withSession, writeSession } from './session.js';
 
 // Synthetic, Mod-11-valid RUTs (CONVENTIONS): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
@@ -136,5 +136,26 @@ describe('withSession (session-acquisition primitive)', () => {
 
     expect(driver.sessions).toHaveLength(2);
     expect(driver.sessions.every((s) => s.closed)).toBe(true); // closed in finally, both paths
+  });
+});
+
+describe('assertOperatingSelf (the session-keyed guard, ADR-005)', () => {
+  it('resolves when operating as self, and when there is no operate state at all', async () => {
+    const rt = makeRuntime(new TrackingDriver());
+    await expect(assertOperatingSelf(rt, () => new Error('no'))).resolves.toBeUndefined();
+    await seedSession(rt);
+    await expect(assertOperatingSelf(rt, () => new Error('no'))).resolves.toBeUndefined();
+  });
+
+  it("throws the SURFACE's error, built from the formatted empresa RUT, when a representada is operating", async () => {
+    const rt = makeRuntime(new TrackingDriver());
+    await seedSession(rt);
+    await setOperatingRut(rt.store, EMPRESA);
+    const err = await assertOperatingSelf(rt, (e) => new ValidationError(`operando ${e}`)).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ValidationError);
+    expect((err as Error).message).toBe('operando 77.777.777-7');
+    expect((err as Error).message).not.toContain('Mi Empresa'); // razón social (PII) never passed
   });
 });

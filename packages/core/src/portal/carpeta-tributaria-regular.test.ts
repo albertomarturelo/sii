@@ -78,6 +78,23 @@ describe('carpeta instituciones facade (fake session, no SII)', () => {
     ]);
   });
 
+  it('projection edges: a bad DV → rut null; a numeric-string tipo parses; junk tipo → null', async () => {
+    const { session } = scripted({
+      instituciones: [
+        {
+          enfinCodigo: '007',
+          enfinRutInstitucion: 77777777,
+          enfinDvInstitucion: '1',
+          enfinTipo: '3',
+        },
+        { enfinCodigo: '008', enfinTipo: 'otro' },
+      ],
+    });
+    const res = await fetchInstituciones(session, APP);
+    expect(res[0]).toMatchObject({ codigo: '007', rut: null, tipo: 3 }); // Mod-11 fails → null
+    expect(res[1]).toMatchObject({ codigo: '008', tipo: null });
+  });
+
   it('GETs the cte-api path keyed by the app session userId VERBATIM, with the SPA Referer', async () => {
     const { session } = scripted();
     await fetchInstituciones(session, APP);
