@@ -6,7 +6,7 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { CarpetaError, NotAuthenticatedError } from '../errors/index.js';
+import { CarpetaError, NotAuthenticatedError, Www2SessionError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import { carpetaInstituciones } from './carpeta.js';
@@ -103,7 +103,8 @@ describe('carpeta instituciones task (fakes, no SII)', () => {
         },
       }),
     };
-    await expect(carpetaInstituciones(blocked)).rejects.toThrow(/plataforma www2/);
+    await expect(carpetaInstituciones(blocked)).rejects.toBeInstanceOf(Www2SessionError);
+    await expect(carpetaInstituciones(blocked)).rejects.toBeInstanceOf(NotAuthenticatedError);
     expect(entries(blocked).some((x) => x.result === 'failed')).toBe(true);
   });
 

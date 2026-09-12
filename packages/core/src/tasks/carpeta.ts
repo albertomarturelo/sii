@@ -3,17 +3,15 @@
 //
 // Carpeta is SESSION-KEYED (ADR-005): the app serves the principal's own Carpeta, so the tasks
 // read `ctx.sessionRut`, take NO `--rut`, and reject a representing operate pointer up front
-// (same posture as F29). NOTE (observed 2026-09-11): the www2 `cte-api` is authorized by a www2
-// APP SESSION (OAuth) that the cookies-only login does not mint — the facade detects that and
-// fails actionably; minting it is an auth decision pending an ADR (see the contract doc).
+// (same posture as F29). The www2 `cte-api` also needs the www2 APP SESSION (ADR-026): the
+// facade reads it first (`portal/www2-session.ts`) and raises `Www2SessionError` (a
+// NotAuthenticated) when it is missing — minting it is `sii auth login --www2`, pending.
 //
 // #110 ships `carpetaInstituciones` (the live `enfinCodigo` catalog); #109 adds `carpetaRegular`
 // (the PDF, ADR-022 descriptor) on top of the same facade.
-import { withSession } from '../auth/index.js';
+import { assertOperatingSelf, withSession } from '../auth/index.js';
 import { recordAudit } from '../audit/index.js';
-import { readOperateState } from '../identity/index.js';
 import { CarpetaError } from '../errors/index.js';
-import { Rut } from '../rut/index.js';
 import { listInstituciones } from '../portal/carpeta-tributaria-regular.js';
 import type { CarpetaInstitucion } from '../portal/carpeta-tributaria-regular.js';
 import type { AuditEntry, Runtime } from '../seams/index.js';
@@ -24,19 +22,17 @@ function audit(runtime: Runtime, action: string, result: string, extra: Partial<
   recordAudit(runtime, { action, result, ...extra });
 }
 
-/** Reject a representing operate pointer BEFORE opening a session (ADR-005, session-keyed). The
- *  empresa RUT is already user-visible (`operate --list`), so it is safe to echo; the razón social
- *  is PII and is NOT included. No operate state → defer to `withSession` (raises NotAuthenticated). */
-async function assertSelfOperating(runtime: Runtime): Promise<void> {
-  const op = await readOperateState(runtime.store);
-  if (op && op.operatingRut !== op.selfRut) {
-    throw new CarpetaError(
-      `La Carpeta Tributaria es session-keyed: el SII autoriza por el titular de la sesión, no ` +
-        `por el RUT operado (${Rut.parse(op.operatingRut).formatted}). Para la carpeta de esa ` +
-        'empresa, inicia sesión como ella (`sii auth logout` y luego `sii auth login`).',
-    );
-  }
-}
+// Session-keyed (ADR-005): the shared guard, with this surface's own error + wording.
+const assertSelfOperating = (runtime: Runtime): Promise<void> =>
+  assertOperatingSelf(
+    runtime,
+    (empresa) =>
+      new CarpetaError(
+        `La Carpeta Tributaria es session-keyed: el SII autoriza por el titular de la sesión, no ` +
+          `por el RUT operado (${empresa}). Para la carpeta de esa empresa, inicia sesión como ` +
+          'ella (`sii auth logout` y luego `sii auth login`).',
+      ),
+  );
 
 /** SII's LIVE list of destination institutions for the Carpeta Tributaria Regular — the
  *  `enfinCodigo` catalog `carpeta regular --institucion` is validated against. Never cached, never

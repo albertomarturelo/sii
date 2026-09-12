@@ -40,6 +40,30 @@ describe('@albertomarturelo/sii-mcp carpeta tools (in-memory client, fake runtim
     expect(tool?.inputSchema.properties ?? {}).toEqual({}); // session-keyed: no rut arg
   });
 
+  it('carpeta_instituciones without the www2 app session is an error result naming the fix', async () => {
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-09-11T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          requestText: () => ({ status: 401, body: '' }),
+          requestJson: () => {
+            throw new Error('must not be called');
+          },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await client.callTool({ name: 'auth_login', arguments: {} });
+    const res = await client.callTool({ name: 'carpeta_instituciones', arguments: {} });
+    expect((res as { isError?: boolean }).isError).toBe(true);
+    expect(toolText(res)).toContain('sii auth login --www2');
+  });
+
   it('carpeta_instituciones without a session is an error result carrying the message', async () => {
     const runtime: Runtime = {
       clock: new testing.FixedClock(new Date('2026-09-11T12:00:00Z')),

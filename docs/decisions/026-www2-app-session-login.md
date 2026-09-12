@@ -69,7 +69,7 @@ before any code. The trigger is #110: the surface is built and unit-tested but c
 - `sii auth login --www2` (CLI) / `auth_login` with `www2: true` (MCP, still no password arg)
   mint the second layer; `auth status` reports it (`www2: {authenticated, expiresAt}`); logout
   wipes both (best-effort `GET /app/session/close`).
-- www2 facades share one `readAppSession` helper; new www2 apps reuse it (no per-app warm-up).
+- www2 facades share one `readWww2Session` helper (`portal/www2-session.ts`, raising `Www2SessionError`, a `NotAuthenticated`); new www2 apps reuse it (no per-app warm-up).
 - Obligation: `--help` of every www2 surface names the extra login; the audit records the layer
   minted, never a cookie value (already dropped by the secret-key filter).
 - Risk: two TTLs (classic ~60 min hint, www2 ~100 min) → the user may hit "www2 session

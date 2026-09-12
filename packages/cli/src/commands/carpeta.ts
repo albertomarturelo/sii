@@ -10,7 +10,8 @@ export function registerCarpeta(program: Command, runtime: Runtime): void {
     .command('carpeta')
     .description(
       'Session-keyed. Carpeta Tributaria del titular de la sesión (para una empresa, inicia ' +
-        'sesión como ella).',
+        'sesión como ella). Vive en la plataforma www2 del SII: además de la sesión de Mi SII ' +
+        'necesita la sesión www2 (ADR-026, `sii auth login --www2`, pendiente).',
     );
 
   carpeta

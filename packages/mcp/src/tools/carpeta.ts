@@ -16,7 +16,8 @@ export function registerCarpetaTools(server: McpServer, runtime: Runtime): void 
         'el valor que exige `carpeta_regular` como institución destinataria; los códigos cambian ' +
         'con el tiempo, así que se leen del SII en cada llamada — no uses un código recordado sin ' +
         'confirmarlo aquí. Catálogo público: no expone datos del contribuyente. Session-keyed: ' +
-        'requiere sesión; para una empresa, inicia sesión como ella.',
+        'requiere sesión; para una empresa, inicia sesión como ella. Necesita además la sesión ' +
+        'www2 del SII (ADR-026); si falta, el error lo indica.',
       inputSchema: {},
       annotations: { readOnlyHint: true },
     },

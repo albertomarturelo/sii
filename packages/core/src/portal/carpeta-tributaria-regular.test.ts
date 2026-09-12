@@ -1,11 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { FakePortalSession } from '../adapters/fake/index.js';
 import type { PublicResponse } from '../seams/index.js';
-import { CarpetaError, SessionExpiredError, UnexpectedResponseError } from '../errors/index.js';
+import {
+  CarpetaError,
+  SessionExpiredError,
+  UnexpectedResponseError,
+  Www2SessionError,
+} from '../errors/index.js';
 import {
   fetchInstituciones,
   listInstituciones,
-  readAppSession,
   resolveInstitucion,
 } from './carpeta-tributaria-regular.js';
 
@@ -54,39 +58,6 @@ function scripted(opts: { instituciones?: unknown; status?: PublicResponse | str
   return { session, calls };
 }
 
-describe('carpeta app session read (fake session, no SII)', () => {
-  it('GETs /app/session/status with the SPA page as originalUrl, via requestText', async () => {
-    const { session } = scripted();
-    const app = await readAppSession(session);
-    expect(app).toEqual({ userId: USER_ID, userAuthType: 'CT' });
-    const req = session.lastTextRequest!;
-    expect(req.url).toBe(
-      'https://www2.sii.cl/app/session/status?originalUrl=https%3A%2F%2Fwww2.sii.cl%2Fcarpetatributaria%2Fgenerarcteregular',
-    );
-    expect(req.options?.method).toBe('GET');
-    expect(session.lastRequest).toBeNull(); // the session read alone never touches cte-api
-  });
-
-  it('a bare 401 (the classic cookies-only session — observed 2026-09-11) is an ACTIONABLE CarpetaError', async () => {
-    const { session, calls } = scripted({ status: { status: 401, body: '' } });
-    const err = await readAppSession(session).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(CarpetaError);
-    expect((err as Error).message).toMatch(/plataforma www2/);
-    expect((err as Error).message).toContain('HTTP 401');
-    expect(calls.filter((c) => c.startsWith('json'))).toHaveLength(0); // no cte-api round-trip
-  });
-
-  it('a 200 that is the SPA shell HTML (a cold hit) is "no session" too, never a parse crash', async () => {
-    const { session } = scripted({ status: '<!doctype html><html lang="es">…' });
-    await expect(readAppSession(session)).rejects.toBeInstanceOf(CarpetaError);
-  });
-
-  it('a 200 JSON without userId is "no session" (the id keys every API path)', async () => {
-    const { session } = scripted({ status: JSON.stringify({ t1: 1 }) });
-    await expect(readAppSession(session)).rejects.toBeInstanceOf(CarpetaError);
-  });
-});
-
 describe('carpeta instituciones facade (fake session, no SII)', () => {
   it('projects the observed enfin* keys into curated rows; blanks → null; extras tolerated', async () => {
     const { session } = scripted();
@@ -126,6 +97,12 @@ describe('carpeta instituciones facade (fake session, no SII)', () => {
     expect(calls).toHaveLength(2);
     expect(calls[0]).toMatch(/^text .*\/app\/session\/status\?originalUrl=/);
     expect(calls[1]).toMatch(/^json .*\/20000042-0\/.*\/instituciones$/);
+  });
+
+  it('listInstituciones stops at a missing app session: Www2SessionError, no cte-api call', async () => {
+    const { session, calls } = scripted({ status: { status: 401, body: '' } });
+    await expect(listInstituciones(session)).rejects.toBeInstanceOf(Www2SessionError);
+    expect(calls.filter((c) => c.startsWith('json'))).toHaveLength(0);
   });
 
   it('an empty array is a legitimate "no rows", not an error', async () => {
