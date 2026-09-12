@@ -30,3 +30,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 023 | [Factura electrónica (Portal MIPYME): borradores only, no emission](023-factura-borradores-only.md) | Accepted | 2026-09-08 |
 | 024 | [Surfaces are named by SII artifact; portal and auth mode are implementation axes](024-surfaces-named-by-artifact.md) | Accepted | 2026-09-09 |
 | 025 | [Keyring `SecretStore` — the Clave from the OS keyring, explicit login only](025-keyring-secret-store.md) | Accepted | 2026-09-09 |
+| 026 | [The www2 app session — a second cookies-only login, minted only by the user at SII's OAuth page](026-www2-app-session-login.md) | Accepted | 2026-09-12 |
