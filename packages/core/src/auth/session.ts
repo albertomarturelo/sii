@@ -1,5 +1,6 @@
 import { NotAuthenticatedError } from '../errors/index.js';
 import { readOperateState, resolveOperableTarget } from '../identity/index.js';
+import { Rut } from '../rut/index.js';
 import type { KeyValueStore, PortalSession, Runtime } from '../seams/index.js';
 
 // Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
@@ -23,6 +24,21 @@ export async function writeSession(store: KeyValueStore, session: StoredSession)
 
 export async function deleteSession(store: KeyValueStore): Promise<void> {
   await store.delete(SESSION_KEY);
+}
+
+/** Reject a representing operate pointer BEFORE opening a session — the guard every SESSION-KEYED
+ *  surface (F29, BHE, Carpeta…) runs first (ADR-005). `error` builds the surface's own typed error
+ *  from the formatted empresa RUT (already user-visible via `operate --list`, so safe to echo; the
+ *  razón social is PII and is NOT passed). No operate state → resolves; `withSession` then raises
+ *  NotAuthenticated. Single implementation: the third copy (carpeta) turned it into a helper. */
+export async function assertOperatingSelf(
+  runtime: Runtime,
+  error: (empresaFormatted: string) => Error,
+): Promise<void> {
+  const op = await readOperateState(runtime.store);
+  if (op && op.operatingRut !== op.selfRut) {
+    throw error(Rut.parse(op.operatingRut).formatted);
+  }
 }
 
 export interface SessionContext {

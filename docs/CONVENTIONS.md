@@ -220,7 +220,20 @@ Python `sii-cli`, adapted to TypeScript.
   the operate pointer, takes NO `--rut`, and always reads self; the empresa's data
   is reached by logging in AS the empresa (logout→login). Confirm reach live before
   wiring each session-keyed surface (F22 confirmed 2026-06-27). `rcv` is the body-RUT
-  template, `f22` the session-keyed one.
+  template, `f22` the session-keyed one. **A session-keyed task rejects a representing pointer
+  through the shared `assertOperatingSelf(runtime, mkError)` in `auth/session.ts`** (one check,
+  the surface supplies its own typed error + wording) — never a private copy; the third copy
+  (carpeta, #110) turned it into the helper. `f29`/`bte` still carry the older copies and migrate
+  on their next touch.
+- **`www2.sii.cl/app/*` surfaces need the www2 APP SESSION, a second cookies-only layer
+  (ADR-026).** The classic `.sii.cl` jar reaches www1/www3/www4/loa but NOT the `/app/<name>-api`
+  facades (bare 401). That layer is the httpOnly `.sii.cl` pair `X-SII-STATE-CT`/`-TYPE`, minted
+  ONLY by the user at SII's `oauthsii-v1` page (headed, reCAPTCHA — never headless, never over
+  MCP), persisted in the same session file. A www2 facade FIRST reads `GET /app/session/status`
+  (the SPA's own liveness read), keys every API path by its `userId` verbatim, and on a non-200
+  raises `Www2SessionError` (a `NotAuthenticated`, actionable: "run `sii auth login --www2`"),
+  never a warm-up retry. The read lives ONCE in `portal/www2-session.ts`; `carpeta` is the
+  template; the wire finding is in `sii-contract/carpeta-tributaria.md`.
 - **Three authorization modes, not two (ADR-023).** Besides *body-RUT* (RCV) and
   *session-keyed* (F22/F29/BHE), a surface can be **empresa-keyed**: the MIPYME facturación
   portal has its OWN authorized-empresa list (`mipeSelEmpresa.cgi` — the empresas that

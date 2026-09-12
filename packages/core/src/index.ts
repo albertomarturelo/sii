@@ -112,6 +112,8 @@ export type {
 } from './tasks/bte.js';
 export { peticionesList } from './tasks/peticiones.js';
 export type { PeticionesResult, Peticion, EstadoPeticion } from './tasks/peticiones.js';
+export { carpetaInstituciones } from './tasks/carpeta.js';
+export type { CarpetaInstitucion } from './tasks/carpeta.js';
 
 // --- seams: the injectable contract a consumer composes a Runtime from ---
 // The Node default adapters + `createNodeRuntime` live in the `./node` subpath
