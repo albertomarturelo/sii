@@ -15,7 +15,10 @@
 //      `/bifurcacion` (the auth chooser). Neither `/app/session/legacy/bridge/` nor `bridge2/`
 //      mints it from the classic side (probed). The `oauthsii-v1` page is a full Clave login with
 //      reCAPTCHA Enterprise — and it DELETES the classic cookies on mount — so it is a login of its
-//      own, never a "warm-up". Minting it is an auth decision (ADR pending); this facade only
+//      own, never a "warm-up". Once minted (spike 2026-09-12, a human at the OAuth page) it is the
+//      httpOnly `.sii.cl` cookie pair `X-SII-STATE-CT` + `X-SII-STATE-TYPE` (~100 min), so a
+//      cookies-only capture holds it — and Mi SII stayed authenticated on it after the OAuth page
+//      wiped the classic cookies. Minting it is an auth decision (ADR pending); this facade only
 //      DETECTS it and fails actionably.
 //   2. `GET /app/session/status?originalUrl=<SPA URL>` is the SPA's own session read (vendors
 //      `j()`): 200 → JSON `{userId, userAuthType, t1, userProfiles}` stored in vuex; anything
@@ -34,6 +37,7 @@
 import { z } from 'zod';
 import { HOSTS } from '../config/index.js';
 import { CarpetaError, NotAuthenticatedError } from '../errors/index.js';
+import { Rut } from '../rut/index.js';
 import type { PortalSession } from '../seams/index.js';
 
 /** The SPA page ("Generar Carpeta Tributaria Regular"): the `Referer` the API expects and the
@@ -48,20 +52,30 @@ const HEADERS: Record<string, string> = {
   Referer: GENERAR_PAGE,
 };
 
-/** The www2 app session as `/app/session/status` describes it. Only `userId` is load-bearing
- *  (it keys every `cte-api` path); the rest is kept for diagnostics. */
+/** The www2 app session as `/app/session/status` describes it (observed 2026-09-12:
+ *  `{seconds, userId, userProfiles[], userAuthType, authTime, userRte}`). Only `userId` is
+ *  load-bearing (it keys every `cte-api` path — the canonical `<body>-<dv>` RUT, observed);
+ *  the rest is kept for diagnostics. */
 export interface CarpetaAppSession {
   readonly userId: string;
   readonly userAuthType: string | null;
 }
 
-/** A destination institution the Carpeta can be addressed to — SII's live catalog row,
- *  curated. `codigo` is the `enfinCodigo` that `/generar` demands (#109); kept as a STRING
- *  because SII zero-pads it (`"059"` reported) and the server compares it verbatim. */
+/** A destination institution the Carpeta can be addressed to — SII's live catalog row, curated
+ *  (all 8 observed keys; a public registry of entities, no taxpayer data). `codigo` is the
+ *  `enfinCodigo` that `/generar` demands (#109); kept as a STRING because SII zero-pads some
+ *  (`"016"`, `"059"`) and not others (`"1005"`) and compares it verbatim. */
 export interface CarpetaInstitucion {
   readonly codigo: string;
   readonly descripcion: string | null;
   readonly abreviacion: string | null;
+  /** SII's institution class (`enfinTipo`, observed 3 = corredora, 4 = otra; catalog-defined). */
+  readonly tipo: number | null;
+  /** The institution's own RUT (canonical), or null. Public entity data. */
+  readonly rut: string | null;
+  readonly vigenteDesde: string | null; // ISO YYYY-MM-DD
+  /** null = still vigente (observed on every row so far). */
+  readonly vigenteHasta: string | null; // ISO YYYY-MM-DD
 }
 
 // --- Wire shapes (zod-at-the-boundary, ADR-011) ---------------------------------------
@@ -70,16 +84,22 @@ export interface CarpetaInstitucion {
 // this is the newer `cte-api`, not the www4 SDI facades).
 const Row = z.record(z.string(), z.unknown());
 const Instituciones = z.array(Row);
-// Field names from the session library (`e.userId`, `t.userAuthType`, `e.t1`, `e.userProfiles`);
-// the JSON itself is unobserved until an app session exists (see the contract doc).
+// Observed 2026-09-12 (live app session): `{seconds, userId, userProfiles, userAuthType, authTime,
+// userRte}` — `userId` is the canonical RUT (`<body>-<dv>`).
 const AppSession = z.object({ userId: z.union([z.string(), z.number()]) }).loose();
 
-// Reported 2026-09-02 (contributor) on `/instituciones`: `{enfinCodigo, enfinDescripcion,
-// enfinAbreviacion}` — matches the SPA's own use (`e.enfinCodigo`, `e.enfinAbreviacion`).
+// Observed 2026-09-12 on `/instituciones` (67 rows): `{enfinCodigo, enfinDescripcion,
+// enfinAbreviacion, enfinFechaVigDesde, enfinFechaVigHasta, enfinTipo, enfinRutInstitucion,
+// enfinDvInstitucion}` — the SPA itself reads `e.enfinCodigo` / `e.enfinAbreviacion`.
 const ALIASES = {
   codigo: ['enfinCodigo', 'codigo'],
   descripcion: ['enfinDescripcion', 'descripcion'],
   abreviacion: ['enfinAbreviacion', 'abreviacion'],
+  tipo: ['enfinTipo', 'tipo'],
+  rutDigits: ['enfinRutInstitucion', 'rutInstitucion'],
+  dv: ['enfinDvInstitucion', 'dvInstitucion'],
+  vigenteDesde: ['enfinFechaVigDesde', 'fechaVigDesde'],
+  vigenteHasta: ['enfinFechaVigHasta', 'fechaVigHasta'],
 } as const;
 
 function aliasGet(row: Record<string, unknown>, keys: readonly string[]): unknown {
@@ -91,6 +111,16 @@ const asStr = (v: unknown): string | null => {
   if (typeof v === 'number') return String(v);
   return null;
 };
+const asInt = (v: unknown): number | null => {
+  if (typeof v === 'number' && Number.isInteger(v)) return v;
+  if (typeof v === 'string' && /^\d+$/.test(v.trim())) return Number(v.trim());
+  return null;
+};
+// `enfinRutInstitucion` (digits) + `enfinDvInstitucion` → canonical, Mod-11-checked; null if odd.
+const canonicalRutFrom = (digits: unknown, dv: unknown): string | null =>
+  digits === undefined || dv === undefined
+    ? null
+    : (Rut.tryParse(`${String(digits)}-${String(dv).trim()}`)?.canonical ?? null);
 
 function curate(row: Record<string, unknown>): CarpetaInstitucion {
   const codigo = asStr(aliasGet(row, ALIASES.codigo));
@@ -105,6 +135,10 @@ function curate(row: Record<string, unknown>): CarpetaInstitucion {
     codigo,
     descripcion: asStr(aliasGet(row, ALIASES.descripcion)),
     abreviacion: asStr(aliasGet(row, ALIASES.abreviacion)),
+    tipo: asInt(aliasGet(row, ALIASES.tipo)),
+    rut: canonicalRutFrom(aliasGet(row, ALIASES.rutDigits), aliasGet(row, ALIASES.dv)),
+    vigenteDesde: asStr(aliasGet(row, ALIASES.vigenteDesde)),
+    vigenteHasta: asStr(aliasGet(row, ALIASES.vigenteHasta)),
   };
 }
 

@@ -14,6 +14,7 @@ import { carpetaInstituciones } from './carpeta.js';
 // Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
 const SELF = '20000042-0';
 const EMPRESA = '77777777-7';
+const BLANK = { tipo: null, rut: null, vigenteDesde: null, vigenteHasta: null };
 const LIST = [
   { enfinCodigo: '001', enfinDescripcion: 'Banco Sintético Uno', enfinAbreviacion: 'BSU' },
   { enfinCodigo: '042', enfinDescripcion: 'Cooperativa de Prueba', enfinAbreviacion: 'CDP' },
@@ -61,8 +62,8 @@ describe('carpeta instituciones task (fakes, no SII)', () => {
     await seed(rt);
     const res = await carpetaInstituciones(rt);
     expect(res).toEqual([
-      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU' },
-      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: 'CDP' },
+      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU', ...BLANK },
+      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: 'CDP', ...BLANK },
     ]);
     // the app-session read first, then the cte-api read keyed by its userId
     expect(rt.calls[0]).toContain('/app/session/status?originalUrl=');
