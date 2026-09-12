@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 2026-09-12. Extends ADR-006 (browser cookies-only login) to a SECOND session
+Accepted — 2026-09-12; implemented by #116 (`sii auth login --www2`). Extends ADR-006 (browser cookies-only login) to a SECOND session
 layer; keeps ADR-005 (identity), ADR-003 (seams), ADR-010/025 (console/keyring paths).
 Gates #109 (`carpeta regular`) and #110 (`carpeta instituciones`). Evidence:
 `docs/sii-contract/carpeta-tributaria.md` (probes 2026-09-11, headed spike 2026-09-12).
@@ -16,7 +16,7 @@ www4 and loa. They need a **www2 app session** minted by an OAuth2 code flow
 (`/app/session/login` → `/oauthsii-v1/`, a full Clave + reCAPTCHA Enterprise login page →
 `/app/session/create`). Verified live: with the classic jar every `cte-api` call answers a bare
 401, and no bridge/warm-up mints the app session. Once a human completes that page, the app
-session is the httpOnly `.sii.cl` cookie pair `X-SII-STATE-CT` + `X-SII-STATE-TYPE` (~100 min),
+session is the httpOnly `.sii.cl` cookie pair `X-SII-STATE-TYPE` + a state cookie `X-SII-STATE-<X>` (~100 min; suffix varies — `-CT`/`-CL` seen),
 and Mi SII stays authenticated on it after the OAuth page wipes the classic cookies.
 
 So reaching www2 is a **login of its own**, which under CLAUDE.md is an auth-posture decision

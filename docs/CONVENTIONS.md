@@ -227,13 +227,15 @@ Python `sii-cli`, adapted to TypeScript.
   on their next touch.
 - **`www2.sii.cl/app/*` surfaces need the www2 APP SESSION, a second cookies-only layer
   (ADR-026).** The classic `.sii.cl` jar reaches www1/www3/www4/loa but NOT the `/app/<name>-api`
-  facades (bare 401). That layer is the httpOnly `.sii.cl` pair `X-SII-STATE-CT`/`-TYPE`, minted
+  facades (bare 401). That layer is the httpOnly `.sii.cl` pair `X-SII-STATE-TYPE` + a state cookie `X-SII-STATE-<X>` (suffix varies), minted
   ONLY by the user at SII's `oauthsii-v1` page (headed, reCAPTCHA — never headless, never over
   MCP), persisted in the same session file. A www2 facade FIRST reads `GET /app/session/status`
   (the SPA's own liveness read), keys every API path by its `userId` verbatim, and on a non-200
   raises `Www2SessionError` (a `NotAuthenticated`, actionable: "run `sii auth login --www2`"),
-  never a warm-up retry. The read lives ONCE in `portal/www2-session.ts`; `carpeta` is the
-  template; the wire finding is in `sii-contract/carpeta-tributaria.md`.
+  never a warm-up retry. The read lives ONCE in `portal/www2-session.ts`; the layer is minted by
+  `sii auth login --www2` (a second headed cookies-only login at SII's OAuth page — never headless,
+  never over MCP as a password; merged into the same session file). `carpeta` is the template; the
+  wire findings are in `sii-contract/carpeta-tributaria.md` and `sii-contract/auth-login.md`.
 - **Three authorization modes, not two (ADR-023).** Besides *body-RUT* (RCV) and
   *session-keyed* (F22/F29/BHE), a surface can be **empresa-keyed**: the MIPYME facturación
   portal has its OWN authorized-empresa list (`mipeSelEmpresa.cgi` — the empresas that

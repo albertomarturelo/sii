@@ -21,7 +21,7 @@
 // representing pointer up front. PII: the institution rows are a public catalog — curated, no
 // `raw`. Nothing here touches the Carpeta document itself (#109, ADR-022 descriptor).
 import { z } from 'zod';
-import { HOSTS } from '../config/index.js';
+import { HOSTS, WWW2_APP_CARPETA } from '../config/index.js';
 import { CarpetaError, NotAuthenticatedError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { readWww2Session } from './www2-session.js';
@@ -29,8 +29,8 @@ import type { Www2Session } from './www2-session.js';
 import type { PortalSession } from '../seams/index.js';
 
 /** The SPA page ("Generar Carpeta Tributaria Regular"): the `Referer` the API expects and the
- *  `originalUrl` the session read carries (observed 2026-09-11). */
-const GENERAR_PAGE = `${HOSTS.portalApp}/carpetatributaria/generarcteregular`;
+ *  `originalUrl` the session read carries (observed 2026-09-11). Also the `--www2` login page. */
+const GENERAR_PAGE = WWW2_APP_CARPETA;
 const API = `${HOSTS.portalApp}/app/cte-api-carpetatributaria`;
 
 // The SPA's XHR headers (observed 2026-09-11): a JSON Accept + the page as Referer.
