@@ -211,7 +211,7 @@ headed browser, right after the classic one.
    `"CSESSIONID"`, every `NETSCAPE_LIVEWIRE.*`). The stored jar = classic cookies (from the snapshot)
    ∪ www2 cookies (after step 3), merged by `name+domain+path` — every classic cookie kept, www2
    cookies added. `session.www2 = { savedAt, expiresAt }`, where `expiresAt` is the
-   **`X-SII-STATE-CT`** cookie's own expiry (~100 min; a session cookie → null).
+   **`X-SII-STATE-*`** state cookie's own expiry (~100 min; suffix varies — see below).
 
 ### The app-session cookies (observed 2026-09-12)
 
@@ -219,8 +219,11 @@ httpOnly, on `.sii.cl` (so a cookies-only capture holds them; they SSO-carry lik
 
 | Cookie | secure | TTL | Role |
 | --- | --- | --- | --- |
-| `X-SII-STATE-CT` | yes | ~100 min | the app session; its expiry IS the layer's `expiresAt` |
-| `X-SII-STATE-TYPE` | no | ~100 min | paired state marker |
+| `X-SII-STATE-TYPE` | (varies) | ~100 min | literal-named state marker |
+| `X-SII-STATE-<X>` | yes | ~100 min | the app session — suffix VARIES: `-CT` (spike 2026-09-12) and `-CL` (first --www2 login, same day) both seen; not stable |
+
+Both cookies share ONE expiry, so the layer's `expiresAt` is read from ANY `X-SII-STATE-*` cookie
+(max expiry), never a fixed name — keying on a single suffix returned null on the `-CL` login.
 
 After the OAuth login, Mi SII (`siihome.cgi`) stayed authenticated on these too (no `zeusr` bounce),
 i.e. the legacy side ALSO accepts `X-SII-STATE-*` — whether every legacy/SDI surface does is the

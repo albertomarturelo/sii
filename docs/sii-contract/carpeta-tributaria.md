@@ -63,7 +63,7 @@ A Chromium context restored from the cookies-only session was pointed at the app
 bounced it to `/bifurcacion` → `/oauthsii-v1/`, the owner typed the Clave there (reCAPTCHA passed
 as a human), and `/app/session/create` landed back on the app. Observed afterwards:
 
-- **The app session is a cookie pair on `.sii.cl`, httpOnly:** `X-SII-STATE-CT` (`secure`) and
+- **The app session is a cookie pair on `.sii.cl`, httpOnly:** a state cookie `X-SII-STATE-<X>` (`secure`; suffix varies — `-CT`/`-CL` seen) and
   `X-SII-STATE-TYPE`, both expiring **~100 min** after `authTime` (`seconds: 5999` at read time).
   Domain-wide and cookie-based ⇒ a **cookies-only `storageState()` capture holds it** exactly like
   the classic jar — no token, no header. (Also set: a Queue-it pass for `ctributariaregular`, a

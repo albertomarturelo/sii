@@ -18,6 +18,8 @@ import {
 // Synthetic cookies only (names as observed, values invented) — no SII, no PII.
 const classic = (name: string) => ({ name, domain: '.sii.cl', path: '/', value: 'c' });
 const STATE_CT = { name: 'X-SII-STATE-CT', domain: '.sii.cl', path: '/', expires: 1789006000 };
+const STATE_CL = { name: 'X-SII-STATE-CL', domain: '.sii.cl', path: '/', expires: 1789006000 };
+const STATE_TYPE = { name: 'X-SII-STATE-TYPE', domain: '.sii.cl', path: '/', expires: -1 };
 const STATUS_OK = JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 });
 
 describe('mergeStorageState (classic jar + www2 jar, ADR-026)', () => {
@@ -59,14 +61,17 @@ describe('mergeStorageState (classic jar + www2 jar, ADR-026)', () => {
 });
 
 describe('www2ExpiresAt', () => {
-  it('reads X-SII-STATE-CT expiry (epoch seconds) as ISO', () => {
-    expect(www2ExpiresAt({ cookies: [classic('TOKEN'), STATE_CT] })).toBe(
-      new Date(1789006000 * 1000).toISOString(),
-    );
+  const ISO = new Date(1789006000 * 1000).toISOString();
+  it('reads the expiry off any X-SII-STATE-* cookie (the suffix varies: -CT and -CL both seen)', () => {
+    expect(www2ExpiresAt({ cookies: [classic('TOKEN'), STATE_CT] })).toBe(ISO);
+    expect(www2ExpiresAt({ cookies: [classic('TOKEN'), STATE_CL] })).toBe(ISO);
   });
-  it('null when the cookie is absent or session-scoped (-1)', () => {
+  it('a session-scoped -TYPE never masks the dated state cookie (takes the max)', () => {
+    expect(www2ExpiresAt({ cookies: [STATE_TYPE, STATE_CL] })).toBe(ISO);
+  });
+  it('null when no X-SII-STATE-* cookie is present or all are session-scoped', () => {
     expect(www2ExpiresAt({ cookies: [classic('TOKEN')] })).toBeNull();
-    expect(www2ExpiresAt({ cookies: [{ ...STATE_CT, expires: -1 }] })).toBeNull();
+    expect(www2ExpiresAt({ cookies: [STATE_TYPE] })).toBeNull();
     expect(www2ExpiresAt('nope')).toBeNull();
   });
 });
