@@ -9,6 +9,25 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.10.0 — 2026-09-12
+
+### Added
+
+- **`carpeta_instituciones`** (`readOnlyHint`) — SII's live list of destination institutions
+  for the Carpeta Tributaria Regular. Its description tells the model the codes drift, so a
+  remembered one must be re-checked here rather than reused. A **public catalog**: the rows
+  are registered entities (banks, cooperatives), not taxpayer data. Session-keyed, no
+  arguments.
+- **`auth_login` gains `www2` (boolean, optional)** — mints the second cookies-only layer the
+  `carpeta_*` tools need. It still takes **no password**: the tool opens SII's own OAuth page
+  and the user types the Clave there (ADR-006 / ADR-026). `auth_status` reports the layer and
+  `auth_logout` closes it.
+
+### Note
+
+- A www2 tool called without that layer fails with an actionable message naming the login,
+  never a silent retry — the classic session can be alive while the layer is missing.
+
 ## 0.9.0 — 2026-09-09
 
 ### Security

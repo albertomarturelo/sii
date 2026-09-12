@@ -15,6 +15,37 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.10.0 — 2026-09-12 — Carpeta Tributaria y la segunda sesión del SII
+
+`sii carpeta instituciones` reads SII's **live** list of destination institutions for the
+Carpeta Tributaria Regular — the `enfinCodigo` its `/generar` demands. No catalog ships with
+the tool: the codes drift, and a hardcoded one had already gone stale. Live-validated with 67
+rows; `codigo` stays a string compared verbatim, because zero-padded (`"016"`) and unpadded
+(`"1005"`) codes coexist in SII's own list.
+
+Getting there uncovered the release's real finding: **`www2.sii.cl/app/*` has its own session
+layer.** The classic cookies-only session reaches www1, www3, www4 and loa, but every
+`cte-api` call answers a bare `401` until an OAuth2 flow at SII's `oauthsii-v1` page mints a
+second cookie pair. So `sii auth login --www2` adds that layer the same way the project has
+always handled the Clave: **the user types it into SII's own page**, headed, cookies only —
+never headless, because reCAPTCHA Enterprise gates it and an automated Clave submit is how
+accounts get locked (ADR-026). Both layers live in one session file; `auth status` reports
+them and `auth logout` closes both.
+
+Two things worth knowing before upgrading. With a warm classic session `--www2` asks for the
+Clave **twice**, since the headed browser opens without cookies — the one-prompt flow is
+tracked as #119. And `carpeta regular`, the PDF itself (#109), is **not** in this release; the
+catalog and the session layer are what it was blocked on.
+
+Also in: `UnexpectedResponseError` (#112), so an authenticated JSON call that gets a non-JSON
+body no longer reads as an expired session — it names the endpoint, status, content-type and
+the body's first characters verbatim. The SII surface that prompted it answers `200
+text/plain` to a perfectly live session.
+
+**No breaking changes.** Core's returned objects gain fields (`AuthStatusLocal.www2`,
+`AuthLogoutResult.www2Closed`, `statusRefresh` → `AuthIdentityRefresh`) and `login` gains an
+optional argument; all additive.
+
 ## 0.9.0 — 2026-09-09 — Login desde el llavero del sistema
 
 `sii auth login --keyring`: the Clave is read from the OS keyring (Secret Service on Linux,

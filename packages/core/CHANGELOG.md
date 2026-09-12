@@ -4,6 +4,67 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.10.0 — 2026-09-12
+
+### Added
+
+- **The www2 APP SESSION — a second cookies-only layer (#116, ADR-026).** SII's newer apps
+  on `www2.sii.cl/app/*` (and their `/app/<name>-api/*` JSON facades) are **not** authorized
+  by the classic `.sii.cl` cookies this library has always captured — those reach www1, www3,
+  www4 and loa, but every `cte-api` call answers a bare `401`. The layer is minted by an
+  OAuth2 code flow at SII's own `oauthsii-v1` page, so `login(runtime, { www2: true })` runs
+  it as a second **headed** login: the user types the Clave into SII's page (reCAPTCHA
+  Enterprise gates it — there is no headless variant, by decision), and only cookies are kept.
+  The classic jar is snapshotted **before** that step, because the OAuth page deletes the
+  classic cookies from the browser context on mount, and merged with the www2 cookies
+  (`name+domain+path`) into the same session file. Verified live 2026-09-12.
+- **`portal/www2-session.ts` — the shared app-session read.** `readWww2Session(session, url)`
+  replays the SPA's own liveness call (`GET /app/session/status`) and returns its `userId`,
+  which keys every `/app/<name>-api/*` path **verbatim** (the canonical RUT, observed). Every
+  www2 facade reads it first; a new www2 app reuses it instead of inventing a warm-up.
+- **`Www2SessionError`** — a `NotAuthenticatedError` subclass, **distinct from
+  `SessionExpiredError`**: the classic Mi SII session may be perfectly alive while the www2
+  layer is missing, and the fix is a login (`sii auth login --www2`), never a retry.
+- **Carpeta Tributaria — the live `instituciones` catalog (#110).** `carpetaInstituciones`
+  returns SII's own list of destination institutions (the `enfinCodigo` the Regular carpeta's
+  `/generar` demands): a bare JSON array validated with zod at the boundary, rows projected
+  alias-tolerantly, all **8 observed keys** curated (`codigo`, `descripcion`, `abreviacion`,
+  `tipo`, the institution's canonicalised `rut`, `vigenteDesde`, `vigenteHasta`). **No catalog
+  is hardcoded** — the codes drift, and a hardcoded one had already gone stale. `codigo` stays
+  a **string compared verbatim**: live, zero-padded (`"016"`) and unpadded (`"1005"`) codes
+  coexist. `resolveInstitucion` validates a caller's choice against the live list and names the
+  valid codes on a miss, before any `/generar` round trip. Session-keyed; 67 rows live 2026-09-12.
+- **`UnexpectedResponseError` (#111/#112)** — an authenticated `requestJson` whose body is
+  neither JSON nor the login wall now raises this instead of a misleading "session expired".
+  It carries the endpoint, status, content-type and the first ~80 chars of the body verbatim,
+  so a SII quirk is distinguishable from a dead session without a second round trip. Observed
+  on the cte-api `obtenerValorParametro`, which answers `200 text/plain` to a LIVE session.
+- **`assertOperatingSelf(runtime, mkError)`** (`auth/session.ts`) — the session-keyed guard
+  that rejects a representing operate pointer before a session is opened, now shared: the
+  surface supplies its own typed error and wording. `f29` and `bte` keep their private copies
+  until their next touch.
+- **`HOSTS.portalApp`** (`www2.sii.cl`) plus the app page and session-close constants.
+
+### Changed
+
+- **Additive fields on returned objects** (no consumer break): `AuthStatusLocal` gains
+  `www2: { authenticated, expiresAt }`, decided locally from the layer's stored cookie expiry;
+  `statusRefresh` now returns `AuthIdentityRefresh` (the identity plus the layer read **live**);
+  `AuthLogoutResult` gains `www2Closed`. `login` takes an optional second argument
+  (`LoginOptions`). `logout` best-effort closes the www2 session before the classic one.
+- **The login receipt records the outcome, not the probe.** The warm-session check no longer
+  audits: with `--www2` on a warm classic session that lacks the layer, the probe hits and the
+  browser still opens, so the log used to carry a false `already_authenticated` receipt
+  alongside the real `browser_login` one (ADR-004: the log records what happened).
+
+### Fixed
+
+- **The www2 layer's expiry is read from any `X-SII-STATE-*` cookie, not a fixed name.** The
+  state cookie's suffix **varies** — a spike saw `X-SII-STATE-CT`, the first real login
+  `X-SII-STATE-CL`, alongside the literal `X-SII-STATE-TYPE`. Keying on one name returned
+  `null`, so the layer reported no expiry. The maximum expiry across them is used, so a
+  session-scoped `-TYPE` cannot mask the dated one.
+
 ## 0.9.0 — 2026-09-09
 
 ### Breaking (type-level only)
