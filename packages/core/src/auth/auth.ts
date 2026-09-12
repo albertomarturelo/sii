@@ -148,20 +148,23 @@ async function liveSessionRut(runtime: Runtime): Promise<string | null> {
   }
 }
 
-/** If a cached session is still live, return `already_authenticated` (no mint).
- *  Shared by both login paths so neither re-mints over a warm session. */
-async function reuseLiveSession(runtime: Runtime): Promise<AuthLoginResult | null> {
+/** If a cached session is still live, the `already_authenticated` result (no mint) — WITHOUT
+ *  auditing it. The receipt is written by the caller that actually RETURNS this outcome: a
+ *  `--www2` login can find the classic session warm and still need the browser (for the www2
+ *  layer), and the audit must record what happened, not what was probed (ADR-004). */
+async function liveSessionResult(runtime: Runtime): Promise<AuthLoginResult | null> {
   const rut = await liveSessionRut(runtime);
-  if (rut) {
-    recordAudit(runtime, {
-      action: 'auth_login',
-      result: 'ok',
-      rut,
-      reason: 'already_authenticated',
-    });
-    return { authenticated: true, rut, reason: 'already_authenticated' };
-  }
-  return null;
+  return rut ? { authenticated: true, rut, reason: 'already_authenticated' } : null;
+}
+
+/** The receipt for a login that ENDED as "already authenticated". */
+function auditAlreadyAuthenticated(runtime: Runtime, warm: AuthLoginResult): void {
+  recordAudit(runtime, {
+    action: 'auth_login',
+    result: 'ok',
+    rut: warm.rut,
+    reason: warm.reason,
+  });
 }
 
 /** Best-effort operable-set fetch on login (ADR-005). Persona accounts ask SII for
@@ -303,8 +306,9 @@ export async function login(
   options: LoginOptions = {},
 ): Promise<AuthLoginResult> {
   const start = runtime.clock.now().getTime();
-  const warm = await reuseLiveSession(runtime);
+  const warm = await liveSessionResult(runtime);
   if (warm && (!options.www2 || (await liveWww2(runtime)))) {
+    auditAlreadyAuthenticated(runtime, warm);
     if (!options.www2) return warm;
     const stored = await readSession(runtime.store);
     return { ...warm, www2: www2StatusOf(stored, runtime.clock.now()) };
@@ -350,8 +354,11 @@ async function credentialLoginFlow(
   reason: 'console_login' | 'keyring_login',
 ): Promise<AuthLoginResult> {
   const start = runtime.clock.now().getTime();
-  const warm = await reuseLiveSession(runtime);
-  if (warm) return warm;
+  const warm = await liveSessionResult(runtime);
+  if (warm) {
+    auditAlreadyAuthenticated(runtime, warm);
+    return warm;
+  }
 
   const credentials = await getCredentials();
   let session: PortalSession | null = null;

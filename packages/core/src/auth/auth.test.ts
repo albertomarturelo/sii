@@ -115,6 +115,67 @@ describe('auth', () => {
     expect(stored!.www2?.expiresAt).toBe(new Date(WWW2_EXPIRES * 1000).toISOString());
   });
 
+  it('--www2 on a warm classic session WITHOUT the layer audits no false already_authenticated', async () => {
+    const rt = makeRuntime(www2Driver());
+    await login(rt); // warm the classic session only
+    (rt.audit as RecordingAuditSink).entries.length = 0;
+    const res = await login(rt, { www2: true }); // classic warm, www2 missing ⇒ browser reopens
+    expect(res.reason).toBe('browser_login');
+    const reasons = (rt.audit as RecordingAuditSink).entries
+      .filter((e) => e.action === 'auth_login')
+      .map((e) => e.reason);
+    // the probe must not leave a receipt for an outcome that did not happen (ADR-004)
+    expect(reasons).not.toContain('already_authenticated');
+    expect(reasons).toContain('browser_login');
+  });
+
+  it('--www2 with BOTH layers already live returns already_authenticated without reopening', async () => {
+    const driver = www2Driver();
+    const rt = makeRuntime(driver);
+    await login(rt, { www2: true });
+    expect(driver.interactiveLoginCalls).toBe(1);
+    const again = await login(rt, { www2: true });
+    expect(again).toMatchObject({ reason: 'already_authenticated' });
+    expect(again.www2?.authenticated).toBe(true);
+    expect(driver.interactiveLoginCalls).toBe(1); // browser NOT reopened
+    const e = (rt.audit as RecordingAuditSink).entries.find(
+      (x) => x.reason === 'already_authenticated',
+    );
+    expect(e).toMatchObject({ action: 'auth_login', result: 'ok' });
+  });
+
+  it('logout closes the www2 layer first and reports www2Closed', async () => {
+    const rt = makeRuntime(www2Driver());
+    await login(rt, { www2: true });
+    const res = await logout(rt);
+    expect(res).toMatchObject({ loggedOut: true, www2Closed: true });
+    const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout');
+    expect(e).toMatchObject({ www2Closed: true });
+  });
+
+  it('logout without a www2 layer reports www2Closed false and omits it from the receipt', async () => {
+    const rt = makeRuntime(successDriver());
+    await login(rt);
+    const res = await logout(rt);
+    expect(res.www2Closed).toBe(false);
+    const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout')!;
+    expect(e.www2Closed).toBeUndefined();
+  });
+
+  it('a stored www2 layer with no expiry is reported live (nothing local proves it dead)', async () => {
+    const rt = makeRuntime(successDriver());
+    await login(rt);
+    const stored = await readSession(rt.store);
+    await rt.store.write('session', {
+      ...stored,
+      www2: { savedAt: '2026-09-12T00:00:00Z', expiresAt: null },
+    });
+    expect((await localStatus(rt.store, new Date('2027-01-01T00:00:00Z'))).www2).toEqual({
+      authenticated: true,
+      expiresAt: null,
+    });
+  });
+
   it('login WITHOUT --www2 stores no www2 layer, and status reports it absent', async () => {
     const rt = makeRuntime(successDriver());
     const res = await login(rt);
