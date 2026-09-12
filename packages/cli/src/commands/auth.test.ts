@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { testing } from '@albertomarturelo/sii-core';
-import { fakePrompters, makeRuntime, run, runWith } from '../test-helpers.js';
+import {
+  fakePrompters,
+  makeRuntime,
+  makeWww2Runtime,
+  run,
+  runWith,
+  WWW2_EXPIRES,
+} from '../test-helpers.js';
 
 describe('sii auth commands (fake runtime, no SII)', () => {
   it('auth login mints a session and reports the RUT', async () => {
@@ -13,6 +20,35 @@ describe('sii auth commands (fake runtime, no SII)', () => {
     await run(rt, 'auth', 'login');
     const out = await run(rt, 'auth', 'login');
     expect(out).toContain('Ya tienes una sesión activa como 11.111.111-1.');
+  });
+
+  it('auth login --www2 mints the second layer and prints the www2 line', async () => {
+    const out = await run(makeWww2Runtime(), 'auth', 'login', '--www2', '--human');
+    expect(out).toContain('Sesión iniciada como 11.111.111-1.');
+    expect(out).toContain('Sesión www2: activa');
+    expect(out).toContain(new Date(WWW2_EXPIRES * 1000).toISOString());
+  });
+
+  it('auth status shows the www2 layer as not-iniciada after a plain login', async () => {
+    const rt = makeRuntime();
+    await run(rt, 'auth', 'login');
+    const out = await run(rt, 'auth', 'status', '--human');
+    expect(out).toContain('Sesión www2: no iniciada');
+  });
+
+  it('auth login --www2 --console is refused before any attempt (reCAPTCHA, ADR-026)', async () => {
+    await expect(
+      runWith(
+        makeRuntime(),
+        fakePrompters('x'),
+        'auth',
+        'login',
+        '--www2',
+        '--console',
+        '--rut',
+        '11111111-1',
+      ),
+    ).rejects.toThrow(/--www2 solo funciona con el login por navegador/);
   });
 
   it('auth login --console mints a session from terminal RUT + Clave', async () => {

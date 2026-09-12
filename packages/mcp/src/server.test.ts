@@ -3,7 +3,15 @@
 // the shared fixture is test-helpers.ts). Fakes only — no SII.
 import { describe, it, expect } from 'vitest';
 import { HOSTS } from '@albertomarturelo/sii-core';
-import { connect, isError, makeRuntime, propKeys, resourceText, toolText } from './test-helpers.js';
+import {
+  connect,
+  datos,
+  isError,
+  makeRuntime,
+  propKeys,
+  resourceText,
+  toolText,
+} from './test-helpers.js';
 
 describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no SII)', () => {
   it('exposes the auth/identity tools — and auth_login takes NO password', async () => {
@@ -46,10 +54,42 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     // "Clave" — that's fine; we inspect the input-schema property names only).
     const allInputKeys = tools.flatMap((t) => propKeys(t.inputSchema));
     expect(allInputKeys.some((k) => /password|clave/i.test(k))).toBe(false);
-    // auth_login has no input fields at all (it delegates to the browser flow).
-    expect(propKeys(tools.find((t) => t.name === 'auth_login')?.inputSchema)).toEqual([]);
+    // auth_login carries only the optional www2 flag (ADR-026) — never a password (ADR-006).
+    expect(propKeys(tools.find((t) => t.name === 'auth_login')?.inputSchema)).toEqual(['www2']);
     // auth_status surfaces the refresh flag (the first zod input schema, ADR-011).
     expect(propKeys(tools.find((t) => t.name === 'auth_status')?.inputSchema)).toContain('refresh');
+  });
+
+  it('auth_login www2=true mints the second layer and reports it (still no password arg)', async () => {
+    let www2Done = false;
+    const status = (url: string) =>
+      url.includes('/app/session/status') && www2Done
+        ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT', seconds: 5999 })
+        : { status: 401 as const, body: '' };
+    const runtime = makeRuntime({
+      loginSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datos,
+        storageState: () =>
+          www2Done
+            ? {
+                cookies: [
+                  { name: 'X-SII-STATE-CT', domain: '.sii.cl', path: '/', expires: 1789006000 },
+                ],
+              }
+            : { cookies: [{ name: 'TOKEN', domain: '.sii.cl', path: '/', value: 'c' }] },
+        requestText: (url: string) => {
+          const r = status(url);
+          if (!www2Done && url.includes('/app/session/status')) www2Done = true;
+          return r;
+        },
+      },
+      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos, requestText: status },
+    });
+    const client = await connect(runtime);
+    const text = toolText(await client.callTool({ name: 'auth_login', arguments: { www2: true } }));
+    expect(text).toContain('Sesión iniciada como 11.111.111-1.');
+    expect(text).toContain('Sesión www2: activa');
   });
 
   it('exposes the orientation resources', async () => {

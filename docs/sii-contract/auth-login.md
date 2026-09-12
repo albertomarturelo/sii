@@ -185,3 +185,51 @@ lockout, so `credentialLogin` makes **exactly one** attempt and NEVER retries.
 Still NOT observed (deliberately — triggering it risks a real lockout): the
 **locked-account** page, distinct from this wrong-Clave page. Capture it
 opportunistically only; until then both map to "stop, surface verbatim".
+
+## The www2 app-session layer (`--www2`, ADR-026)
+
+Observed 2026-09-11/12 (#110). `www2.sii.cl/app/*` (the "nueva plataforma" apps and their
+`/app/<name>-api/*` JSON facades — first the Carpeta Tributaria) do NOT ride the classic
+`.sii.cl` cookies this login captures. They need a **www2 app session** minted by an OAuth2
+code flow, and `sii auth login --www2` runs it as a SECOND cookies-only login in the same
+headed browser, right after the classic one.
+
+### Flow (`--www2`)
+
+1. Classic login as above (headed) → `~/.sii/session.json` written, as always.
+2. **Same browser** navigates to the app page `https://www2.sii.cl/carpetatributaria/generarcteregular`.
+   An app-session-less browser bounces to `/bifurcacion/?originalUrl=…&type=CT` (the auth chooser)
+   → `/app/session/login` → `https://www2.sii.cl/oauthsii-v1/?response_type=code&client_id=<uuid>&redirect_uri=https://www2.sii.cl/app/session/create&scope=user_info&state=CT<hex>`.
+   That page is a full **Clave + reCAPTCHA Enterprise** login — the user types the Clave INTO SII's
+   page (never our process; never headless — reCAPTCHA gates it, ADR-026 §1).
+3. The task polls `GET /app/session/status?originalUrl=<app page>` (the SPA's own liveness read),
+   paced by `Clock.sleep` (2 s), until it answers **200 JSON** or the 5-min budget runs out. Success
+   shape (synthetic): `{"seconds":5999,"userId":"11111111-1","userProfiles":["00000"],"userAuthType":"CT","authTime":<ms>,"userRte":"11111111-1"}`.
+   `userId` is the canonical RUT and keys every `cte-api` path.
+4. **Persist BOTH layers.** The classic jar is snapshotted BEFORE step 2, because the OAuth page
+   **deletes the classic cookies from the browser context on mount** (`deleteCookie("TOKEN")`,
+   `"CSESSIONID"`, every `NETSCAPE_LIVEWIRE.*`). The stored jar = classic cookies (from the snapshot)
+   ∪ www2 cookies (after step 3), merged by `name+domain+path` — every classic cookie kept, www2
+   cookies added. `session.www2 = { savedAt, expiresAt }`, where `expiresAt` is the
+   **`X-SII-STATE-CT`** cookie's own expiry (~100 min; a session cookie → null).
+
+### The app-session cookies (observed 2026-09-12)
+
+httpOnly, on `.sii.cl` (so a cookies-only capture holds them; they SSO-carry like the classic ones):
+
+| Cookie | secure | TTL | Role |
+| --- | --- | --- | --- |
+| `X-SII-STATE-CT` | yes | ~100 min | the app session; its expiry IS the layer's `expiresAt` |
+| `X-SII-STATE-TYPE` | no | ~100 min | paired state marker |
+
+After the OAuth login, Mi SII (`siihome.cgi`) stayed authenticated on these too (no `zeusr` bounce),
+i.e. the legacy side ALSO accepts `X-SII-STATE-*` — whether every legacy/SDI surface does is the
+open spike (#117). `--console` / `--keyring` never get a `--www2` variant (reCAPTCHA; ADR-026 §1).
+
+### Status & logout
+
+- `sii auth status` prints a www2 line from the STORED expiry (no live call); `--refresh` reads
+  `/app/session/status` live and reports the layer authenticated/absent.
+- `sii auth logout` best-effort closes the www2 session first (`GET /app/session/close?originalUrl=…`,
+  the SPA's own `$logout`), then the classic close, then wipes local state.
+- Audit: `auth_login_www2` records rut + result only (no cookie value); `logout` adds `www2Closed`.

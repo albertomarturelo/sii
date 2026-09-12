@@ -2,15 +2,20 @@
 import * as auth from '../auth/index.js';
 import type {
   AuthIdentity,
+  AuthIdentityRefresh,
   AuthLoginResult,
   AuthLogoutResult,
   AuthStatusLocal,
   AuthWhoami,
+  AuthWww2Status,
+  LoginOptions,
 } from '../auth/index.js';
 import type { Runtime } from '../seams/index.js';
 
-export function login(runtime: Runtime): Promise<AuthLoginResult> {
-  return auth.login(runtime);
+/** Browser login (ADR-006). `www2: true` also mints the www2 app-session layer in the same headed
+ *  browser (ADR-026) — the user types the Clave into SII's OAuth page; never a password argument. */
+export function login(runtime: Runtime, options: LoginOptions = {}): Promise<AuthLoginResult> {
+  return auth.login(runtime, options);
 }
 
 /** CLI-only (ADR-010): RUT + Clave from the console → headless login → cookies
@@ -32,13 +37,14 @@ export function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   return auth.logout(runtime);
 }
 
-/** Pure local read (no portal call). */
+/** Pure local read (no portal call). The www2 layer's `authenticated` is decided by its stored
+ *  cookie expiry against the clock. */
 export function authStatus(runtime: Runtime): Promise<AuthStatusLocal> {
-  return auth.localStatus(runtime.store);
+  return auth.localStatus(runtime.store, runtime.clock.now());
 }
 
-/** Curated identity readback from the portal (needs a live session). */
-export function statusRefresh(runtime: Runtime): Promise<AuthIdentity> {
+/** Curated identity readback from the portal (needs a live session) + the www2 layer read live. */
+export function statusRefresh(runtime: Runtime): Promise<AuthIdentityRefresh> {
   return auth.statusRefresh(runtime);
 }
 
@@ -48,4 +54,13 @@ export function whoami(runtime: Runtime): Promise<AuthWhoami> {
   return auth.whoami(runtime);
 }
 
-export type { AuthIdentity, AuthLoginResult, AuthLogoutResult, AuthStatusLocal, AuthWhoami };
+export type {
+  AuthIdentity,
+  AuthIdentityRefresh,
+  AuthLoginResult,
+  AuthLogoutResult,
+  AuthStatusLocal,
+  AuthWhoami,
+  AuthWww2Status,
+  LoginOptions,
+};

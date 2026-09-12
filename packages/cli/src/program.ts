@@ -18,12 +18,20 @@ import {
   operateSelf,
   operatingStatus,
   statusRefresh,
+  type AuthWww2Status,
   type Runtime,
 } from '@albertomarturelo/sii-core';
 // CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
 // can't wire it (ADR-006 / ADR-010).
 import { consoleLogin, keyringLogin } from '@albertomarturelo/sii-core/cli';
 import { emit, out, setOutputMode, withOutputFlags } from './io.js';
+
+/** One human line for the www2 app-session layer (ADR-026). */
+const www2Line = (w: AuthWww2Status): string =>
+  w.authenticated
+    ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
+    : 'Sesión www2: no iniciada (`sii auth login --www2` para la Carpeta Tributaria).';
+
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
 // Domain read surfaces — each module owns a commands/<mod>.ts register fn (append-only).
@@ -66,7 +74,14 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .command('login')
     .description(
       'Inicia sesión con Clave Tributaria (navegador por defecto; --console por terminal, ' +
-        '--keyring desde el llavero del sistema).',
+        '--keyring desde el llavero del sistema). --www2 añade la sesión de la plataforma www2 ' +
+        '(Carpeta Tributaria): tras el login, el mismo navegador abre la página OAuth del SII ' +
+        'para que escribas ahí tu Clave; solo se guardan cookies (ADR-026).',
+    )
+    .option(
+      '--www2',
+      'Añade la sesión www2 (segunda capa, ~100 min): la escribes tú en la página OAuth del ' +
+        'SII, en el navegador. Solo con el login por navegador.',
     )
     .option(
       '--console',
@@ -80,55 +95,66 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
         'omites --rut se usa el RUT de la última sesión local; nunca pregunta (uso desatendido).',
     )
     .option('--rut <rut>', 'RUT para el login por consola o llavero (si se omite, se pregunta).')
-    .action(async (opts: { console?: boolean; keyring?: boolean; rut?: string }) => {
-      if (opts.keyring) {
-        // --keyring exists for SCRIPTED, unattended use (ADR-025), so it must never block
-        // on a prompt: without --rut it falls back to the last local session's RUT, and
-        // failing that it says which flag to pass. The RUT is Mod-11-checked in the task,
-        // so a typo never becomes a failed SII attempt (ADR-004). ONE attempt, no retry.
-        const rutInput = opts.rut ?? (await authStatus(runtime)).rut;
-        if (!rutInput) {
+    .action(
+      async (opts: { console?: boolean; keyring?: boolean; rut?: string; www2?: boolean }) => {
+        if (opts.www2 && (opts.console || opts.keyring)) {
+          // The www2 layer is minted ONLY by the user at SII's OAuth page (reCAPTCHA; ADR-026 §1):
+          // there is no headless variant, so the flag is refused up front, before any attempt.
           throw new ValidationError(
-            'No hay sesión local previa de la que tomar el RUT. Indica `--rut <rut>`.',
+            '--www2 solo funciona con el login por navegador: la sesión www2 la escribes tú en la ' +
+              'página OAuth del SII (reCAPTCHA). Quita --console/--keyring.',
           );
         }
-        const result = await keyringLogin(runtime, { rut: rutInput });
-        emit(result, () =>
-          out(
-            result.reason === 'already_authenticated'
-              ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-              : `Sesión iniciada como ${fmt(result.rut)} (Clave leída del llavero).`,
-          ),
-        );
-        return;
-      }
-      if (opts.console) {
-        // Validate the RUT (Mod-11) LOCALLY before any attempt — a malformed RUT must
-        // never become a wasted login that counts toward account lockout (ADR-004).
-        const rutInput = opts.rut ?? (await prompters.line('RUT: '));
-        const rut = Rut.parse(rutInput).canonical;
-        // The Clave is ALWAYS prompted (hidden) — never a flag/arg (ADR-010).
-        const clave = await prompters.hidden('Clave: ');
-        if (!clave) throw new LoginFailedError('Clave vacía. No se intentó iniciar sesión.');
-        const result = await consoleLogin(runtime, { rut, clave });
-        emit(result, () =>
+        if (opts.keyring) {
+          // --keyring exists for SCRIPTED, unattended use (ADR-025), so it must never block
+          // on a prompt: without --rut it falls back to the last local session's RUT, and
+          // failing that it says which flag to pass. The RUT is Mod-11-checked in the task,
+          // so a typo never becomes a failed SII attempt (ADR-004). ONE attempt, no retry.
+          const rutInput = opts.rut ?? (await authStatus(runtime)).rut;
+          if (!rutInput) {
+            throw new ValidationError(
+              'No hay sesión local previa de la que tomar el RUT. Indica `--rut <rut>`.',
+            );
+          }
+          const result = await keyringLogin(runtime, { rut: rutInput });
+          emit(result, () =>
+            out(
+              result.reason === 'already_authenticated'
+                ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+                : `Sesión iniciada como ${fmt(result.rut)} (Clave leída del llavero).`,
+            ),
+          );
+          return;
+        }
+        if (opts.console) {
+          // Validate the RUT (Mod-11) LOCALLY before any attempt — a malformed RUT must
+          // never become a wasted login that counts toward account lockout (ADR-004).
+          const rutInput = opts.rut ?? (await prompters.line('RUT: '));
+          const rut = Rut.parse(rutInput).canonical;
+          // The Clave is ALWAYS prompted (hidden) — never a flag/arg (ADR-010).
+          const clave = await prompters.hidden('Clave: ');
+          if (!clave) throw new LoginFailedError('Clave vacía. No se intentó iniciar sesión.');
+          const result = await consoleLogin(runtime, { rut, clave });
+          emit(result, () =>
+            out(
+              result.reason === 'already_authenticated'
+                ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+                : `Sesión iniciada como ${fmt(result.rut)}.`,
+            ),
+          );
+          return;
+        }
+        const result = await login(runtime, opts.www2 ? { www2: true } : {});
+        emit(result, () => {
           out(
             result.reason === 'already_authenticated'
               ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
               : `Sesión iniciada como ${fmt(result.rut)}.`,
-          ),
-        );
-        return;
-      }
-      const result = await login(runtime);
-      emit(result, () =>
-        out(
-          result.reason === 'already_authenticated'
-            ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-            : `Sesión iniciada como ${fmt(result.rut)}.`,
-        ),
-      );
-    });
+          );
+          if (result.www2) out(www2Line(result.www2));
+        });
+      },
+    );
 
   auth
     .command('status')
@@ -141,6 +167,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
           out(`RUT:    ${fmt(id.rut)}`);
           out(`Nombre: ${id.nombre ?? '—'}`);
           out(`Tipo:   ${id.accountType}`);
+          out(www2Line(id.www2));
         });
         return;
       }
@@ -153,6 +180,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
         }
         out(`Autenticado (sesión local) como ${fmt(status.rut)}.`);
         if (ctx && !ctx.isSelf) out(describeOperating(ctx));
+        out(www2Line(status.www2));
       });
     });
 
@@ -167,6 +195,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
           return;
         }
         out(result.serverClosed ? 'Sesión cerrada (servidor y local).' : 'Sesión cerrada (local).');
+        if (result.www2Closed) out('Sesión www2 cerrada.');
       });
     });
 

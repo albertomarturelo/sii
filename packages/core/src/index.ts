@@ -9,10 +9,13 @@
 export { login, logout, authStatus, statusRefresh, whoami } from './tasks/auth.js';
 export type {
   AuthIdentity,
+  AuthIdentityRefresh,
   AuthLoginResult,
   AuthLogoutResult,
   AuthStatusLocal,
   AuthWhoami,
+  AuthWww2Status,
+  LoginOptions,
 } from './tasks/auth.js';
 export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';
 export type { OperateResult, OperableList } from './tasks/operate.js';

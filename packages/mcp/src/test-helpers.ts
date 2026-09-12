@@ -11,15 +11,19 @@ export const datos = (): unknown => ({
   contribuyente: { rut: 11111111, dv: '1', nombres: 'Juan', apellidoPaterno: 'Pérez' },
 });
 
-export function makeRuntime(): Runtime {
+export function makeRuntime(
+  driverScript?: ConstructorParameters<typeof testing.FakePortalDriver>[0],
+): Runtime {
   return {
     clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
     audit: new testing.RecordingAuditSink(),
     store: new testing.InMemoryKeyValueStore(),
-    portal: new testing.FakePortalDriver({
-      loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
-      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos },
-    }),
+    portal: new testing.FakePortalDriver(
+      driverScript ?? {
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos },
+      },
+    ),
   };
 }
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 2026-09-12. Extends ADR-006 (browser cookies-only login) to a SECOND session
+Accepted — 2026-09-12; implemented by #116 (`sii auth login --www2`). Extends ADR-006 (browser cookies-only login) to a SECOND session
 layer; keeps ADR-005 (identity), ADR-003 (seams), ADR-010/025 (console/keyring paths).
 Gates #109 (`carpeta regular`) and #110 (`carpeta instituciones`). Evidence:
 `docs/sii-contract/carpeta-tributaria.md` (probes 2026-09-11, headed spike 2026-09-12).
