@@ -6,12 +6,22 @@ import type { KeyValueStore, PortalSession, Runtime } from '../seams/index.js';
 // Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
 const SESSION_KEY = 'session';
 
+/** The www2 APP-SESSION layer riding in the same cookies-only jar (ADR-026). Present only after
+ *  `sii auth login --www2`; `expiresAt` is the `X-SII-STATE-CT` cookie's own expiry (observed
+ *  ~100 min), null when the cookie carried none. Metadata only — the cookies themselves live in
+ *  `cookies` like the classic ones. */
+export interface StoredWww2Layer {
+  readonly savedAt: string;
+  readonly expiresAt: string | null;
+}
+
 export interface StoredSession {
   /** Canonical session-principal RUT (read from the portal, not a credential). */
   readonly rut: string;
-  /** Cookies-only storage state (opaque to the core). */
+  /** Cookies-only storage state (opaque to the core). Holds BOTH layers once `--www2` ran. */
   readonly cookies: unknown;
   readonly savedAt: string;
+  readonly www2?: StoredWww2Layer;
 }
 
 export async function readSession(store: KeyValueStore): Promise<StoredSession | null> {

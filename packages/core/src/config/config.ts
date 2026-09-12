@@ -56,6 +56,15 @@ export const LOGIN_URL = `${HOSTS.login}${HOSTS.loginPath}`;
 /** Full server-side logout URL (host + path). The close redirects OFF this path. */
 export const LOGOUT_URL = `${HOSTS.login}${HOSTS.logoutPath}`;
 
+/** The www2 app page `sii auth login --www2` opens for the user to complete SII's OAuth login
+ *  (`/bifurcacion` → `/oauthsii-v1/` → `/app/session/create` → back here), and the `Referer` /
+ *  `originalUrl` the Carpeta SPA sends on its own calls. Observed 2026-09-11/12 (#110, ADR-026). */
+export const WWW2_APP_CARPETA = `${HOSTS.portalApp}/carpetatributaria/generarcteregular`;
+
+/** The www2 app-session close (the SPA's `$logout`: `/app/session/close?originalUrl=…`, from the
+ *  session library `chunk-vendors.659f67b1.js`, observed 2026-09-11). Best-effort on logout. */
+export const WWW2_SESSION_CLOSE_URL = `${HOSTS.portalApp}/app/session/close`;
+
 /** The keyring "service" every entry of this tool lives under; the account (`username`
  *  in keyring terms) is the RUT. Lives here — with the other environment constants —
  *  because BOTH the pure `keyringLogin` task (for its error message) and the Node

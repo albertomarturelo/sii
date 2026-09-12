@@ -47,6 +47,48 @@ const successDriver = (): FakePortalDriver =>
     },
   });
 
+// A login session that ALSO completes the www2 OAuth step (ADR-026): its storageState grows the
+// www2 cookie after the (scripted) OAuth navigation, and /app/session/status then answers a
+// session JSON. Synthetic cookies + expiry (no SII, no PII).
+const WWW2_EXPIRES = 1_789_006_000; // epoch s
+function www2Driver(): FakePortalDriver {
+  let www2Done = false;
+  return new FakePortalDriver({
+    loginSession: {
+      landingUrl: HOSTS.miSii,
+      evaluate: (e) => (e.includes('DatosCntrNow') ? personaDatos() : null),
+      // classic cookies before the www2 step; +X-SII-STATE-CT after it (the OAuth page also wipes
+      // the classic ones from the real context — the merge is what puts them back)
+      storageState: () =>
+        www2Done
+          ? {
+              cookies: [
+                { name: 'X-SII-STATE-CT', domain: '.sii.cl', path: '/', expires: WWW2_EXPIRES },
+              ],
+            }
+          : { cookies: [{ name: 'TOKEN', domain: '.sii.cl', path: '/', value: 'c' }] },
+      requestText: (url: string) => {
+        if (!url.includes('/app/session/status')) return '';
+        if (!www2Done) {
+          www2Done = true; // first status read after goto = still logging in
+          return { status: 401, body: '' };
+        }
+        return JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 });
+      },
+    },
+    // the warm-session probe (restore) mirrors the state: once the www2 step ran, /app/session/
+    // status answers there too (so statusRefresh sees the layer live).
+    restoreSession: {
+      landingUrl: HOSTS.miSii,
+      evaluate: (e) => (e.includes('DatosCntrNow') ? personaDatos() : null),
+      requestText: (url: string) =>
+        url.includes('/app/session/status') && www2Done
+          ? JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 })
+          : ({ status: 401, body: '' } as const),
+    },
+  });
+}
+
 describe('auth', () => {
   it('browser login persists a cookies-only session + defaults operate to self', async () => {
     const rt = makeRuntime(successDriver());
@@ -56,6 +98,41 @@ describe('auth', () => {
     const op = await readOperateState(rt.store);
     expect(op?.operatingRut).toBe('20000042-0');
     expect(op?.accountType).toBe('persona');
+  });
+
+  it('login --www2 mints both layers: classic cookies kept + the www2 cookie, expiry stored', async () => {
+    const rt = makeRuntime(www2Driver());
+    const res = await login(rt, { www2: true });
+    expect(res.reason).toBe('browser_login');
+    expect(res.www2).toEqual({
+      authenticated: true,
+      expiresAt: new Date(WWW2_EXPIRES * 1000).toISOString(),
+    });
+    const stored = await readSession(rt.store);
+    const names = (stored!.cookies as { cookies: { name: string }[] }).cookies.map((c) => c.name);
+    expect(names).toContain('TOKEN'); // classic cookie survived the OAuth-page wipe (merge)
+    expect(names).toContain('X-SII-STATE-CT'); // www2 cookie added
+    expect(stored!.www2?.expiresAt).toBe(new Date(WWW2_EXPIRES * 1000).toISOString());
+  });
+
+  it('login WITHOUT --www2 stores no www2 layer, and status reports it absent', async () => {
+    const rt = makeRuntime(successDriver());
+    const res = await login(rt);
+    expect(res.www2).toBeUndefined();
+    expect((await localStatus(rt.store, rt.clock.now())).www2).toEqual({
+      authenticated: false,
+      expiresAt: null,
+    });
+  });
+
+  it('localStatus marks the www2 layer expired once its stored expiry has passed', async () => {
+    const past = new Date('2026-09-12T00:00:00Z').toISOString();
+    const rt = makeRuntime(successDriver());
+    await login(rt);
+    const stored = await readSession(rt.store);
+    await rt.store.write('session', { ...stored, www2: { savedAt: past, expiresAt: past } });
+    const st = await localStatus(rt.store, new Date('2026-09-12T02:00:00Z'));
+    expect(st.www2).toEqual({ authenticated: false, expiresAt: past });
   });
 
   it('login still on the auth page raises LoginFailedError, writes no session', async () => {
@@ -76,12 +153,12 @@ describe('auth', () => {
 
   it('localStatus reflects the cached jar without a portal call', async () => {
     const rt = makeRuntime(successDriver());
-    expect(await localStatus(rt.store)).toMatchObject({
+    expect(await localStatus(rt.store, rt.clock.now())).toMatchObject({
       authenticated: false,
       sessionSource: 'none',
     });
     await login(rt);
-    expect(await localStatus(rt.store)).toMatchObject({
+    expect(await localStatus(rt.store, rt.clock.now())).toMatchObject({
       authenticated: true,
       rut: '20000042-0',
       sessionSource: 'cached',
@@ -252,7 +329,17 @@ describe('auth — real-SII flow (replicated, synthetic data)', () => {
       rut: '20000042-0',
       nombre: 'Juan Sintético Pérez Soto',
       accountType: 'persona',
+      // no www2 layer scripted on this driver → reported absent, never an error (ADR-026)
+      www2: { authenticated: false, expiresAt: null },
     });
+  });
+
+  it('statusRefresh reports the www2 layer live when the app session answers', async () => {
+    const rt = makeRuntime(www2Driver());
+    await login(rt, { www2: true });
+    const id = await statusRefresh(rt);
+    expect(id.www2.authenticated).toBe(true);
+    expect(id.www2.expiresAt).toBe(new Date(WWW2_EXPIRES * 1000).toISOString());
   });
 
   it('statusRefresh on an expired session (lands back on the login host) raises NotAuthenticated', async () => {

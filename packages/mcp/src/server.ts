@@ -19,9 +19,17 @@ import {
   operateSelf,
   operatingStatus,
   statusRefresh,
+  type AuthWww2Status,
   type Runtime,
 } from '@albertomarturelo/sii-core';
 import { toolText } from './tool-helpers.js';
+
+/** One human line for the www2 app-session layer (ADR-026). */
+const www2Line = (w: AuthWww2Status): string =>
+  w.authenticated
+    ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
+    : 'Sesión www2: no iniciada (auth_login con www2=true para la Carpeta Tributaria).';
+
 // Domain read surfaces — each module owns a tools/<mod>.ts register fn (append-only).
 import { registerWhoamiTools } from './tools/whoami.js';
 import { registerRcvTools } from './tools/rcv.js';
@@ -103,15 +111,20 @@ export function buildServer(runtime: Runtime): McpServer {
       title: 'Iniciar sesión (navegador)',
       description:
         'Abre el navegador en la página del SII para que el usuario escriba su Clave Tributaria. ' +
-        'NUNCA recibe la Clave como argumento (ADR-006); persiste solo cookies. Idempotente sobre una sesión viva.',
+        'NUNCA recibe la Clave como argumento (ADR-006); persiste solo cookies. Idempotente sobre una sesión viva. ' +
+        'www2=true añade además la sesión de la plataforma www2 (necesaria para carpeta_*): el mismo ' +
+        'navegador abre la página OAuth del SII y el usuario vuelve a escribir su Clave ahí (ADR-026).',
+      inputSchema: { www2: z.boolean().optional() },
       annotations: { readOnlyHint: false, openWorldHint: true },
     },
-    () =>
+    ({ www2 }) =>
       toolText(async () => {
-        const r = await login(runtime);
-        return r.reason === 'already_authenticated'
-          ? `Ya tienes una sesión activa como ${fmt(r.rut)}.`
-          : `Sesión iniciada como ${fmt(r.rut)}.`;
+        const r = await login(runtime, www2 ? { www2: true } : {});
+        const head =
+          r.reason === 'already_authenticated'
+            ? `Ya tienes una sesión activa como ${fmt(r.rut)}.`
+            : `Sesión iniciada como ${fmt(r.rut)}.`;
+        return r.www2 ? `${head}\n${www2Line(r.www2)}` : head;
       }),
   );
 
@@ -128,13 +141,13 @@ export function buildServer(runtime: Runtime): McpServer {
       toolText(async () => {
         if (refresh) {
           const id = await statusRefresh(runtime);
-          return `RUT: ${fmt(id.rut)}\nNombre: ${id.nombre ?? '—'}\nTipo: ${id.accountType}`;
+          return `RUT: ${fmt(id.rut)}\nNombre: ${id.nombre ?? '—'}\nTipo: ${id.accountType}\n${www2Line(id.www2)}`;
         }
         const s = await authStatus(runtime);
         if (!s.authenticated || !s.rut) return 'No autenticado. Usa la tool auth_login.';
         const ctx = await operatingStatus(runtime);
         const op = ctx && !ctx.isSelf ? `\n${describeOperating(ctx)}` : '';
-        return `Autenticado (sesión local) como ${fmt(s.rut)}.${op}`;
+        return `Autenticado (sesión local) como ${fmt(s.rut)}.${op}\n${www2Line(s.www2)}`;
       }),
   );
 
@@ -154,7 +167,10 @@ export function buildServer(runtime: Runtime): McpServer {
       toolText(async () => {
         const r = await logout(runtime);
         if (!r.loggedOut) return 'No había sesión activa.';
-        return r.serverClosed ? 'Sesión cerrada (servidor y local).' : 'Sesión cerrada (local).';
+        const head = r.serverClosed
+          ? 'Sesión cerrada (servidor y local).'
+          : 'Sesión cerrada (local).';
+        return r.www2Closed ? `${head} Sesión www2 cerrada.` : head;
       }),
   );
 

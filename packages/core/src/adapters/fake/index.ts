@@ -76,7 +76,9 @@ export interface FakeSessionScript {
   requestBinary?: (url: string, options?: BinaryRequest) => BinaryResponse | Uint8Array;
   /** Cookie name → value map for `cookie(url, name)`. */
   cookies?: Record<string, string>;
-  storageState?: unknown;
+  /** The cookies-only state `storageState()` returns; a FUNCTION is called on every read, so a
+   *  test can script a jar that GAINS cookies mid-session (the `--www2` step, ADR-026). */
+  storageState?: unknown | (() => unknown);
 }
 
 export class FakePortalSession implements PortalSession {
@@ -126,7 +128,8 @@ export class FakePortalSession implements PortalSession {
     return this.script.cookies?.[name] ?? null;
   }
   async storageState(): Promise<unknown> {
-    return this.script.storageState ?? { cookies: [] };
+    const s = this.script.storageState;
+    return (typeof s === 'function' ? (s as () => unknown)() : s) ?? { cookies: [] };
   }
   async close(): Promise<void> {
     this.closed = true;

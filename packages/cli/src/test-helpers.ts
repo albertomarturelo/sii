@@ -37,6 +37,44 @@ export function makeRuntime(): Runtime {
   };
 }
 
+/** A runtime whose browser login ALSO completes the www2 OAuth step (ADR-026): after the classic
+ *  login, /app/session/status answers a session JSON and the jar grows the X-SII-STATE-CT cookie.
+ *  Synthetic cookies/expiry (no SII, no PII). */
+export const WWW2_EXPIRES = 1_789_006_000; // epoch s
+export function makeWww2Runtime(): Runtime {
+  let www2Done = false;
+  const status = (url: string): { status: number; body: string } | string =>
+    url.includes('/app/session/status') && www2Done
+      ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT', seconds: 5999 })
+      : { status: 401, body: '' };
+  const jar = () =>
+    www2Done
+      ? {
+          cookies: [
+            { name: 'X-SII-STATE-CT', domain: '.sii.cl', path: '/', expires: WWW2_EXPIRES },
+          ],
+        }
+      : { cookies: [{ name: 'TOKEN', domain: '.sii.cl', path: '/', value: 'c' }] };
+  return {
+    clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+    audit: new testing.RecordingAuditSink(),
+    store: new testing.InMemoryKeyValueStore(),
+    portal: new testing.FakePortalDriver({
+      loginSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datos,
+        storageState: jar,
+        requestText: (url: string) => {
+          const r = status(url);
+          if (!www2Done && url.includes('/app/session/status')) www2Done = true;
+          return r;
+        },
+      },
+      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos, requestText: status },
+    }),
+  };
+}
+
 /** Capture STDOUT while running `fn` (STDERR — incl. the header + prompts — muted). */
 async function capture(fn: () => Promise<void>): Promise<string> {
   const lines: string[] = [];

@@ -1,4 +1,11 @@
-import { HOSTS, KEYRING_SERVICE, LOGIN_HOST, LOGOUT_URL } from '../config/index.js';
+import {
+  HOSTS,
+  KEYRING_SERVICE,
+  LOGIN_HOST,
+  LOGOUT_URL,
+  WWW2_APP_CARPETA,
+  WWW2_SESSION_CLOSE_URL,
+} from '../config/index.js';
 import {
   CredentialNotFoundError,
   LoginFailedError,
@@ -12,6 +19,10 @@ import { fetchEmpresasAutorizadas } from '../portal/representacion.js';
 import type { EmpresaAutorizada } from '../portal/representacion.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
 import { deleteSession, readSession, withSession, writeSession } from './session.js';
+import type { StoredSession } from './session.js';
+import { mergeStorageState, waitForWww2Session, www2ExpiresAt } from './www2-login.js';
+import { readWww2Session } from '../portal/www2-session.js';
+import { Www2SessionError } from '../errors/index.js';
 
 const DEFAULT_LOGIN_TIMEOUT_MS = 180_000;
 // Console login submits machine-fast (no human typing in the browser) and fails
@@ -39,6 +50,11 @@ export interface AuthIdentity {
   readonly accountType: AccountType;
 }
 
+/** `statusRefresh`: the live identity plus the www2 layer read LIVE (`/app/session/status`). */
+export interface AuthIdentityRefresh extends AuthIdentity {
+  readonly www2: AuthWww2Status;
+}
+
 /** `whoami` — the AUTHENTICATED principal's own identity + contact. Session-keyed:
  *  it reads the login principal's `DatosCntrNow`, NOT the operate pointer (operate
  *  changes which RUT you ACT as, never who you ARE). PII by nature. */
@@ -50,30 +66,57 @@ export interface AuthWhoami {
   readonly email: string | null;
 }
 
+/** The www2 APP-SESSION layer as reported by status (ADR-026). LOCAL: `authenticated` means the
+ *  layer was minted and its cookie has not expired by the clock — not a server-side claim. */
+export interface AuthWww2Status {
+  readonly authenticated: boolean;
+  readonly expiresAt: string | null;
+}
+
 export interface AuthStatusLocal {
   /** LOCAL-only: a cookie jar exists on disk. NOT a server-side liveness claim. */
   readonly authenticated: boolean;
   readonly rut: string | null;
   readonly sessionSource: 'cached' | 'none';
+  readonly www2: AuthWww2Status;
 }
 
 export interface AuthLoginResult {
   readonly authenticated: true;
   readonly rut: string;
   readonly reason: 'browser_login' | 'console_login' | 'keyring_login' | 'already_authenticated';
+  /** Set when `--www2` was requested: the www2 layer's state after this call (ADR-026). */
+  readonly www2?: AuthWww2Status;
 }
 
 export interface AuthLogoutResult {
   readonly loggedOut: boolean;
   readonly serverClosed: boolean;
+  /** Best-effort close of the www2 app session, when one was stored (ADR-026). */
+  readonly www2Closed: boolean;
 }
 
-/** Pure local read — NO portal call (sii-py "local-only" labelling). */
-export async function localStatus(store: Runtime['store']): Promise<AuthStatusLocal> {
+const NO_WWW2: AuthWww2Status = { authenticated: false, expiresAt: null };
+
+function www2StatusOf(session: StoredSession | null, now: Date): AuthWww2Status {
+  const layer = session?.www2;
+  if (!layer) return NO_WWW2;
+  const alive = layer.expiresAt === null || new Date(layer.expiresAt).getTime() > now.getTime();
+  return { authenticated: alive, expiresAt: layer.expiresAt };
+}
+
+/** Pure local read — NO portal call (sii-py "local-only" labelling). `now` decides whether the
+ *  stored www2 layer is still within its cookie's own expiry. */
+export async function localStatus(store: Runtime['store'], now: Date): Promise<AuthStatusLocal> {
   const session = await readSession(store);
   return session
-    ? { authenticated: true, rut: session.rut, sessionSource: 'cached' }
-    : { authenticated: false, rut: null, sessionSource: 'none' };
+    ? {
+        authenticated: true,
+        rut: session.rut,
+        sessionSource: 'cached',
+        www2: www2StatusOf(session, now),
+      }
+    : { authenticated: false, rut: null, sessionSource: 'none', www2: NO_WWW2 };
 }
 
 function identityFromDatos(datos: DatosCntr | null): AuthIdentity {
@@ -201,13 +244,71 @@ async function finalizeFreshSession(
   return { authenticated: true, rut: identity.rut, reason };
 }
 
+export interface LoginOptions {
+  /** Also mint the www2 APP-SESSION layer (ADR-026): after the classic login, the same headed
+   *  browser opens the www2 app page and the user completes SII's OAuth login there. */
+  readonly www2?: boolean;
+}
+
+/** Is the stored www2 layer live on the server? One cheap read via a headless restore; never
+ *  throws (the login path needs "is it warm?", not an error). */
+async function liveWww2(runtime: Runtime): Promise<boolean> {
+  try {
+    await withSession(runtime, async (s) => readWww2Session(s, WWW2_APP_CARPETA));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The www2 step (ADR-026), run on the still-open headed `session` AFTER the classic login has
+ *  been persisted: snapshot the classic jar, let the user log in at SII's OAuth page, then store
+ *  classic + www2 cookies together with the layer's own expiry. On timeout the classic session
+ *  stays saved and `LoginFailedError` says so. */
+async function mintWww2Layer(runtime: Runtime, session: PortalSession): Promise<AuthWww2Status> {
+  const stored = await readSession(runtime.store);
+  if (!stored) throw new NotAuthenticatedError('No hay sesión. Ejecuta `sii auth login`.');
+  const start = runtime.clock.now().getTime();
+  try {
+    const classicJar = await session.storageState();
+    await waitForWww2Session(runtime, session);
+    const www2Jar = await session.storageState();
+    const expiresAt = www2ExpiresAt(www2Jar);
+    const savedAt = runtime.clock.now().toISOString();
+    await writeSession(runtime.store, {
+      ...stored,
+      cookies: mergeStorageState(classicJar, www2Jar),
+      www2: { savedAt, expiresAt },
+    });
+    recordAudit(runtime, {
+      action: 'auth_login_www2',
+      result: 'ok',
+      rut: stored.rut,
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return { authenticated: true, expiresAt };
+  } catch (err) {
+    recordAudit(runtime, { action: 'auth_login_www2', result: 'failed', rut: stored.rut });
+    throw err;
+  }
+}
+
 /** Browser cookies-only login (ADR-006). Only this + `consoleLogin` mint a session
  *  (ADR-019 lineage). Idempotent: a live cached session returns
- *  `already_authenticated` without opening a window. */
-export async function login(runtime: Runtime): Promise<AuthLoginResult> {
+ *  `already_authenticated` without opening a window. With `www2`, both layers must be live
+ *  for that shortcut; otherwise the headed flow runs in full (classic login, then the www2
+ *  step in the same browser — the classic page is what carries the user into SII). */
+export async function login(
+  runtime: Runtime,
+  options: LoginOptions = {},
+): Promise<AuthLoginResult> {
   const start = runtime.clock.now().getTime();
   const warm = await reuseLiveSession(runtime);
-  if (warm) return warm;
+  if (warm && (!options.www2 || (await liveWww2(runtime)))) {
+    if (!options.www2) return warm;
+    const stored = await readSession(runtime.store);
+    return { ...warm, www2: www2StatusOf(stored, runtime.clock.now()) };
+  }
 
   let session: PortalSession | null = null;
   try {
@@ -215,7 +316,9 @@ export async function login(runtime: Runtime): Promise<AuthLoginResult> {
       destination: HOSTS.miSii,
       timeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
     });
-    return await finalizeFreshSession(runtime, session, 'browser_login', start);
+    const result = await finalizeFreshSession(runtime, session, 'browser_login', start);
+    if (!options.www2) return result;
+    return { ...result, www2: await mintWww2Layer(runtime, session) };
   } catch (err) {
     recordAudit(runtime, { action: 'auth_login', result: 'failed', reason: 'browser_login' });
     throw err;
@@ -317,13 +420,25 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   const session = await readSession(runtime.store);
   if (!session) {
     recordAudit(runtime, { action: 'logout', result: 'ok', serverClosed: false });
-    return { loggedOut: false, serverClosed: false };
+    return { loggedOut: false, serverClosed: false, www2Closed: false };
   }
 
   let serverClosed = false;
+  let www2Closed = false;
   let s: PortalSession | null = null;
   try {
     s = await runtime.portal.restore(session.cookies);
+    if (session.www2) {
+      // The www2 layer first (ADR-026): its close is the SPA's own `$logout` URL; "closed" =
+      // we came back off that path. Best-effort like the classic one.
+      try {
+        const url = `${WWW2_SESSION_CLOSE_URL}?originalUrl=${encodeURIComponent(WWW2_APP_CARPETA)}`;
+        const landed = await s.goto(url);
+        www2Closed = new URL(landed).pathname !== new URL(WWW2_SESSION_CLOSE_URL).pathname;
+      } catch {
+        // best-effort
+      }
+    }
     const landed = await s.goto(LOGOUT_URL);
     serverClosed = new URL(landed).pathname !== new URL(LOGOUT_URL).pathname;
   } catch {
@@ -334,21 +449,37 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
 
   await deleteSession(runtime.store);
   await clearOperateState(runtime.store);
-  recordAudit(runtime, { action: 'logout', result: 'ok', rut: session.rut, serverClosed });
-  return { loggedOut: true, serverClosed };
+  recordAudit(runtime, {
+    action: 'logout',
+    result: 'ok',
+    rut: session.rut,
+    serverClosed,
+    ...(session.www2 ? { www2Closed } : {}),
+  });
+  return { loggedOut: true, serverClosed, www2Closed };
 }
 
 /** Curated identity readback from the portal. Requires a live session (no implicit
  *  login) — acquired via `withSession`; here an expired jar is an explicit
  *  NotAuthenticated (URL-based detection), since the whole job is the readback. */
-export async function statusRefresh(runtime: Runtime): Promise<AuthIdentity> {
+export async function statusRefresh(runtime: Runtime): Promise<AuthIdentityRefresh> {
   return withSession(runtime, async (s) => {
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
       throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
     }
     const identity = identityFromDatos(await s.evaluate<DatosCntr | null>(DATOS_EXPR));
+    // The www2 layer, read live: a missing one is a plain `false` here, not an error — the
+    // classic identity is the job; the layer is reported (ADR-026).
+    let www2: AuthWww2Status = NO_WWW2;
+    try {
+      await readWww2Session(s, WWW2_APP_CARPETA);
+      const stored = await readSession(runtime.store);
+      www2 = { authenticated: true, expiresAt: stored?.www2?.expiresAt ?? null };
+    } catch (e) {
+      if (!(e instanceof Www2SessionError)) throw e;
+    }
     recordAudit(runtime, { action: 'auth_status_refresh', result: 'ok', rut: identity.rut });
-    return identity;
+    return { ...identity, www2 };
   });
 }
 
