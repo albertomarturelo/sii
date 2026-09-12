@@ -32,6 +32,14 @@ Service, un intento, sin re-login automático —
 [ADR-025](docs/decisions/025-keyring-secret-store.md)). La CLI nunca escribe la Clave
 en ningún lado, y el servidor MCP no tiene acceso al llavero en absoluto.
 
+**Carpeta Tributaria**: `carpeta instituciones` lee la lista vigente de instituciones
+destinatarias directamente del SII (los códigos cambian, así que no se empaqueta ninguno).
+Vive en la plataforma **www2** del SII, que autoriza con una **sesión propia**: por eso
+existe `sii auth login --www2`, un segundo login cookies-only en el que tecleas la Clave en
+la página OAuth real del SII —nunca headless, porque ahí corre reCAPTCHA
+([ADR-026](docs/decisions/026-www2-app-session-login.md))—. Ambas sesiones conviven en el
+mismo archivo; `auth status` las muestra y `auth logout` cierra las dos.
+
 Primera superficie de **descarga de documentos**: `f29 pdf`, que guarda en disco
 el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuando el
 período fue pagado, **su comprobante de pago**— y el Certificado de Declaración.

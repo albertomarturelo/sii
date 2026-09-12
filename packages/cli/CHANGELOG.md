@@ -9,6 +9,25 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.10.0 — 2026-09-12
+
+### Added
+
+- **`sii carpeta instituciones`** — SII's **live** list of destination institutions for the
+  Carpeta Tributaria Regular: `[{codigo, descripcion, abreviacion, tipo, rut, vigenteDesde,
+  vigenteHasta}]` as JSON by default, `--human` for a table. The `codigo` is the value the
+  Regular carpeta will demand (#109); it is read from SII on every call because the codes
+  drift, and **no catalog is bundled**. Session-keyed. Live-validated 2026-09-12 (67 rows).
+- **`sii auth login --www2`** — mints the **second** cookies-only session that the Carpeta
+  Tributaria (and the rest of `www2.sii.cl/app/*`) needs, on top of the classic one (ADR-026).
+  After the classic login the same browser opens SII's OAuth page and **you** type the Clave
+  there; only cookies are kept, and both layers live in the same session file. Refused with
+  `--console` / `--keyring`: that page runs reCAPTCHA Enterprise, so there is no headless
+  variant, by decision. **You will type the Clave twice**, because the headed browser opens
+  without cookies — the single-prompt flow is tracked as #119.
+- **`sii auth status`** now reports the www2 layer (`activa (hasta …)` from its own cookie
+  expiry; `--refresh` checks it live), and **`sii auth logout`** closes it too.
+
 ## 0.9.0 — 2026-09-09
 
 ### Added
