@@ -3,6 +3,7 @@ import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
 import { connect, datos, toolText } from '../test-helpers.js';
 
 // Synthetic institution rows (no SII, no PII) in the observed `/instituciones` wire shape.
+const BLANK = { tipo: null, rut: null, vigenteDesde: null, vigenteHasta: null };
 const LIST = [
   { enfinCodigo: '001', enfinDescripcion: 'Banco Sintético Uno', enfinAbreviacion: 'BSU' },
   { enfinCodigo: '042', enfinDescripcion: 'Cooperativa de Prueba', enfinAbreviacion: 'CDP' },
@@ -29,8 +30,8 @@ describe('@albertomarturelo/sii-mcp carpeta tools (in-memory client, fake runtim
 
     const res = await client.callTool({ name: 'carpeta_instituciones', arguments: {} });
     expect(JSON.parse(toolText(res))).toEqual([
-      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU' },
-      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: 'CDP' },
+      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU', ...BLANK },
+      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: 'CDP', ...BLANK },
     ]);
 
     const { tools } = await client.listTools();

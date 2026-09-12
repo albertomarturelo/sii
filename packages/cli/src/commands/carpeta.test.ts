@@ -3,6 +3,7 @@ import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomar
 import { datos, run, runJson } from '../test-helpers.js';
 
 // Synthetic institution rows (no SII, no PII) in the observed `/instituciones` wire shape.
+const BLANK = { tipo: null, rut: null, vigenteDesde: null, vigenteHasta: null };
 const LIST = [
   { enfinCodigo: '001', enfinDescripcion: 'Banco Sintético Uno', enfinAbreviacion: 'BSU' },
   { enfinCodigo: '042', enfinDescripcion: 'Cooperativa de Prueba', enfinAbreviacion: 'CDP' },
@@ -41,8 +42,8 @@ describe('sii carpeta command (fake runtime, no SII)', () => {
     await run(rt, 'auth', 'login');
     const json = await runJson(rt, 'carpeta', 'instituciones');
     expect(json).toEqual([
-      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU' },
-      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: 'CDP' },
+      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU', ...BLANK },
+      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: 'CDP', ...BLANK },
     ]);
   });
 

@@ -12,12 +12,31 @@ import {
 // Synthetic data only (no SII, no real PII): app-session userId 20000042-0; invented institutions.
 const USER_ID = '20000042-0';
 const APP = { userId: USER_ID, userAuthType: null };
-const STATUS_OK = JSON.stringify({ userId: USER_ID, userAuthType: 'CT', t1: 1789000000000 });
+// The observed session JSON shape (2026-09-12), synthetic values.
+const STATUS_OK = JSON.stringify({
+  seconds: 5999,
+  userId: USER_ID,
+  userProfiles: ['00000'],
+  userAuthType: 'CT',
+  authTime: 1789000000000,
+  userRte: USER_ID,
+});
+// The observed 8-key row shape (2026-09-12), synthetic institutions + Mod-11-valid RUTs.
 const LIST = [
-  { enfinCodigo: '001', enfinDescripcion: 'Banco Sintético Uno', enfinAbreviacion: 'BSU' },
+  {
+    enfinCodigo: '001',
+    enfinDescripcion: 'Banco Sintético Uno',
+    enfinAbreviacion: 'BSU',
+    enfinFechaVigDesde: '2016-04-03',
+    enfinFechaVigHasta: null,
+    enfinTipo: 3,
+    enfinRutInstitucion: 77777777,
+    enfinDvInstitucion: '7',
+  },
   { enfinCodigo: '042', enfinDescripcion: 'Cooperativa de Prueba', enfinAbreviacion: '' },
-  { enfinCodigo: '999', enfinDescripcion: 'Otra institución', extra: 'unobserved-field' },
+  { enfinCodigo: '1005', enfinDescripcion: 'Otra institución', extra: 'unobserved-field' },
 ];
+const BLANK = { tipo: null, rut: null, vigenteDesde: null, vigenteHasta: null };
 
 /** A session that logs every seam call in order, so the session-read ordering is assertable. */
 function scripted(opts: { instituciones?: unknown; status?: PublicResponse | string } = {}) {
@@ -73,9 +92,18 @@ describe('carpeta instituciones facade (fake session, no SII)', () => {
     const { session } = scripted();
     const res = await fetchInstituciones(session, APP);
     expect(res).toEqual([
-      { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU' },
-      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: null },
-      { codigo: '999', descripcion: 'Otra institución', abreviacion: null },
+      {
+        codigo: '001',
+        descripcion: 'Banco Sintético Uno',
+        abreviacion: 'BSU',
+        tipo: 3,
+        rut: '77777777-7',
+        vigenteDesde: '2016-04-03',
+        vigenteHasta: null,
+      },
+      { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: null, ...BLANK },
+      // codes are NOT normalised: "1005" (no padding) and "001" (padded) coexist live
+      { codigo: '1005', descripcion: 'Otra institución', abreviacion: null, ...BLANK },
     ]);
   });
 
@@ -139,8 +167,8 @@ describe('carpeta instituciones facade (fake session, no SII)', () => {
 
 describe('resolveInstitucion — the --institucion gate for `carpeta regular` (#109)', () => {
   const LIVE = [
-    { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU' },
-    { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: null },
+    { codigo: '001', descripcion: 'Banco Sintético Uno', abreviacion: 'BSU', ...BLANK },
+    { codigo: '042', descripcion: 'Cooperativa de Prueba', abreviacion: null, ...BLANK },
   ];
 
   it('returns the matching live row (whitespace-tolerant, exact code otherwise)', () => {
