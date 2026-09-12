@@ -81,7 +81,8 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .option(
       '--www2',
       'Añade la sesión www2 (segunda capa, ~100 min): la escribes tú en la página OAuth del ' +
-        'SII, en el navegador. Solo con el login por navegador.',
+        'SII, en el navegador. Escribirás la Clave DOS veces (login clásico y página OAuth), ' +
+        'porque el navegador se abre sin cookies. Solo con el login por navegador.',
     )
     .option(
       '--console',
