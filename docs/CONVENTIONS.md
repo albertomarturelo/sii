@@ -227,7 +227,7 @@ Python `sii-cli`, adapted to TypeScript.
   on their next touch.
 - **`www2.sii.cl/app/*` surfaces need the www2 APP SESSION, a second cookies-only layer
   (ADR-026).** The classic `.sii.cl` jar reaches www1/www3/www4/loa but NOT the `/app/<name>-api`
-  facades (bare 401). That layer is the httpOnly `.sii.cl` pair `X-SII-STATE-CT`/`-TYPE`, minted
+  facades (bare 401). That layer is the httpOnly `.sii.cl` pair `X-SII-STATE-TYPE` + a state cookie `X-SII-STATE-<X>` (suffix varies), minted
   ONLY by the user at SII's `oauthsii-v1` page (headed, reCAPTCHA — never headless, never over
   MCP), persisted in the same session file. A www2 facade FIRST reads `GET /app/session/status`
   (the SPA's own liveness read), keys every API path by its `userId` verbatim, and on a non-200

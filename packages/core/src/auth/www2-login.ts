@@ -21,8 +21,11 @@ export const WWW2_LOGIN_TIMEOUT_MS = 300_000;
  *  cheap GET the SPA itself issues on every route change (observed), paced via `Clock.sleep`. */
 export const WWW2_POLL_MS = 2_000;
 
-/** The cookie whose expiry IS the www2 layer's expiry (observed 2026-09-12). */
-export const WWW2_STATE_COOKIE = 'X-SII-STATE-CT';
+/** The www2 app-session cookies all share this prefix (observed 2026-09-12): a literal
+ *  `X-SII-STATE-TYPE` plus a state cookie whose suffix VARIES (`X-SII-STATE-CT` and
+ *  `X-SII-STATE-CL` both seen — the letter is not stable), and every one carries the SAME
+ *  expiry (~100 min). So the layer's expiry is read from ANY of them, not a fixed name. */
+export const WWW2_STATE_COOKIE_PREFIX = 'X-SII-STATE-';
 
 /** Minimal view of a Playwright-shaped storage state. The seam types it `unknown` (opaque to the
  *  core), so the merge narrows defensively and passes through whatever it does not understand. */
@@ -67,19 +70,20 @@ export function mergeStorageState(classic: unknown, www2: unknown): unknown {
   return { ...(www2 as object), cookies: [...merged.values()] };
 }
 
-/** ISO expiry of the www2 layer, read off `X-SII-STATE-CT` (Playwright cookies carry `expires` as
- *  epoch SECONDS; `-1` = session cookie). Null when absent or session-scoped. */
+/** ISO expiry of the www2 layer, read off any `X-SII-STATE-*` cookie (they share one expiry;
+ *  Playwright carries `expires` as epoch SECONDS, `-1` = session cookie). Null when none is present
+ *  or all are session-scoped. Takes the max, so a session-scoped `-TYPE` never masks a dated pair. */
 export function www2ExpiresAt(state: unknown): string | null {
-  const cookies = cookiesOf(state) ?? [];
-  for (const c of cookies) {
+  let best = 0;
+  for (const c of cookiesOf(state) ?? []) {
     if (!c || typeof c !== 'object') continue;
     const k = c as CookieLike;
-    if (k.name !== WWW2_STATE_COOKIE) continue;
-    if (typeof k.expires !== 'number' || k.expires <= 0) return null;
-    const d = new Date(k.expires * 1000);
-    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+    if (typeof k.name !== 'string' || !k.name.startsWith(WWW2_STATE_COOKIE_PREFIX)) continue;
+    if (typeof k.expires === 'number' && k.expires > best) best = k.expires;
   }
-  return null;
+  if (best <= 0) return null;
+  const d = new Date(best * 1000);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 /** Drive the headed `session` (already past the classic login) to the www2 app page and wait for
