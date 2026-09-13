@@ -338,6 +338,12 @@ Python `sii-cli`, adapted to TypeScript.
 - **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
   bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
+- **A squash merge's subject must carry the PR number.** Every commit on `main` ends with
+  `(#N)` — that is how a commit is traced back to its review. GitHub appends it automatically
+  only when it composes the subject itself; passing `gh pr merge --squash --subject "…"`
+  suppresses that, so **write the `(#N)` into the subject yourself**. The ≤72-char limit is on
+  the subject you author; the appended reference may push the final line past it, as the existing
+  history shows. (Learned by getting it wrong twice on the 0.10.0 work — ADR-007.)
 - **No AI attribution anywhere** — no `Co-Authored-By`, no "Generated with",
   no `🤖`, in any artifact that lands in git or on GitHub. Authorship is the
   human owner.

@@ -104,10 +104,14 @@ client (no SII), and binary-smoke-validated (`initialize` handshake):
   the authenticated account's razón social/nombre + email, session-keyed — #70;
   description **declares the PII exposure** to the model) + `peticiones_list`
   (`rut`, body-RUT, SISPAD peticiones administrativas via GWT-RPC — #74; description
-  declares the PII exposure), all
+  declares the PII exposure) + `carpeta_instituciones` (no args, SII's LIVE catalog of
+  destination institutions for the Carpeta Tributaria Regular — #110; a public catalog,
+  no taxpayer data; needs the www2 app session, so its failure names the login), all
   `readOnlyHint`. Each is a
   thin call into a `@albertomarturelo/sii-core` task; future writes get `destructiveHint`.
-  `auth_logout` is MCP-eligible because it carries no secret (ADR-006). New modules
+  `auth_logout` is MCP-eligible because it carries no secret (ADR-006); `auth_login` gained
+  `www2` (boolean, #116/ADR-026) and still takes NO password — the tool opens SII's own OAuth
+  page and the user types the Clave there. New modules
   register their tools via `tools/<mod>.ts` (`register<Mod>Tools`) — append-only.
 - **Prompts** (workflow templates): 📋 "revisar IVA del mes", "preparar renta",
   "conciliar folio" — deferred until the read surfaces they orchestrate land.
