@@ -196,6 +196,21 @@ Claude Code. Every group cites the ADRs it enforces.
   head's checks this way. `gh run list --json databaseId,headSha`, pick the entry matching
   `git rev-parse HEAD`, then `gh run watch <id> --exit-status`.
 
+## Credit
+
+- **An issue or a PR records your authorship on its own — it is the recommended route.**
+  Your account is on the issue, your commits carry your name, and the merge links back
+  to your PR.
+- **Findings sent through a private channel (email, chat) are a personal conversation.**
+  They are welcome, but nothing sent that way implies a public mention. If you want your
+  name in the repo for it, **say so explicitly**, with the name and GitHub account to
+  credit — or, better, open the issue yourself.
+- **When the maintainer builds on someone's finding, they are named.** The issue says
+  whose finding it is and where it came from, the commit body and the release notes
+  credit them, and when their own code lands the commit carries a `Co-authored-by`
+  trailer for their GitHub account. That trailer credits a human contributor, so it
+  does not conflict with the no-AI-attribution rule above.
+
 ## Where new code goes
 
 - **Layout and dependency direction** ([ADR-007](docs/decisions/007-modular-core-layout.md)):
