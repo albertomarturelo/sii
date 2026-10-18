@@ -1,5 +1,9 @@
 # ADR-028: Non-interactive login — `--clave-env` / `--clave-stdin`, `--if-needed`, a rejection latch
 
+> **Amended 2026-10-18 (#132), at implementation:** `--if-needed` was dropped in favour of the
+> RUT-aware live probe every credential login already ran; the latch details were settled. See
+> [Amendment](#amendment-2026-10-18-132).
+
 ## Status
 
 Accepted — 2026-10-18. Extends ADR-010 and ADR-025 with two input methods for the same
@@ -39,7 +43,8 @@ with its key on the same disk) does nothing against root. What CAN be protected:
     - Refuses on a TTY (that is `--console`) and refuses an empty value.
 - **No implicit fallback.** `--keyring` never reads the environment, and no source is
   tried after another fails. The Clave's origin is always legible on the command line.
-- **`--if-needed`.** If the stored session is for the same RUT and is live (one Mi SII
+- **`--if-needed`** *(superseded by the Amendment: no flag; every credential login does this)*.
+  If the stored session is for the same RUT and is live (one Mi SII
   GET, as `auth status --refresh` does), exit 0 with `{ alreadyAuthenticated: true }`,
   sending nothing. A stored session for a DIFFERENT RUT is an error: switching accounts
   stays an explicit logout→login (ADR-005).
@@ -63,9 +68,40 @@ with its key on the same disk) does nothing against root. What CAN be protected:
   - **No MCP tool gains any Clave source.**
 - **Agent posture, written down.** Unattended use inside an agent's VM is the
   operator's opt-in, for their own account. The docs give the one-liner
-  `sii auth login --rut 11111111-1 --clave-env SII_CLAVE --if-needed`, and warn: never
-  `echo` the variable, never type the Clave into the agent's chat, and provision it
-  through the platform's masked secret field.
+  `sii auth login --rut 11111111-1 --clave-env SII_CLAVE` (amended: no `--if-needed`), and
+  warn: never `echo` the variable, never type the Clave into the agent's chat, and provision
+  it through the platform's masked secret field.
+
+## Amendment (2026-10-18, #132)
+
+Settled while implementing; the Decision above stands except where this says otherwise.
+
+- **No `--if-needed` flag.** `credentialLoginFlow` already probed for a live session on EVERY
+  `--console` / `--keyring` login and answered `already_authenticated` without reading or
+  sending the Clave (kept that way so a warm session never raises a keyring prompt, review of
+  #101). The flag would have done nothing. What it was meant to add now applies to every Clave
+  source: **a live session for a DIFFERENT RUT is an error** (`ValidationError`, naming
+  logout→login). Before this, `login --rut B` on a live session for A answered "already
+  authenticated" as A. The recipe becomes
+  `sii auth login --rut 11111111-1 --clave-env SII_CLAVE`, and the result's existing
+  `reason: 'already_authenticated'` replaces `{ alreadyAuthenticated: true }`.
+- **The probe runs before the latch.** A latched RUT whose session is still alive keeps
+  answering: the probe is a cookie GET, and no Clave is submitted.
+- **Latch file and shape.** The file is `~/.sii/login-blocked.json` (the store seam's naming,
+  `0600`). It holds one `{ rut, at, codigo }` entry PER RUT, so tripping a second account never
+  silently lifts the first's latch. `sii auth unblock [--rut]` lifts one RUT or all.
+- **What trips it: any SII error page with a código, from any Clave source.** That includes
+  `--console`, because the attempt counted toward the lock. `reason: 'wrong-clave'` alone was
+  not enough: the locked-account page has its own código, still unobserved (`login-error.ts`).
+  Errors with no código (Queue-it, a WAF refusal, a timeout, a network error) never trip it.
+  A refusal is `LoginBlockedError` (a `LoginFailedError`, exit code 3) carrying the latched
+  `codigo` / `reason`.
+- **What clears it:** a FRESH successful `--console` or browser (MCP `auth_login`) login for
+  that RUT. An `already_authenticated` answer does not clear it, since no Clave was verified.
+- **`unblock` is CLI-only** (the `/cli` subpath). The latch exists so an unattended caller
+  cannot retry a stale Clave, and lifting it is a human's act, never the model's.
+- **Audit:** every `auth_login` receipt carries `source`, and a latch refusal is
+  `result: 'blocked'`. The new sources' `reason` values are `env_login` / `stdin_login`.
 
 ## Alternatives Considered
 
@@ -92,7 +128,7 @@ with its key on the same disk) does nothing against root. What CAN be protected:
   lesser credential for a persona natural.
 - **Env vs file:** an environment variable is inherited by whatever the agent launches
   (e.g. an `npm` `postinstall`) until the CLI deletes it from its own process. That is
-  accepted because platforms offer only environment variables; the latch and
-  `--if-needed` bound the damage.
+  accepted because platforms offer only environment variables; the latch and the
+  live-session probe bound the damage.
 - **Obligations:** #124 lands first. Document the agent recipe in the CLI README. Add
   fake-`fetch` / fake-stdin / fake-env tests for every refusal path.

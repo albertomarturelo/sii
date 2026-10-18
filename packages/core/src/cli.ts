@@ -4,5 +4,8 @@
 // takes a password (ADR-006). The terminal CLI imports this subpath instead.
 // `keyringLogin` joins it for the same reason: it READS a Clave (from the OS keyring),
 // so it must be unreachable from the MCP server (ADR-025).
-export { consoleLogin, keyringLogin } from './tasks/auth.js';
-export type { AuthLoginResult } from './tasks/auth.js';
+// `suppliedClaveLogin` takes a Clave the CLI read from a named env var or stdin, and
+// `unblockLogin` lifts the rejection latch that guards it — a human's reset, never the
+// model's (ADR-028).
+export { consoleLogin, keyringLogin, suppliedClaveLogin, unblockLogin } from './tasks/auth.js';
+export type { AuthLoginResult, LoginSource } from './tasks/auth.js';

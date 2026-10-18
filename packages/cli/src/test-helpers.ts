@@ -93,8 +93,15 @@ export async function runJson(runtime: Runtime, ...argv: string[]): Promise<unkn
   return JSON.parse(text);
 }
 
-/** Fake prompters: hidden() returns the Clave; line() returns the RUT (if prompted). */
-export const fakePrompters = (clave: string, rut = ''): Prompters => ({
+/** Fake prompters: hidden() returns the Clave; line() returns the RUT (if prompted). `piped`
+ *  is stdin's content (`null` = a TTY) and `env` the environment `--clave-env` reads. */
+export const fakePrompters = (
+  clave: string,
+  rut = '',
+  input: { piped?: string | null; env?: Record<string, string | undefined> } = {},
+): Prompters => ({
   line: () => Promise.resolve(rut),
   hidden: () => Promise.resolve(clave),
+  piped: () => Promise.resolve(input.piped ?? null),
+  env: input.env ?? {},
 });

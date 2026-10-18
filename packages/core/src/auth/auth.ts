@@ -8,8 +8,10 @@ import {
 } from '../config/index.js';
 import {
   CredentialNotFoundError,
+  LoginBlockedError,
   LoginFailedError,
   NotAuthenticatedError,
+  ValidationError,
 } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
@@ -28,6 +30,13 @@ import {
 import type { StoredSession } from './session.js';
 import { parseDatosCntrNow } from './datos-cntr.js';
 import type { DatosCntr } from './datos-cntr.js';
+import {
+  clearLoginBlock,
+  readLoginBlock,
+  reasonForCodigo,
+  siiJudgedClave,
+  tripLoginBlock,
+} from './login-block.js';
 import { mergeStorageState, waitForWww2Session, www2ExpiresAt } from './www2-login.js';
 import { readWww2Session } from '../portal/www2-session.js';
 import { Www2SessionError } from '../errors/index.js';
@@ -82,10 +91,18 @@ export interface AuthStatusLocal {
   readonly www2: AuthWww2Status;
 }
 
+/** Where the Clave came from. Audited on every login (never the value — ADR-028); `browser` is
+ *  the user typing at SII's own page (the MCP's `auth_login`). */
+export type LoginSource = 'browser' | 'console' | 'keyring' | 'env' | 'stdin';
+type FreshLoginReason = `${LoginSource}_login`;
+
+/** A human typed the Clave: a fresh login from one of these lifts the rejection latch. */
+const INTERACTIVE_SOURCES: readonly LoginSource[] = ['browser', 'console'];
+
 export interface AuthLoginResult {
   readonly authenticated: true;
   readonly rut: string;
-  readonly reason: 'browser_login' | 'console_login' | 'keyring_login' | 'already_authenticated';
+  readonly reason: FreshLoginReason | 'already_authenticated';
   /** Set when `--www2` was requested: the www2 layer's state after this call (ADR-026). */
   readonly www2?: AuthWww2Status;
 }
@@ -159,12 +176,17 @@ async function liveSessionResult(runtime: Runtime): Promise<AuthLoginResult | nu
 }
 
 /** The receipt for a login that ENDED as "already authenticated". */
-function auditAlreadyAuthenticated(runtime: Runtime, warm: AuthLoginResult): void {
+function auditAlreadyAuthenticated(
+  runtime: Runtime,
+  warm: AuthLoginResult,
+  source: LoginSource,
+): void {
   recordAudit(runtime, {
     action: 'auth_login',
     result: 'ok',
     rut: warm.rut,
     reason: warm.reason,
+    source,
   });
 }
 
@@ -214,9 +236,10 @@ async function resolveOperable(
 async function finalizeFreshSession(
   runtime: Runtime,
   session: PortalSession,
-  reason: 'browser_login' | 'console_login' | 'keyring_login',
+  source: LoginSource,
   start: number,
 ): Promise<AuthLoginResult> {
+  const reason: FreshLoginReason = `${source}_login`;
   const landed = await session.goto(HOSTS.miSii);
   if (landedOnLoginHost(landed)) {
     throw new LoginFailedError('Login no completado (seguimos en la página de autenticación).');
@@ -238,11 +261,15 @@ async function finalizeFreshSession(
     operable,
   });
 
+  // A human just proved a working Clave, which is the reset ADR-028 names for the latch.
+  if (INTERACTIVE_SOURCES.includes(source)) await clearLoginBlock(runtime.store, identity.rut);
+
   recordAudit(runtime, {
     action: 'auth_login',
     result: 'ok',
     rut: identity.rut,
     reason,
+    source,
     durationMs: runtime.clock.now().getTime() - start,
   });
   return { authenticated: true, rut: identity.rut, reason };
@@ -309,7 +336,7 @@ export async function login(
   const start = runtime.clock.now().getTime();
   const warm = await liveSessionResult(runtime);
   if (warm && (!options.www2 || (await liveWww2(runtime)))) {
-    auditAlreadyAuthenticated(runtime, warm);
+    auditAlreadyAuthenticated(runtime, warm, 'browser');
     if (!options.www2) return warm;
     const stored = await readSession(runtime.store);
     return { ...warm, www2: www2StatusOf(stored, runtime.clock.now()) };
@@ -323,11 +350,16 @@ export async function login(
       destination: HOSTS.miSii,
       timeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
     });
-    const result = await finalizeFreshSession(runtime, session, 'browser_login', start);
+    const result = await finalizeFreshSession(runtime, session, 'browser', start);
     if (!options.www2) return result;
     return { ...result, www2: await mintWww2Layer(runtime, session) };
   } catch (err) {
-    recordAudit(runtime, { action: 'auth_login', result: 'failed', reason: 'browser_login' });
+    recordAudit(runtime, {
+      action: 'auth_login',
+      result: 'failed',
+      reason: 'browser_login',
+      source: 'browser',
+    });
     throw err;
   } finally {
     await session?.close();
@@ -342,39 +374,105 @@ export async function consoleLogin(
   runtime: Runtime,
   credentials: { rut: string; clave: string },
 ): Promise<AuthLoginResult> {
-  return credentialLoginFlow(runtime, () => Promise.resolve(credentials), 'console_login');
+  return credentialLoginFlow(
+    runtime,
+    Rut.parse(credentials.rut),
+    () => Promise.resolve(credentials.clave),
+    'console',
+  );
 }
 
-/** The headless fill-and-submit shared by the console (ADR-010) and keyring (ADR-025)
- *  paths — they differ ONLY in where the Clave came from, so the attempt policy lives
- *  in one place: ONE attempt, never retried (ADR-004), Clave discarded with the frame.
- *  The credentials arrive as a THUNK so the Clave is fetched only once the live-session
- *  probe has missed: an already-authenticated user must not trigger a keyring-unlock
- *  prompt for a value nobody will use (review of #101). */
+/** CLI-only non-interactive login (ADR-028): the SURFACE read the Clave from an environment
+ *  variable it was told to read (`--clave-env <VAR>`) or from piped stdin (`--clave-stdin`),
+ *  and `source` records which. Everything else matches `consoleLogin`, plus the rejection
+ *  latch: no one is at the keyboard to notice a stale Clave, so a latched RUT is refused
+ *  without contacting SII. */
+export async function suppliedClaveLogin(
+  runtime: Runtime,
+  args: { rut: string; clave: string; source: 'env' | 'stdin' },
+): Promise<AuthLoginResult> {
+  return credentialLoginFlow(
+    runtime,
+    Rut.parse(args.rut),
+    () => Promise.resolve(args.clave),
+    args.source,
+  );
+}
+
+/** The live session's principal if it is `rut`; `null` if there is no live session. A live
+ *  session for ANOTHER RUT is an error: answering "already authenticated" would hand the
+ *  caller the wrong account, and switching stays an explicit logout→login (ADR-005). */
+async function liveSessionFor(runtime: Runtime, rut: Rut): Promise<AuthLoginResult | null> {
+  const warm = await liveSessionResult(runtime);
+  if (warm && Rut.parse(warm.rut).canonical !== rut.canonical) {
+    throw new ValidationError(
+      `Hay una sesión activa como ${warm.rut}, no como ${rut.canonical}. Para cambiar de ` +
+        'cuenta: `sii auth logout` y luego `sii auth login`.',
+    );
+  }
+  return warm;
+}
+
+/** The headless fill-and-submit shared by every Clave source (ADR-010 / ADR-025 / ADR-028) —
+ *  they differ ONLY in where the Clave came from, so the attempt policy lives in one place:
+ *  ONE attempt, never retried (ADR-004), Clave discarded with the frame.
+ *  The Clave arrives as a THUNK so it is fetched only once the live-session probe has missed:
+ *  an already-authenticated user must not trigger a keyring-unlock prompt for a value nobody
+ *  will use (review of #101). The probe runs BEFORE the latch on purpose: a cron whose session
+ *  is still alive keeps working while latched, since nothing is submitted. */
 async function credentialLoginFlow(
   runtime: Runtime,
-  getCredentials: () => Promise<{ rut: string; clave: string }>,
-  reason: 'console_login' | 'keyring_login',
+  rut: Rut,
+  getClave: () => Promise<string>,
+  source: Exclude<LoginSource, 'browser'>,
 ): Promise<AuthLoginResult> {
   const start = runtime.clock.now().getTime();
-  const warm = await liveSessionResult(runtime);
+  const warm = await liveSessionFor(runtime, rut);
   if (warm) {
-    auditAlreadyAuthenticated(runtime, warm);
+    auditAlreadyAuthenticated(runtime, warm, source);
     return warm;
   }
 
-  const credentials = await getCredentials();
+  if (!INTERACTIVE_SOURCES.includes(source)) {
+    const block = await readLoginBlock(runtime.store, rut.canonical);
+    if (block) {
+      recordAudit(runtime, {
+        action: 'auth_login',
+        result: 'blocked',
+        rut: rut.canonical,
+        source,
+      });
+      throw new LoginBlockedError(
+        `Login desatendido bloqueado para ${rut.canonical}: el SII rechazó la Clave el ` +
+          `${block.at}${block.codigo ? ` (código ${block.codigo})` : ''}. No se contactó al ` +
+          'SII. Corrige la Clave y ejecuta `sii auth login --console` (o `sii auth unblock`).',
+        { reason: reasonForCodigo(block.codigo), codigo: block.codigo },
+      );
+    }
+  }
+
+  const clave = await getClave();
   let session: PortalSession | null = null;
   try {
     session = await runtime.portal.credentialLogin({
-      rut: credentials.rut,
-      clave: credentials.clave,
+      rut: rut.canonical,
+      clave,
       destination: HOSTS.miSii,
       timeoutMs: CONSOLE_LOGIN_TIMEOUT_MS,
     });
-    return await finalizeFreshSession(runtime, session, reason, start);
+    return await finalizeFreshSession(runtime, session, source, start);
   } catch (err) {
-    recordAudit(runtime, { action: 'auth_login', result: 'failed', reason });
+    // SII's verbatim rejection is what the user must see (ADR-004), so a failing latch write
+    // must not replace it with a disk error.
+    if (siiJudgedClave(err)) {
+      await tripLoginBlock(runtime, rut.canonical, err.codigo).catch(() => undefined);
+    }
+    recordAudit(runtime, {
+      action: 'auth_login',
+      result: 'failed',
+      reason: `${source}_login`,
+      source,
+    });
     throw err;
   } finally {
     await session?.close();
@@ -408,11 +506,12 @@ export async function keyringLogin(
   }
   return credentialLoginFlow(
     runtime,
+    rut,
     async () => {
       const accounts = keyringAccounts(rut);
       for (const account of accounts) {
         const clave = await secrets.get(account);
-        if (clave) return { rut: rut.canonical, clave };
+        if (clave) return clave;
       }
       throw new CredentialNotFoundError(
         `No hay Clave en el llavero para ${rut.canonical} (servicio "${KEYRING_SERVICE}"). ` +
@@ -421,8 +520,20 @@ export async function keyringLogin(
           `  macOS:  security add-generic-password -s ${KEYRING_SERVICE} -a ${rut.canonical} -w`,
       );
     },
-    'keyring_login',
+    'keyring',
   );
+}
+
+/** Lift the rejection latch (ADR-028) for one RUT, or for all when none is given. A local
+ *  wipe: nothing is sent to SII. Returns the RUTs that were latched. */
+export async function unblockLogin(
+  runtime: Runtime,
+  args: { rut?: string } = {},
+): Promise<string[]> {
+  const rut = args.rut === undefined ? undefined : Rut.parse(args.rut).canonical;
+  const lifted = await clearLoginBlock(runtime.store, rut);
+  recordAudit(runtime, { action: 'auth_unblock', result: 'ok', count: lifted.length });
+  return lifted;
 }
 
 /** Server-side close (best-effort) + wipe local session + operate context. */

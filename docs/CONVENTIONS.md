@@ -314,9 +314,15 @@ Python `sii-cli`, adapted to TypeScript.
   - Every Clave-taking task (`consoleLogin`, `keyringLogin`, the ADR-028 ones) is
     exported from the CLI-only `@albertomarturelo/sii-core/cli` subpath, NOT the main
     barrel, so the MCP server cannot wire it.
-  - A non-interactive login honours the rejection latch (`~/.sii/login-blocked`): after
-    SII rejects a Clave, unattended logins refuse without contacting SII until a human
-    logs in or runs `sii auth unblock`. (ADR-006 / ADR-010 / ADR-028)
+  - A non-interactive login honours the rejection latch (`~/.sii/login-blocked.json`, one
+    entry per RUT): after SII rejects a Clave, unattended logins refuse without contacting
+    SII until a human logs in or runs `sii auth unblock`. (ADR-006 / ADR-010 / ADR-028)
+  - **Every credential login probes for a live session first and is RUT-aware.** A live
+    session for the same RUT answers `already_authenticated` without reading the Clave; one
+    for ANOTHER RUT is an error, never a silent "already authenticated" as the wrong account
+    (switching is logout→login, ADR-005). There is no `--if-needed` flag (ADR-028 amendment).
+  - **An error that may carry a secret never echoes the user's input.** `--clave-env` given a
+    non-name refuses WITHOUT repeating it: the likeliest mistake is passing the Clave itself.
 - **Never commit** `*.pfx`, `*.p12`, `.env`, or anything under `.sii/`. Sessions
   are cookies-only; `.gitignore` blocks them — re-verify before any `git add`.
 - **Audit every state-touching op** via the `AuditSink` port: `{ts, action, rut,

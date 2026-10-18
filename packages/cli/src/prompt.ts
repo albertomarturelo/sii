@@ -5,12 +5,19 @@
 import { createInterface } from 'node:readline';
 import { Writable } from 'node:stream';
 
-/** Injectable so the command tree is testable without real stdin (see program.test.ts). */
+/** Where the CLI's input comes from — injectable so the command tree is testable without real
+ *  stdin or a real environment (see program.test.ts). */
 export interface Prompters {
   /** Visible line prompt (e.g. the RUT). */
   line(question: string): Promise<string>;
   /** Hidden prompt (the Clave) — keystrokes are NOT echoed. */
   hidden(question: string): Promise<string>;
+  /** All of PIPED stdin (`--clave-stdin`, ADR-028), or `null` when stdin is a TTY: a human at
+   *  a terminal is `--console`'s job, with its hidden prompt. */
+  piped(): Promise<string | null>;
+  /** The environment `--clave-env <VAR>` reads. Mutable on purpose: the variable is deleted
+   *  right after the read, so no child process inherits the Clave (ADR-028). */
+  readonly env: Record<string, string | undefined>;
 }
 
 function linePrompt(question: string): Promise<string> {
@@ -42,5 +49,17 @@ function hiddenPrompt(question: string): Promise<string> {
   });
 }
 
-/** Node default prompters (real stdin/stderr). */
-export const nodePrompters: Prompters = { line: linePrompt, hidden: hiddenPrompt };
+async function pipedStdin(): Promise<string | null> {
+  if (process.stdin.isTTY) return null;
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Uint8Array));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/** Node default prompters (real stdin/stderr, the real `process.env`). */
+export const nodePrompters: Prompters = {
+  line: linePrompt,
+  hidden: hiddenPrompt,
+  piped: pipedStdin,
+  env: process.env,
+};
