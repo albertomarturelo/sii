@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { datos, run, runJson } from '../test-helpers.js';
+import { datos, run, runJson, seed } from '../test-helpers.js';
 
 // A synthetic //OK peticionesUsuario response (no SII, no PII), built by the core GWT
 // encoder: petition #900123, materia + two estados (one "en espera de Antecedentes" with
@@ -30,7 +30,7 @@ describe('sii peticiones command (fake runtime, no SII)', () => {
 
   it('peticiones list (--human) prints numbers, estados and the SII note', async () => {
     const rt = okRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'peticiones', 'list', '--human');
     expect(out).toContain('#900123');
     expect(out).toContain('Materia sintética de prueba');
@@ -40,7 +40,7 @@ describe('sii peticiones command (fake runtime, no SII)', () => {
 
   it('peticiones list emits JSON by default (pipeable)', async () => {
     const rt = okRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = await runJson(rt, 'peticiones', 'list');
     expect(json.peticiones).toHaveLength(1);
     expect(json.peticiones[0].numero).toBe(900123);

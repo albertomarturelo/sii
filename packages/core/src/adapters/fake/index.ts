@@ -1,4 +1,8 @@
 // In-memory fakes for tests — never touch the real SII / fs / clock.
+import { HOSTS } from '../../config/index.js';
+import { writeSession } from '../../auth/session.js';
+import { initOperateState } from '../../identity/index.js';
+import type { AccountType } from '../../identity/index.js';
 import type {
   AuditEntry,
   AuditSink,
@@ -15,6 +19,7 @@ import type {
   PortalSession,
   PublicRequest,
   PublicResponse,
+  Runtime,
   SecretStore,
   TextRequest,
 } from '../../seams/index.js';
@@ -62,14 +67,20 @@ export interface FakeSessionScript {
   landingUrl?: string;
   /** Result for `evaluate(expression)`. */
   evaluate?: (expression: string) => unknown;
+  /** The Mi SII identity snapshot (`DatosCntrNow`). Since ADR-027 the auth flows read identity
+   *  from the Mi SII HTML (not `evaluate`), so the fake synthesises that HTML for a
+   *  `requestText(HOSTS.miSii)` from this — falling back to `evaluate` so pre-ADR-027 fixtures
+   *  (`evaluate: datos`) keep working untouched. */
+  datos?: () => unknown;
   /** Result for `requestJson(url, options)` — the SDI facade JSON envelope. */
   requestJson?: (url: string, options?: JsonRequest) => unknown;
   /** Result for `requestForm(url, options)` — an authenticated form-POST (BHE emit,
    *  ADR-017). Return the decoded body string (status 200) or a full PublicResponse. */
   requestForm?: (url: string, options?: FormRequest) => PublicResponse | string;
   /** Result for `requestText(url, options)` — an authenticated raw-body request (GWT-RPC
-   *  reads, ADR-020). Return the decoded body string (status 200) or a full PublicResponse. */
-  requestText?: (url: string, options?: TextRequest) => PublicResponse | string;
+   *  reads, ADR-020). Return the decoded body string (status 200) or a full PublicResponse;
+   *  `undefined` defers to the fake's default (incl. the Mi SII identity synthesis, ADR-027). */
+  requestText?: (url: string, options?: TextRequest) => PublicResponse | string | undefined;
   /** Result for `requestBinary(url, options)` — an authenticated download (F29 PDFs,
    *  ADR-022). Return the raw bytes (content-type defaults to `application/pdf`) or a
    *  full BinaryResponse to script an error page / odd content-type. */
@@ -113,8 +124,20 @@ export class FakePortalSession implements PortalSession {
   async requestText(url: string, options?: TextRequest): Promise<PublicResponse> {
     this.lastTextRequest = options ? { url, options } : { url };
     const r = this.script.requestText?.(url, options);
-    if (r === undefined) return { status: 200, body: '' };
-    return typeof r === 'string' ? { status: 200, body: r } : r;
+    if (r !== undefined) return typeof r === 'string' ? { status: 200, body: r } : r;
+    // Synthesise the Mi SII identity HTML (ADR-027): the auth flows now read `DatosCntrNow`
+    // from the landing's HTML, so a login/whoami/status fixture that set `datos` (or the older
+    // `evaluate: datos`) still serves identity without being rewritten.
+    if (url === HOSTS.miSii) {
+      // Pass a DatosCntrNow-flavoured expression so a fixture that branches its `evaluate` on the
+      // expression (the pre-ADR-027 `evaluate: (e) => e.includes('DatosCntrNow') ? … : …` style)
+      // returns the identity branch, not a map/else branch.
+      const d = this.script.datos?.() ?? this.script.evaluate?.('DatosCntrNow');
+      if (d !== undefined && d !== null) {
+        return { status: 200, body: `<script>var DatosCntrNow = ${JSON.stringify(d)};</script>` };
+      }
+    }
+    return { status: 200, body: '' };
   }
   /** The last requestBinary call — lets a test assert the download URL sent to SII. */
   lastBinaryRequest: { url: string; options?: BinaryRequest } | null = null;
@@ -209,6 +232,27 @@ export class InMemoryFileSink implements FileSink {
     this.files.set(path, bytes);
     return path;
   }
+}
+
+/** Seed an authenticated cookies-only session + operate state directly into a runtime's store
+ *  — so a surface test that just needs "logged in as self" doesn't drive the login command
+ *  (which, since ADR-027, prompts for a Clave on the CLI). Synthetic RUT, no SII touched. */
+export async function seedSession(
+  runtime: Runtime,
+  opts: { rut?: string; accountType?: AccountType } = {},
+): Promise<void> {
+  const rut = opts.rut ?? '11111111-1';
+  const accountType = opts.accountType ?? 'persona';
+  await writeSession(runtime.store, {
+    rut,
+    cookies: { cookies: [] },
+    savedAt: runtime.clock.now().toISOString(),
+  });
+  await initOperateState(runtime.store, {
+    selfRut: rut,
+    accountType,
+    operable: [{ rut, razonSocial: rut, isSelf: true }],
+  });
 }
 
 /** In-memory SecretStore: the keyring stand-in, so a test never reads the real one

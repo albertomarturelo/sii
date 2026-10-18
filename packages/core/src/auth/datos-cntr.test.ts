@@ -1,0 +1,40 @@
+import { describe, it, expect } from 'vitest';
+import { parseDatosCntrNow } from './datos-cntr.js';
+
+// Synthetic Mi SII HTML: the inline DatosCntrNow literal surrounded by the real page's
+// chrome + trailing script (values synthetic — no real PII, ADR-004).
+const miSiiHtml = (inner: string): string =>
+  `<!doctype html><html><head><title>MISII</title></head><body>
+   <script>var DatosCntrNow = ${inner};</script>
+   <script>var Otra = { rut: 999 }; function f(){ return {a:1}; }</script>
+   </body></html>`;
+
+describe('parseDatosCntrNow', () => {
+  it('extracts the balanced object literal, ignoring trailing page script', () => {
+    const html = miSiiHtml(
+      '{"codigoError":0,"contribuyente":{"rut":11111111,"dv":"1","razonSocial":null,' +
+        '"nombres":"Juanita","apellidoPaterno":"Pérez","eMail":"j@example.cl"},"direcciones":[{}]}',
+    );
+    const datos = parseDatosCntrNow(html);
+    expect(datos?.contribuyente?.rut).toBe(11111111);
+    expect(datos?.contribuyente?.dv).toBe('1');
+    expect(datos?.contribuyente?.nombres).toBe('Juanita');
+    expect(datos?.contribuyente?.eMail).toBe('j@example.cl');
+  });
+
+  it('handles a brace inside a string value without breaking the balance', () => {
+    const datos = parseDatosCntrNow(
+      miSiiHtml('{"contribuyente":{"rut":"12","dv":"3","nombres":"A {B} C"}}'),
+    );
+    expect(datos?.contribuyente?.nombres).toBe('A {B} C');
+    expect(datos?.contribuyente?.dv).toBe('3');
+  });
+
+  it('returns null when the object is absent (dead session bounced to the login page)', () => {
+    expect(parseDatosCntrNow('<html><body>Ingreso Mi SII — zeusr login</body></html>')).toBeNull();
+  });
+
+  it('returns null on an unbalanced / unparseable literal rather than throwing', () => {
+    expect(parseDatosCntrNow('<script>var DatosCntrNow = {oops</script>')).toBeNull();
+  });
+});

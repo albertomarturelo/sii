@@ -207,4 +207,11 @@ export interface Runtime {
    *  never by the MCP server's, so that surface has no keyring BY CONSTRUCTION and not
    *  by "no code happens to call it" (ADR-006 / ADR-025). */
   readonly secrets?: SecretReader;
+  /** OPTIONAL JS engine (the lazy Playwright driver). The default `portal` is the browser-free
+   *  HTTP driver (ADR-027); a surface that must run SII's OWN page JS (BTE inline maps, MIPYME
+   *  `validaFacEx`) acquires this via `withSession(…, { engine: 'browser' })`, and the headed /
+   *  www2 logins (MCP-only) use it directly. Absent ⇒ those paths raise `BrowserRequiredError`.
+   *  `createNodeRuntime` wires the Playwright driver here; constructing it is free (it lazy-loads
+   *  Chromium only on first browser call), so a runtime that never needs JS never loads it. */
+  readonly browser?: PortalDriver;
 }

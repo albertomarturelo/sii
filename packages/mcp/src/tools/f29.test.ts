@@ -36,7 +36,7 @@ describe('@albertomarturelo/sii-mcp f29 tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({
       name: 'f29_formulario',
@@ -96,7 +96,7 @@ describe('@albertomarturelo/sii-mcp f29 tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({
       name: 'f29_pdf',

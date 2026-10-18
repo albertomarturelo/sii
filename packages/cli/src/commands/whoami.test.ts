@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { run, runJson } from '../test-helpers.js';
+import { run, runJson, seed } from '../test-helpers.js';
 
 // Persona DatosCntrNow WITH email — whoami surfaces razón social/nombre + email.
 // Synthetic, Mod-11-valid RUT 11.111.111-1 (CONVENTIONS).
@@ -29,7 +29,7 @@ function makeRuntime(): Runtime {
 describe('sii whoami command (fake runtime, no SII)', () => {
   it('whoami --human shows RUT, tipo, nombre and email of the authenticated account', async () => {
     const rt = makeRuntime();
-    await run(rt, 'auth', 'login'); // seed the session
+    await seed(rt); // seed the session
     const out = await run(rt, 'whoami');
     expect(out).toContain('11.111.111-1');
     expect(out).toContain('Nombre: Juan Pérez');
@@ -38,7 +38,7 @@ describe('sii whoami command (fake runtime, no SII)', () => {
 
   it('whoami emits the curated JSON by default', async () => {
     const rt = makeRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, 'whoami')) as {
       rut: string;
       accountType: string;

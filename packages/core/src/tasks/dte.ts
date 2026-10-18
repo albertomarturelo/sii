@@ -14,7 +14,7 @@
 // PII: a factura is receptor + emisor identity end to end, so rows are CURATED with NO `raw`
 // (ADR-004), and the audit receipt carries only the empresa RUT, the borrador id and counts —
 // never the receptor, the montos or the item glosas (ADR-006).
-import { withSession } from '../auth/index.js';
+import { withBrowserSession } from '../auth/index.js';
 import { recordAudit } from '../audit/index.js';
 import { Rut } from '../rut/index.js';
 import { fetchDteAutorizados } from '../portal/dte-public.js';
@@ -255,7 +255,7 @@ export async function dteEmpresas(
     // The retry wraps the READ only. Wrapping `withSession` would tear down and rebuild the
     // browser context on every attempt — and, worse, replay `mipeSelEmpresa.cgi`, which is
     // server-side session state, not a read.
-    const res = await withSession(runtime, (session) =>
+    const res = await withBrowserSession(runtime, (session) =>
       readOnlyRetry(runtime, () =>
         fetchEmpresas(session, tipoDte, () => runtime.clock.sleep(pacingMs())),
       ),
@@ -277,7 +277,7 @@ export async function dteBorradorList(
   const tipoDte = assertTipo(args.tipoDte);
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
+    const res = await withBrowserSession(runtime, async (session) => {
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
         runtime.clock.sleep(pacingMs()),
       );
@@ -311,7 +311,7 @@ export async function dteBorradorSave(
   const { empresa, tipoDte, input } = validate(runtime, args);
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
+    const res = await withBrowserSession(runtime, async (session) => {
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
         runtime.clock.sleep(pacingMs()),
       );
@@ -364,7 +364,7 @@ export async function dteBorradorDelete(
   }
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
+    const res = await withBrowserSession(runtime, async (session) => {
       const emp = await resolveAndSelectEmpresa(session, empresa, hinted, () =>
         runtime.clock.sleep(pacingMs()),
       );
@@ -431,7 +431,7 @@ export async function dtePreviewPdf(
   }
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
+    const res = await withBrowserSession(runtime, async (session) => {
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
         runtime.clock.sleep(pacingMs()),
       );
@@ -496,7 +496,7 @@ export async function dteEmitidos(
   }
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
+    const res = await withBrowserSession(runtime, async (session) => {
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
         runtime.clock.sleep(pacingMs()),
       );
@@ -566,7 +566,7 @@ export async function dtePdf(
   }
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session) => {
+    const res = await withBrowserSession(runtime, async (session) => {
       const emp = await resolveAndSelectEmpresa(session, empresa, tipoDte, () =>
         runtime.clock.sleep(pacingMs()),
       );

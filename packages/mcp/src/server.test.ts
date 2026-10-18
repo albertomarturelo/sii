@@ -62,14 +62,18 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
 
   it('auth_login www2=true mints the second layer and reports it (still no password arg)', async () => {
     let www2Done = false;
-    const status = (url: string) =>
-      url.includes('/app/session/status') && www2Done
-        ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT', seconds: 5999 })
-        : { status: 401 as const, body: '' };
+    // Only the /app/session/status URL is scripted; `undefined` for Mi SII lets the fake
+    // synthesise the identity HTML from `datos` (ADR-027 moved identity off `evaluate`).
+    const status = (url: string): { status: 401; body: string } | string | undefined =>
+      url.includes('/app/session/status')
+        ? www2Done
+          ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT', seconds: 5999 })
+          : { status: 401 as const, body: '' }
+        : undefined;
     const runtime = makeRuntime({
       loginSession: {
         landingUrl: HOSTS.miSii,
-        evaluate: datos,
+        datos,
         storageState: () =>
           www2Done
             ? {
@@ -79,12 +83,11 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
               }
             : { cookies: [{ name: 'TOKEN', domain: '.sii.cl', path: '/', value: 'c' }] },
         requestText: (url: string) => {
-          const r = status(url);
           if (!www2Done && url.includes('/app/session/status')) www2Done = true;
-          return r;
+          return status(url);
         },
       },
-      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos, requestText: status },
+      restoreSession: { landingUrl: HOSTS.miSii, datos, requestText: status },
     });
     const client = await connect(runtime);
     const text = toolText(await client.callTool({ name: 'auth_login', arguments: { www2: true } }));

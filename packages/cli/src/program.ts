@@ -12,7 +12,6 @@ import {
   formatOperableEntry,
   formatRut as fmt,
   listOperable,
-  login,
   logout,
   operate,
   operateSelf,
@@ -30,7 +29,7 @@ import { emit, out, setOutputMode, withOutputFlags } from './io.js';
 const www2Line = (w: AuthWww2Status): string =>
   w.authenticated
     ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
-    : 'Sesión www2: no iniciada (`sii auth login --www2` para la Carpeta Tributaria).';
+    : 'Sesión www2: no iniciada (la Carpeta Tributaria se usa desde el MCP; ADR-027).';
 
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
@@ -42,7 +41,6 @@ import { registerF29 } from './commands/f29.js';
 import { registerDte } from './commands/dte.js';
 import { registerBte } from './commands/bte.js';
 import { registerPeticiones } from './commands/peticiones.js';
-import { registerCarpeta } from './commands/carpeta.js';
 
 // The published version, read from this package's own package.json at runtime (one
 // level up from dist/) so `sii --version` never drifts from the release.
@@ -73,20 +71,14 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
   auth
     .command('login')
     .description(
-      'Inicia sesión con Clave Tributaria (navegador por defecto; --console por terminal, ' +
-        '--keyring desde el llavero del sistema). --www2 añade la sesión de la plataforma www2 ' +
-        '(Carpeta Tributaria): tras el login, el mismo navegador abre la página OAuth del SII ' +
-        'para que escribas ahí tu Clave; solo se guardan cookies (ADR-026).',
-    )
-    .option(
-      '--www2',
-      'Añade la sesión www2 (segunda capa, ~100 min): la escribes tú en la página OAuth del ' +
-        'SII, en el navegador. Escribirás la Clave DOS veces (login clásico y página OAuth), ' +
-        'porque el navegador se abre sin cookies. Solo con el login por navegador.',
+      'Inicia sesión con Clave Tributaria, sin navegador (ADR-027): introduces RUT y Clave por ' +
+        'la terminal y se guardan solo cookies. --keyring lee la Clave del llavero del sistema ' +
+        '(uso desatendido). El login con navegador y la sesión www2 (Carpeta Tributaria) viven ' +
+        'en el MCP, no en el CLI.',
     )
     .option(
       '--console',
-      'Introduce RUT y Clave por la terminal (sin navegador); guarda solo cookies.',
+      'Introduce RUT y Clave por la terminal (es el comportamiento por defecto; alias explícito).',
     )
     .option(
       '--keyring',
@@ -96,66 +88,45 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
         'omites --rut se usa el RUT de la última sesión local; nunca pregunta (uso desatendido).',
     )
     .option('--rut <rut>', 'RUT para el login por consola o llavero (si se omite, se pregunta).')
-    .action(
-      async (opts: { console?: boolean; keyring?: boolean; rut?: string; www2?: boolean }) => {
-        if (opts.www2 && (opts.console || opts.keyring)) {
-          // The www2 layer is minted ONLY by the user at SII's OAuth page (reCAPTCHA; ADR-026 §1):
-          // there is no headless variant, so the flag is refused up front, before any attempt.
+    .action(async (opts: { console?: boolean; keyring?: boolean; rut?: string }) => {
+      if (opts.keyring) {
+        // --keyring exists for SCRIPTED, unattended use (ADR-025), so it must never block
+        // on a prompt: without --rut it falls back to the last local session's RUT, and
+        // failing that it says which flag to pass. The RUT is Mod-11-checked in the task,
+        // so a typo never becomes a failed SII attempt (ADR-004). ONE attempt, no retry.
+        const rutInput = opts.rut ?? (await authStatus(runtime)).rut;
+        if (!rutInput) {
           throw new ValidationError(
-            '--www2 solo funciona con el login por navegador: la sesión www2 la escribes tú en la ' +
-              'página OAuth del SII (reCAPTCHA). Quita --console/--keyring.',
+            'No hay sesión local previa de la que tomar el RUT. Indica `--rut <rut>`.',
           );
         }
-        if (opts.keyring) {
-          // --keyring exists for SCRIPTED, unattended use (ADR-025), so it must never block
-          // on a prompt: without --rut it falls back to the last local session's RUT, and
-          // failing that it says which flag to pass. The RUT is Mod-11-checked in the task,
-          // so a typo never becomes a failed SII attempt (ADR-004). ONE attempt, no retry.
-          const rutInput = opts.rut ?? (await authStatus(runtime)).rut;
-          if (!rutInput) {
-            throw new ValidationError(
-              'No hay sesión local previa de la que tomar el RUT. Indica `--rut <rut>`.',
-            );
-          }
-          const result = await keyringLogin(runtime, { rut: rutInput });
-          emit(result, () =>
-            out(
-              result.reason === 'already_authenticated'
-                ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-                : `Sesión iniciada como ${fmt(result.rut)} (Clave leída del llavero).`,
-            ),
-          );
-          return;
-        }
-        if (opts.console) {
-          // Validate the RUT (Mod-11) LOCALLY before any attempt — a malformed RUT must
-          // never become a wasted login that counts toward account lockout (ADR-004).
-          const rutInput = opts.rut ?? (await prompters.line('RUT: '));
-          const rut = Rut.parse(rutInput).canonical;
-          // The Clave is ALWAYS prompted (hidden) — never a flag/arg (ADR-010).
-          const clave = await prompters.hidden('Clave: ');
-          if (!clave) throw new LoginFailedError('Clave vacía. No se intentó iniciar sesión.');
-          const result = await consoleLogin(runtime, { rut, clave });
-          emit(result, () =>
-            out(
-              result.reason === 'already_authenticated'
-                ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-                : `Sesión iniciada como ${fmt(result.rut)}.`,
-            ),
-          );
-          return;
-        }
-        const result = await login(runtime, opts.www2 ? { www2: true } : {});
-        emit(result, () => {
+        const result = await keyringLogin(runtime, { rut: rutInput });
+        emit(result, () =>
           out(
             result.reason === 'already_authenticated'
               ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
-              : `Sesión iniciada como ${fmt(result.rut)}.`,
-          );
-          if (result.www2) out(www2Line(result.www2));
-        });
-      },
-    );
+              : `Sesión iniciada como ${fmt(result.rut)} (Clave leída del llavero).`,
+          ),
+        );
+        return;
+      }
+      // Default (and the explicit --console alias): the HTTP console login (ADR-027). No browser.
+      // Validate the RUT (Mod-11) LOCALLY before any attempt — a malformed RUT must never
+      // become a wasted login that counts toward account lockout (ADR-004).
+      const rutInput = opts.rut ?? (await prompters.line('RUT: '));
+      const rut = Rut.parse(rutInput).canonical;
+      // The Clave is ALWAYS prompted (hidden) — never a flag/arg (ADR-010).
+      const clave = await prompters.hidden('Clave: ');
+      if (!clave) throw new LoginFailedError('Clave vacía. No se intentó iniciar sesión.');
+      const result = await consoleLogin(runtime, { rut, clave });
+      emit(result, () =>
+        out(
+          result.reason === 'already_authenticated'
+            ? `Ya tienes una sesión activa como ${fmt(result.rut)}.`
+            : `Sesión iniciada como ${fmt(result.rut)}.`,
+        ),
+      );
+    });
 
   auth
     .command('status')
@@ -247,7 +218,6 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
   registerDte(program, runtime);
   registerBte(program, runtime);
   registerPeticiones(program, runtime);
-  registerCarpeta(program, runtime);
 
   // Make `--json`/`--human` parse after a subcommand too (`sii f22 status --human`), by
   // adding them to every leaf command — after the register fns have built their subtrees.

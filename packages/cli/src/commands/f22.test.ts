@@ -6,7 +6,7 @@ import {
   testing,
   type Runtime,
 } from '@albertomarturelo/sii-core';
-import { datos, run, runJson } from '../test-helpers.js';
+import { datos, run, runJson, seed } from '../test-helpers.js';
 
 describe('sii f22 command (fake runtime, no SII)', () => {
   const BUSCA = {
@@ -90,7 +90,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('f22 status <año> shows folio/estado + only the curated (non-PII) códigos', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f22', 'status', '2025');
     expect(out).toContain('F22 2025');
     expect(out).toContain('Estado: Vigente');
@@ -101,7 +101,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('f22 status (no year) shows the multi-year estado overview', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f22', 'status', '--years', '3');
     expect(out).toContain('estado por año');
     expect(out).toContain('2026  Vigente');
@@ -110,7 +110,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('f22 formulario <año> prints the complete form grouped (ingresos/deducciones/retenciones/resultado/otros)', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f22', 'formulario', '2025');
     expect(out).toContain('(formulario)');
     expect(out).toContain('Ingresos:');
@@ -152,7 +152,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('f22 observaciones <año> lists the observación códigos + ayuda URLs', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f22', 'observaciones', '2025');
     expect(out).toContain('observaciones');
     expect(out).toContain('B102');
@@ -162,7 +162,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('f22 historial <año> lists the events most-recent-first with fecha + glosa', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f22', 'historial', '2025');
     expect(out).toContain('(historial)');
     expect(out).toContain('16/04/2025'); // most recent first
@@ -174,7 +174,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('JSON default: `f22 historial <año>` emits the events array verbatim', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, 'f22', 'historial', '2025')) as {
       folios: string[];
       eventos: { codigo: string; fecha: string | null; glosa: string | null }[];
@@ -208,7 +208,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
         },
       }),
     };
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f22', 'historial', '2025');
     expect(out).toContain('0 evento(s).');
     // Framed as SII-side, but the verbatim message is preserved (ADR-004).
@@ -218,7 +218,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, 'f22', 'status', '2025')) as {
       rut: string;
       anio: string;
@@ -236,7 +236,7 @@ describe('sii f22 command (fake runtime, no SII)', () => {
 
   it('JSON default: `f22 formulario <año>` carries `grupos` as structured data', async () => {
     const rt = makeF22Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, 'f22', 'formulario', '2025')) as {
       grupos: { ingresos: { codigo: string }[]; resultado: { codigo: string }[] };
     };

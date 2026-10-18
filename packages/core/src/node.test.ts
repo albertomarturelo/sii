@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FileAuditSink,
   FileKeyValueStore,
+  HttpPortalDriver,
   KeyringSecretStore,
   PlaywrightPortalDriver,
   SystemClock,
@@ -18,7 +19,9 @@ describe('createNodeRuntime', () => {
     expect(runtime.clock).toBeInstanceOf(SystemClock);
     expect(runtime.audit).toBeInstanceOf(FileAuditSink);
     expect(runtime.store).toBeInstanceOf(FileKeyValueStore);
-    expect(runtime.portal).toBeInstanceOf(PlaywrightPortalDriver);
+    // Default portal is the browser-free HTTP driver; the Playwright engine is `browser` (ADR-027).
+    expect(runtime.portal).toBeInstanceOf(HttpPortalDriver);
+    expect(runtime.browser).toBeInstanceOf(PlaywrightPortalDriver);
   });
 
   it('does NOT default a keyring: only the CLI wires one (ADR-006 / ADR-025)', () => {
@@ -37,7 +40,7 @@ describe('createNodeRuntime', () => {
     expect(runtime.clock).toBe(clock);
     expect(runtime.store).toBe(store);
     expect(runtime.audit).toBeInstanceOf(FileAuditSink);
-    expect(runtime.portal).toBeInstanceOf(PlaywrightPortalDriver);
+    expect(runtime.portal).toBeInstanceOf(HttpPortalDriver);
   });
 
   it('accepts a fully overridden runtime (no Node adapter reached)', () => {

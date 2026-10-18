@@ -27,12 +27,15 @@ describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, n
       audit: new testing.RecordingAuditSink(),
       store: new testing.InMemoryKeyValueStore(),
       portal: new testing.FakePortalDriver({
-        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: { landingUrl: HOSTS.miSii, evaluate },
+      }),
+      // bte_list reads SII's inline JS maps, so it runs on the browser engine (ADR-027).
+      browser: new testing.FakePortalDriver({
         restoreSession: { landingUrl: HOSTS.miSii, evaluate },
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'bte_list', arguments: { periodo: '2026-05' } });
     const parsed = JSON.parse(toolText(res)) as {
@@ -92,7 +95,7 @@ describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, n
   it('bte_emit_preview computes retención/líquido without issuing (readOnlyHint)', async () => {
     const rt = emitRuntime();
     const client = await connect(rt);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(rt);
     const res = await client.callTool({ name: 'bte_emit_preview', arguments: emitInput });
     const parsed = JSON.parse(toolText(res)) as { liquido: number };
     expect(parsed.liquido).toBe(862_500);
@@ -110,7 +113,7 @@ describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, n
   it('bte_emit requires confirmar + a matching montoTotalConfirmacion; then issues', async () => {
     const rt = emitRuntime();
     const client = await connect(rt);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(rt);
 
     // Mismatched total → error, no issue.
     const bad = await client.callTool({
