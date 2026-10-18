@@ -281,13 +281,17 @@ export class HttpPortalDriver implements PortalDriver {
   }
 
   async requestPublic(url: string, options: PublicRequest = {}): Promise<PublicResponse> {
-    // UNAUTHENTICATED public consulta (ADR-014): a cold request, no jar, no session — identical
-    // to the Playwright adapter's own `requestPublic` (which already used Node fetch).
-    const headers: Record<string, string> = { ...options.headers };
+    // UNAUTHENTICATED public consulta (ADR-014): a cold request, no jar, no session. Headers are
+    // built through `Headers` (case-insensitive) so a caller-supplied `content-type` can't collide
+    // with the default and get appended into a duplicate — the class of bug that 500'd www4 on the
+    // authenticated path (GH live validation 2026-10-18); `Headers.has` is case-insensitive.
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(options.headers ?? {})) headers.set(k, v);
     let body: string | undefined;
     if (options.form) {
       body = new URLSearchParams(options.form).toString();
-      headers['Content-Type'] ??= 'application/x-www-form-urlencoded';
+      if (!headers.has('content-type'))
+        headers.set('content-type', 'application/x-www-form-urlencoded');
     }
     const response = await this.fetchImpl(url, {
       method: options.method ?? 'POST',
