@@ -31,3 +31,5 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 024 | [Surfaces are named by SII artifact; portal and auth mode are implementation axes](024-surfaces-named-by-artifact.md) | Accepted | 2026-09-09 |
 | 025 | [Keyring `SecretStore` — the Clave from the OS keyring, explicit login only](025-keyring-secret-store.md) | Accepted | 2026-09-09 |
 | 026 | [The www2 app session — a second cookies-only login, minted only by the user at SII's OAuth page](026-www2-app-session-login.md) | Accepted | 2026-09-12 |
+| 027 | [HTTP `PortalDriver` as the default; the CLI never needs a human at a browser](027-http-portal-driver.md) | Accepted | 2026-10-18 |
+| 028 | [Non-interactive login — `--clave-env` / `--clave-stdin`, `--if-needed`, a rejection latch](028-non-interactive-login.md) | Accepted | 2026-10-18 |

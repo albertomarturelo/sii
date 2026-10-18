@@ -7,6 +7,8 @@ Accepted — 2026-06-27. Lineage: sii-py ADR-025 (browser login), sii-py ADR-019
 PYTHON project's numbers, not this repo's. Built on the ADR-003 seams
 (`SecretStore` / `SessionStore` / `PortalDriver`). The keyring fallback this ADR
 leaves open is chosen and implemented by **ADR-025** (this repo).
+**Amended by ADR-027 (2026-10-18):** the browser login is now the MCP's only; the CLI has
+no headed login (its default is the HTTP console login). The no-Clave-over-MCP rule stands.
 
 ## Context
 

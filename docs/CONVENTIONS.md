@@ -37,6 +37,18 @@ Python `sii-cli`, adapted to TypeScript.
   `@albertomarturelo/sii-core` with Node default implementations; tests inject fakes so they
   never touch the real SII / keyring / clock. The core is otherwise a normal
   Node library (it may use Node APIs directly). (ADR-003)
+- **The default `portal` is HTTP; a JS engine is an explicit, optional capability
+  (ADR-027).** `HttpPortalDriver` (Node `fetch` + an in-house cookie jar) backs every
+  `request*` primitive, and its `goto` is a redirect-following GET. Its `evaluate` throws
+  `BrowserRequiredError`.
+  - A surface may ask for the browser (`withSession(…, { engine: 'browser' })`) ONLY when
+    SII's own page JS must run: inline JS maps (BTE `list`) or an in-page validator
+    (MIPYME `validaFacEx`).
+  - In the CLI that browser is ALWAYS headless. **No CLI command may need a human at a
+    browser window**, so the headed login and `--www2` are MCP-only.
+  - If the data ships as a JSON literal in the HTML (e.g. `DatosCntrNow`), extract and
+    `JSON.parse` it, zod-validated. Never request the browser for that, and never
+    upgrade to it silently.
 - **A seam only ONE surface may use is wired in THAT surface's composition root, never
   as a `createNodeRuntime` default.** Both surfaces build from `createNodeRuntime()`, so a
   default there hands the capability to the MCP server too. Keeping a task off the main
@@ -86,6 +98,10 @@ Python `sii-cli`, adapted to TypeScript.
 - **Portal session detection is URL-based, not DOM-based.** Landing on
   `zeusr.sii.cl` means not authenticated; any other host means we reached the
   destination. URL is part of the auth contract; DOM markers are a guess.
+  **The HTTP login is the one exception: success and rejection both answer `200` on
+  `zeusr.sii.cl`** (observed 2026-10-17). Success there means the session cookies were
+  set AND the body's navigation leaves `LOGIN_HOST`, and the Mi SII identity read that
+  follows is the proof. (ADR-027)
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The
@@ -228,14 +244,15 @@ Python `sii-cli`, adapted to TypeScript.
 - **`www2.sii.cl/app/*` surfaces need the www2 APP SESSION, a second cookies-only layer
   (ADR-026).** The classic `.sii.cl` jar reaches www1/www3/www4/loa but NOT the `/app/<name>-api`
   facades (bare 401). That layer is the httpOnly `.sii.cl` pair `X-SII-STATE-TYPE` + a state cookie `X-SII-STATE-<X>` (suffix varies), minted
-  ONLY by the user at SII's `oauthsii-v1` page (headed, reCAPTCHA — never headless, never over
-  MCP), persisted in the same session file. A www2 facade FIRST reads `GET /app/session/status`
+  ONLY by the user at SII's `oauthsii-v1` page (headed, reCAPTCHA — never headless),
+  persisted in the same session file. A www2 facade FIRST reads `GET /app/session/status`
   (the SPA's own liveness read), keys every API path by its `userId` verbatim, and on a non-200
-  raises `Www2SessionError` (a `NotAuthenticated`, actionable: "run `sii auth login --www2`"),
-  never a warm-up retry. The read lives ONCE in `portal/www2-session.ts`; the layer is minted by
-  `sii auth login --www2` (a second headed cookies-only login at SII's OAuth page — never headless,
-  never over MCP as a password; merged into the same session file). `carpeta` is the template; the
-  wire findings are in `sii-contract/carpeta-tributaria.md` and `sii-contract/auth-login.md`.
+  raises `Www2SessionError` (a `NotAuthenticated`, actionable), never a warm-up retry. The read
+  lives ONCE in `portal/www2-session.ts`. **Since ADR-027 the layer is minted ONLY by the MCP's
+  `auth_login` (`www2` flag)** — the headed OAuth login left the CLI (no CLI command may need a
+  browser window), still never a password over MCP — so **every www2 surface (Carpeta) is
+  MCP-only**, and `Www2SessionError` names that route. `carpeta` is the template; the wire
+  findings are in `sii-contract/carpeta-tributaria.md` and `sii-contract/auth-login.md`.
 - **Three authorization modes, not two (ADR-023).** Besides *body-RUT* (RCV) and
   *session-keyed* (F22/F29/BHE), a surface can be **empresa-keyed**: the MIPYME facturación
   portal has its OWN authorized-empresa list (`mipeSelEmpresa.cgi` — the empresas that
@@ -282,13 +299,24 @@ Python `sii-cli`, adapted to TypeScript.
   either the user typing into SII's real page (browser, cookies-only) or a value
   in the OS keyring behind the `SecretStore` seam. No MCP tool accepts a
   password argument. (ADR-006)
-- **Secrets are captured via a hidden terminal prompt — never a flag/env/arg.**
-  The CLI `--console` login prompts the Clave with echo muted; it never accepts
-  the Clave as a CLI flag, env var, or argument (no shell-history / argv /
-  process-list leak). It is held in memory for one attempt, then discarded; only
-  cookies persist. A task that takes a Clave (`consoleLogin`) is exported from the
-  CLI-only `@albertomarturelo/sii-core/cli` subpath, NOT the main barrel, so the MCP server cannot
-  wire it. (ADR-006 / ADR-010)
+- **The Clave never arrives as a flag VALUE or an argument, and every source is named
+  explicitly.** The sources are:
+  - the hidden prompt (`--console`, ADR-010);
+  - the OS keyring (`--keyring`, ADR-025);
+  - an environment variable **named on the command line** (`--clave-env <VAR>`: no
+    default name, deleted from `process.env` after the read);
+  - stdin (`--clave-stdin`, refused on a TTY).
+
+  The last two come from ADR-028. There is never a fallback from one source to another,
+  and never a `--clave <value>`, which would leak through argv, shell history and agent
+  transcripts. The Clave is held in memory for one attempt, then discarded; only
+  cookies persist.
+  - Every Clave-taking task (`consoleLogin`, `keyringLogin`, the ADR-028 ones) is
+    exported from the CLI-only `@albertomarturelo/sii-core/cli` subpath, NOT the main
+    barrel, so the MCP server cannot wire it.
+  - A non-interactive login honours the rejection latch (`~/.sii/login-blocked`): after
+    SII rejects a Clave, unattended logins refuse without contacting SII until a human
+    logs in or runs `sii auth unblock`. (ADR-006 / ADR-010 / ADR-028)
 - **Never commit** `*.pfx`, `*.p12`, `.env`, or anything under `.sii/`. Sessions
   are cookies-only; `.gitignore` blocks them — re-verify before any `git add`.
 - **Audit every state-touching op** via the `AuditSink` port: `{ts, action, rut,
