@@ -144,13 +144,45 @@ The POST to `CAutInicio.cgi` carries `{ rut, dv, referencia, clave, 411 }`.
 
 ### Implication for the implementation (recommended mechanism)
 
-**Headless form-fill, NOT a hand-built POST.** Fill `#rutcntr` + `#clave`, click
-`#bt_ingresar`, and let SII's own JS derive `rut`/`dv`/`referencia` and submit.
-Reverse-engineering the POST body is fragile (the JS owns the rut/dv split and
-the referencia/code fields) and buys nothing — there is **no CAPTCHA and no
-CSRF token** to defeat (`referencia` is just a redirect target). This reuses the
-existing Playwright `PortalDriver` seam (a `credentialLogin` sibling to
-`interactiveLogin`).
+**Superseded by ADR-027 (see below): the hand-built HTTP POST is the mechanism now.**
+The 2026-06-28 note read: "Headless form-fill, NOT a hand-built POST … reverse-engineering
+the POST body is fragile". A live spike on 2026-10-17 disproved the fragility concern and
+confirmed the hand-built POST works, so the default `credentialLogin` is now HTTP, no browser.
+
+### HTTP credential login (ADR-027, observed 2026-10-17 — one attempt, owner's own account)
+
+The default `PortalDriver` is browser-free: `HttpPortalDriver.credentialLogin`
+(`adapters/node/http.ts`) does a warm-up `GET` of the login page, then **exactly one**
+`POST` to `CAutInicio.cgi` of the five fields the page JS computes:
+
+| field | value |
+| --- | --- |
+| `rut` | RUT body, leading zeros stripped |
+| `dv` | check digit |
+| `referencia` | the post-login destination (Mi SII) — a redirect target, NOT a CSRF token |
+| `411` | empty (the opaque `#code`, sent blank) |
+| `rutcntr` | the dotted RUT (`12.345.678-9`), as `formatoRut` renders it |
+| `clave` | the Clave Tributaria |
+
+Headers: `Content-Type: application/x-www-form-urlencoded`, `Origin`/`Referer` = the login
+host/page. **No CAPTCHA, no CSRF token** on this classic form.
+
+Observed on the spike:
+
+- The warm-up `GET` sets the F5 WAF's `TS*` cookies; the `POST` is accepted with them present.
+- **Success is NOT a redirect**: `200 text/html` on `zeusr.sii.cl` that sets the session via
+  `Set-Cookie` (`TOKEN`, `CSESSIONID`, `NETSCAPE_LIVEWIRE.*`, `RUT_NS`/`DV_NS`) and the body
+  JS-navigates to `referencia`. **A wrong Clave also answers `200` on the same host** and renders
+  the error página (the código table above) — so credentialLogin decides from the body (SII's
+  error código ⇒ `LoginFailedError`) plus the session cookie, NOT the host. The caller's Mi SII
+  identity read is the final proof.
+- The resulting jar reached Mi SII (`DatosCntrNow` as a JSON literal — parsed from the HTML, no
+  JS engine) and a www4 SDI POST (`getDcvEmpresasAutorizadas` → `codRespuesta 0`).
+- **Queue-it**: a `302` to `salaespera.sii.cl` (SII's peak-load waiting room) ⇒ `LoginQueuedError`,
+  surfaced and never retried (an HTTP client cannot pass it).
+
+The headed browser login (`interactiveLogin`) and `--www2` stay on the Playwright engine, now
+MCP-only (ADR-027): the CLI never needs a human at a browser window.
 
 ### Client-side error rendering
 

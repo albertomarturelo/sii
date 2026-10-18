@@ -23,15 +23,18 @@ These are intended choices; versions are pinned when first installed.
   transport. The stdio server is what Claude Code and Claude Desktop both
   connect to. Expose Resources (identity/config), Tools (actions), and Prompts
   (contador workflows).
-- **`playwright`** `^1.49.0` (1.61.1 installed) — portal scraping (the portal is
-  JS-heavy and session-stateful). Backs the default `PortalDriver` adapter
-  (`@albertomarturelo/sii-core` `adapters/node/portal.ts`): headed Chromium for `interactiveLogin`,
-  headless cookies-only for `restore`. Tests inject a fake instead. Chromium binary
-  via `pnpm --filter @albertomarturelo/sii-core exec playwright install chromium`. (ADR-008)
-  **An OPTIONAL peer of `@albertomarturelo/sii-core` since ADR-016** (lazy-loaded by the
-  `./node` subpath's default driver; core keeps it as a devDependency for typecheck +
-  in-workspace resolution); `@albertomarturelo/sii-cli` and `@albertomarturelo/sii-mcp` declare it as their own
-  dependency. An external consumer that injects its own `PortalDriver` never installs it.
+- **`playwright`** `^1.49.0` (1.61.1 installed) — the JS engine, NO LONGER the default
+  portal (ADR-027). `createNodeRuntime` defaults `portal` to the browser-free
+  `HttpPortalDriver` (Node `fetch` + an in-house cookie jar) and wires Playwright as the
+  optional `Runtime.browser` engine, used only where SII's OWN page JS must run: BTE `list`
+  (inline maps), MIPYME (`validaFacEx`), and the headed / www2 logins (MCP-only). Backs
+  `adapters/node/portal.ts`; Chromium via
+  `pnpm --filter @albertomarturelo/sii-core exec playwright install chromium`, needed only by
+  those surfaces. **An OPTIONAL peer of `@albertomarturelo/sii-core` since ADR-016** (lazy-loaded;
+  constructing `PlaywrightPortalDriver` never imports it — only a browser call does); core
+  keeps it as a devDependency for typecheck. `@albertomarturelo/sii-cli` and `@albertomarturelo/sii-mcp`
+  still declare it, but the CLI no longer needs a browser for login (ADR-027) — a bare
+  install runs login + every HTTP surface without Chromium. (ADR-008 / ADR-016 / ADR-027)
 - **`commander`** `^12.1.0` — the CLI framework for `@albertomarturelo/sii-cli` (ADR-008). Nested
   subcommands (`sii auth login`, `sii operate`). Lives in `@albertomarturelo/sii-cli` only;
   `@albertomarturelo/sii-core` never imports it.
