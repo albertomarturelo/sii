@@ -54,8 +54,15 @@ function hiddenPrompt(question: string): Promise<string> {
 
 async function pipedStdin(): Promise<string | null> {
   if (process.stdin.isTTY) return null;
+  // ONE line (ADR-028): stop at the first newline instead of waiting for EOF, which an agent
+  // harness that keeps stdin open as a pipe may never send. Breaking out destroys the stream,
+  // which is fine: nothing else in this process reads stdin.
   const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk as Uint8Array));
+  for await (const chunk of process.stdin) {
+    const buf = Buffer.from(chunk as Uint8Array);
+    chunks.push(buf);
+    if (buf.includes(0x0a)) break;
+  }
   return Buffer.concat(chunks).toString('utf8');
 }
 
