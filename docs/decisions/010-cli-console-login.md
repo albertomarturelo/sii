@@ -6,6 +6,8 @@ Accepted — 2026-06-28. Refines ADR-006: adds a CLI-only console **input method
 for the same cookies-only session. It does NOT adopt the keyring credential-store
 path (that stays optional and deferred under ADR-006; ADR-008's keyring-lib defer
 is untouched). Lineage: sii-py ADR-019 (only login mints).
+**Mechanism superseded by ADR-027 (2026-10-18):** the console login is now a hand-built
+HTTP POST (Alternative 2 below, re-opened by a live spike). The input rules here stand.
 
 ## Context
 
