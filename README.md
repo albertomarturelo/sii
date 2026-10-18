@@ -35,10 +35,9 @@ nombradas en la línea de comandos y sin respaldo implícito de una a otra:
 - una **variable de entorno que nombras** (`--clave-env <VAR>`);
 - **stdin** (`--clave-stdin`).
 
-Las dos últimas existen para el uso desatendido (cron, CI, agentes;
-[ADR-028](docs/decisions/028-non-interactive-login.md)), ver
-[Uso autónomo](#uso-autónomo-agentes-cron-ci). La CLI nunca escribe la Clave en ningún
-lado. El servidor MCP no tiene acceso al llavero ni recibe la Clave: su `auth_login` abre
+Las dos últimas existen para el uso desatendido (cron, CI, agentes). Las reglas del
+login y del bloqueo tras un rechazo están en [Cómo funciona el login](#cómo-funciona-el-login).
+La CLI nunca escribe la Clave en ningún lado. El servidor MCP no tiene acceso al llavero ni recibe la Clave: su `auth_login` abre
 tu navegador en la página real del SII.
 
 **Carpeta Tributaria**: `carpeta instituciones` lee la lista vigente de instituciones
@@ -163,35 +162,57 @@ confirmación explícita.
 > y el Portal MIPYME (`sii dte`), donde debe correr el JS del propio SII. El paquete npm
 > no descarga navegadores automáticamente.
 
+## Cómo funciona el login
+
+Tres reglas, para la CLI y para el MCP. Todo lo demás es detalle.
+
+1. **`login` crea una sesión a partir de la Clave**, y de dónde sale la Clave se dice
+   siempre en el comando (consola, `--keyring`, `--clave-env`, `--clave-stdin`). En disco
+   quedan solo cookies.
+2. **Si ya hay sesión viva para ese RUT, `login` no envía nada.** Si la sesión viva es de
+   otro RUT, es un error: cambiar de cuenta es `logout` y luego `login`.
+3. **Si el SII rechaza la Clave, los logins sin persona dejan de intentar.** Se escribe un
+   bloqueo local (`~/.sii/login-blocked.json`, por RUT, sin ningún secreto) y desde ahí
+   `--clave-env`, `--clave-stdin` y `--keyring` se niegan **sin contactar al SII**. Lo
+   levanta una persona, después de corregir la Clave: con un login por consola exitoso o
+   con `sii auth unblock` (que exige una terminal). Un rechazo nunca se reintenta solo,
+   porque cada intento fallido acerca la cuenta al bloqueo del SII.
+
+`sii auth status` muestra las dos cosas que importan: si hay sesión y si hay bloqueo.
+
+| `auth status` dice | Qué significa | Qué hacer |
+|---|---|---|
+| `authenticated: true` | Hay sesión guardada (`--refresh` la comprueba en el portal) | Operar. |
+| `authenticated: false`, `loginBlocked: []` | No hay sesión y la Clave no ha sido rechazada | `sii auth login`. |
+| `loginBlocked: [{rut, at, codigo}]` | El SII rechazó la Clave de ese RUT en la fecha `at` | Una persona corrige la Clave y levanta el bloqueo. Hasta entonces el login desatendido de ese RUT se niega. |
+
+Las decisiones detrás: [ADR-027](docs/decisions/027-http-portal-driver.md) (login sin
+navegador) y [ADR-028](docs/decisions/028-non-interactive-login.md) (fuentes
+desatendidas y bloqueo).
+
 ## Uso autónomo (agentes, cron, CI)
 
 Un agente (o un cron) puede iniciar sesión y operar la cuenta sin nadie al teclado,
-usando la **CLI**. El MCP no sirve para esto a propósito: ningún tool recibe la Clave
-([ADR-028](docs/decisions/028-non-interactive-login.md)).
+usando la **CLI**. El MCP no sirve para esto a propósito: ningún tool recibe la Clave.
 
 ```bash
 # Provisiona SII_CLAVE desde el campo de secretos de la plataforma (enmascarado).
-sii auth login --rut 11111111-1 --clave-env SII_CLAVE   # idempotente: con sesión viva no envía nada
+sii auth login --rut 11111111-1 --clave-env SII_CLAVE   # regla 2: con sesión viva no envía nada
 sii f29 overview 2026                                   # JSON en STDOUT
 ```
 
-El ciclo recomendado para el agente se guía por el **código de salida**:
+El ciclo del agente, en cada ejecución:
 
-| Salida | Significa | Qué hace el agente |
-|---|---|---|
-| `0` | OK | Lee el JSON de STDOUT. |
-| `2` | No autenticado / sesión expirada | Corre el `auth login … --clave-env` de arriba y reintenta el comando **una vez**. |
-| `3` | El login falló, o está bloqueado tras un rechazo de Clave | **Se detiene y avisa a un humano.** No reintenta el login. |
-| `4` | Límite de tasa del SII | Se detiene; no reintenta. |
-| `1` | Otro error (entrada inválida, sesión de otro RUT…) | Se detiene; el mensaje del SII va tal cual en `{"error": …}` por STDERR. |
+1. `sii auth status`. Si `loginBlocked` incluye su RUT, **se detiene y avisa a una
+   persona**; no intenta nada más.
+2. Corre el comando que necesita. Si sale con `2` (sin sesión o sesión expirada), hace el
+   `auth login` de arriba y reintenta el comando **una vez**.
+3. Si el login sale con `3` (rechazo o bloqueo), **se detiene y avisa**. Con `4` (límite
+   del SII) también se detiene. Los errores van como `{"error": "<mensaje del SII>"}` por
+   STDERR.
 
-- **Persiste `~/.sii/`** entre ejecuciones (sesión, puntero `operate`, bloqueo). Un
-  contenedor efímero haría un login nuevo cada vez.
-- **El bloqueo es la red de seguridad.** Tras un rechazo de Clave, `--clave-env`,
-  `--clave-stdin` y `--keyring` se niegan sin contactar al SII, así que una Clave vieja
-  en un bucle no bloquea tu cuenta. **El agente no puede levantarlo:** `sii auth unblock`
-  solo funciona desde una terminal, porque le corresponde a un humano, después de
-  corregir la Clave.
+- **Persiste `~/.sii/`** entre ejecuciones: ahí viven la sesión, el puntero `operate` y
+  el bloqueo. Un contenedor efímero haría un login nuevo cada vez.
 - **Nunca** hagas `echo` de la variable ni teclees la Clave en el chat del agente.
 - **Lo que un agente no puede usar:** la Carpeta Tributaria (su sesión www2 exige
   reCAPTCHA en un navegador) y el login del MCP. `bte list` y `sii dte` necesitan
@@ -258,7 +279,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 |---|---|
 | `sii auth login [--console\|--keyring\|--clave-env <VAR>\|--clave-stdin]` | Inicia sesión cookies-only, sin navegador (por defecto pide RUT + Clave oculta por terminal; `--keyring` la lee del llavero del SO; `--clave-env` / `--clave-stdin` para uso desatendido, ADR-028) |
 | `sii auth unblock [--rut <rut>]` | Levanta el bloqueo de login desatendido tras un rechazo de Clave (local, no contacta al SII; solo desde una terminal) |
-| `sii auth status [--refresh]` | Quién soy / a nombre de quién opero (`--refresh` lee del portal) |
+| `sii auth status [--refresh]` | Quién soy / a nombre de quién opero / si hay bloqueo de login (`--refresh` lee del portal) |
 | `sii auth logout` | Cierra sesión (cierre server best-effort + wipe local) |
 | `sii operate <rut> \| --self \| --list` | Elige el RUT a nombre del cual actuar / lista el set operable |
 | `sii rcv summary <periodo>` | Resumen del Registro de Compras y Ventas |

@@ -30,8 +30,10 @@ import {
 import type { StoredSession } from './session.js';
 import { parseDatosCntrNow } from './datos-cntr.js';
 import type { DatosCntr } from './datos-cntr.js';
+import type { LoginBlockEntry } from './login-block.js';
 import {
   clearLoginBlock,
+  listLoginBlocks,
   readLoginBlock,
   reasonForCodigo,
   siiJudgedClave,
@@ -89,6 +91,11 @@ export interface AuthStatusLocal {
   readonly rut: string | null;
   readonly sessionSource: 'cached' | 'none';
   readonly www2: AuthWww2Status;
+  /** The rejection latch (ADR-028): RUTs whose last unattended login the SII rejected, with
+   *  when and SII's código. Non-empty ⇒ env/stdin/keyring logins for those RUTs refuse without
+   *  contacting SII until a person lifts it. Reported here so a caller checks it before it
+   *  tries. Independent of the session: a live session keeps working while latched. */
+  readonly loginBlocked: readonly LoginBlockEntry[];
 }
 
 /** Where the Clave came from. Audited on every login (never the value — ADR-028); `browser` is
@@ -127,14 +134,16 @@ function www2StatusOf(session: StoredSession | null, now: Date): AuthWww2Status 
  *  stored www2 layer is still within its cookie's own expiry. */
 export async function localStatus(store: Runtime['store'], now: Date): Promise<AuthStatusLocal> {
   const session = await readSession(store);
+  const loginBlocked = await listLoginBlocks(store);
   return session
     ? {
         authenticated: true,
         rut: session.rut,
         sessionSource: 'cached',
         www2: www2StatusOf(session, now),
+        loginBlocked,
       }
-    : { authenticated: false, rut: null, sessionSource: 'none', www2: NO_WWW2 };
+    : { authenticated: false, rut: null, sessionSource: 'none', www2: NO_WWW2, loginBlocked };
 }
 
 function identityFromDatos(datos: DatosCntr | null): AuthIdentity {

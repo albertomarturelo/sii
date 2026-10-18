@@ -15,6 +15,7 @@ export type {
   AuthStatusLocal,
   AuthWhoami,
   AuthWww2Status,
+  LoginBlockEntry,
   LoginOptions,
 } from './tasks/auth.js';
 export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';

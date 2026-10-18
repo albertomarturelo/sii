@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LoginFailedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { fakePrompters, makeRuntime, run, runWith } from '../test-helpers.js';
+import { fakePrompters, makeRuntime, run, runJson, runWith } from '../test-helpers.js';
 
 // Since ADR-027 the CLI login is the HTTP console flow (no browser): it prompts RUT + hidden
 // Clave, so these drive it with injected prompters. `--www2` and the headed browser login left
@@ -238,6 +238,28 @@ describe('sii auth login --clave-env / --clave-stdin (ADR-028, fakes only)', () 
       runWith(rt, withEnv(env()), 'auth', 'login', '--clave-env', 'SII_CLAVE', ...RUT),
     ).rejects.toThrow(/Login desatendido bloqueado para 11111111-1[\s\S]*No se contactó al SII/);
     expect((rt.portal as testing.FakePortalDriver).credentialLoginCalls).toBe(1);
+  });
+
+  it('auth status shows the latch, so an agent sees it before trying to log in', async () => {
+    const rt = rejecting();
+    await expect(
+      runWith(
+        rt,
+        withEnv({ SII_CLAVE: 'stale' }),
+        'auth',
+        'login',
+        '--clave-env',
+        'SII_CLAVE',
+        ...RUT,
+      ),
+    ).rejects.toThrow();
+    const json = (await runJson(rt, 'auth', 'status')) as { loginBlocked: unknown[] };
+    expect(json.loginBlocked).toEqual([
+      { rut: '11111111-1', at: '2026-06-27T12:00:00.000Z', codigo: '01.01' },
+    ]);
+    const human = await run(rt, 'auth', 'status');
+    expect(human).toContain('No autenticado.');
+    expect(human).toContain('Login desatendido bloqueado para 11.111.111-1');
   });
 
   it('auth unblock lifts the latch from a terminal', async () => {

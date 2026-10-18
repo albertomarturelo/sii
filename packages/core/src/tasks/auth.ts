@@ -8,6 +8,7 @@ import type {
   AuthStatusLocal,
   AuthWhoami,
   AuthWww2Status,
+  LoginBlockEntry,
   LoginOptions,
   LoginSource,
 } from '../auth/index.js';
@@ -80,6 +81,7 @@ export type {
   AuthStatusLocal,
   AuthWhoami,
   AuthWww2Status,
+  LoginBlockEntry,
   LoginOptions,
   LoginSource,
 };

@@ -30,6 +30,12 @@ async function writeEntries(store: KeyValueStore, entries: LoginBlockEntry[]): P
   else await store.write<LoginBlockFile>(LOGIN_BLOCK_KEY, { entries });
 }
 
+/** Every latched RUT — what `auth status` reports, so a caller sees the block BEFORE it
+ *  decides to log in, instead of discovering it as a refusal. */
+export async function listLoginBlocks(store: KeyValueStore): Promise<readonly LoginBlockEntry[]> {
+  return readEntries(store);
+}
+
 export async function readLoginBlock(
   store: KeyValueStore,
   rut: string,

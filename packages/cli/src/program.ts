@@ -18,6 +18,7 @@ import {
   operatingStatus,
   statusRefresh,
   type AuthWww2Status,
+  type LoginBlockEntry,
   type Runtime,
 } from '@albertomarturelo/sii-core';
 // CLI-only credential login (takes a Clave) — kept off the main barrel so MCP
@@ -35,6 +36,15 @@ const www2Line = (w: AuthWww2Status): string =>
   w.authenticated
     ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
     : 'Sesión www2: no iniciada (la Carpeta Tributaria se usa desde el MCP; ADR-027).';
+
+/** One human line per latched RUT (ADR-028), or nothing: the common case has no block. */
+const blockedLines = (blocked: readonly LoginBlockEntry[]): string[] =>
+  blocked.map(
+    (b) =>
+      `Login desatendido bloqueado para ${fmt(b.rut)} desde ${b.at}` +
+      `${b.codigo ? ` (el SII rechazó la Clave, código ${b.codigo})` : ''}. ` +
+      'Corrige la Clave y ejecuta `sii auth login --console` o `sii auth unblock`.',
+  );
 
 import { printOperatingHeader } from './operating-header.js';
 import { nodePrompters, type Prompters } from './prompt.js';
@@ -244,11 +254,12 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
       emit({ ...status, operating: ctx }, () => {
         if (!status.authenticated || !status.rut) {
           out('No autenticado. Ejecuta `sii auth login`.');
-          return;
+        } else {
+          out(`Autenticado (sesión local) como ${fmt(status.rut)}.`);
+          if (ctx && !ctx.isSelf) out(describeOperating(ctx));
+          out(www2Line(status.www2));
         }
-        out(`Autenticado (sesión local) como ${fmt(status.rut)}.`);
-        if (ctx && !ctx.isSelf) out(describeOperating(ctx));
-        out(www2Line(status.www2));
+        for (const line of blockedLines(status.loginBlocked)) out(line);
       });
     });
 

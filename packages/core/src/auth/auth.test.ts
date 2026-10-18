@@ -900,6 +900,23 @@ describe('auth — non-interactive login (ADR-028, synthetic data)', () => {
     expect(await readLoginBlock(rt.store, CRED.rut)).not.toBeNull();
   });
 
+  it('localStatus reports the latch, with or without a session, so a caller checks first', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos));
+    expect((await localStatus(rt.store, rt.clock.now())).loginBlocked).toEqual([]);
+    await tripLoginBlock(rt, OTHER_RUT, WRONG_CLAVE_CODIGO);
+    const noSession = await localStatus(rt.store, rt.clock.now());
+    expect(noSession).toMatchObject({
+      authenticated: false,
+      loginBlocked: [
+        { rut: OTHER_RUT, at: '2026-06-27T12:00:00.000Z', codigo: WRONG_CLAVE_CODIGO },
+      ],
+    });
+    await suppliedClaveLogin(rt, ENV); // another RUT logs in; the latch stays reported
+    const withSession = await localStatus(rt.store, rt.clock.now());
+    expect(withSession.authenticated).toBe(true);
+    expect(withSession.loginBlocked.map((b) => b.rut)).toEqual([OTHER_RUT]);
+  });
+
   it('unblockLogin lifts one RUT or all, and reports which', async () => {
     const rt = makeRuntime(new FakePortalDriver({}));
     await tripLoginBlock(rt, CRED.rut, WRONG_CLAVE_CODIGO);

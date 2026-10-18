@@ -104,6 +104,9 @@ Settled while implementing; the Decision above stands except where this says oth
   by construction, not by a line in the agent's instructions. An agent with full control of
   its VM could still fake a TTY; the gate stops the accidental case, not a determined one
   (the residual risk above).
+- **`auth status` reports the latch** (`loginBlocked: [{rut, at, codigo}]`, CLI + MCP), so a
+  caller sees it before it decides to log in rather than discovering it as a refusal. The
+  MCP reports it and never lifts it.
 - **Audit:** every `auth_login` receipt carries `source`, and a latch refusal is
   `result: 'blocked'`. The new sources' `reason` values are `env_login` / `stdin_login`.
 
