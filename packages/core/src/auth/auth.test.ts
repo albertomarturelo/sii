@@ -14,6 +14,7 @@ import {
   LoginFailedError,
   LoginQueuedError,
   NotAuthenticatedError,
+  UnexpectedResponseError,
   ValidationError,
 } from '../errors/index.js';
 import {
@@ -484,6 +485,27 @@ describe('whoami — authenticated principal identity + email (own PII)', () => 
     expect(serialized).not.toContain('Juan');
   });
 
+  it('a Mi SII page that did not bounce but has no DatosCntrNow is a broken scraper, not a failed login (GH-139)', async () => {
+    const driver = new FakePortalDriver({
+      credentialSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datosEval(realPersonaDatos),
+        storageState: { cookies: ['session-cookie'] },
+      },
+      restoreSession: { landingUrl: HOSTS.miSii },
+    });
+    const rt = makeRuntime(driver);
+    await consoleLogin(rt, CRED);
+    await expect(whoami(rt)).rejects.toBeInstanceOf(UnexpectedResponseError);
+    await expect(statusRefresh(rt)).rejects.toBeInstanceOf(UnexpectedResponseError);
+  });
+
+  it('a dead session bounced to the login host is NotAuthenticated on whoami', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos, 'https://zeusr.sii.cl/AUT2000/x'));
+    await consoleLogin(rt, CRED);
+    await expect(whoami(rt)).rejects.toBeInstanceOf(NotAuthenticatedError);
+  });
+
   it('normalizes a blank email to null (portal serves "   ")', async () => {
     const blankEmail = (): unknown => ({
       contribuyente: {
@@ -553,6 +575,24 @@ describe('auth — console login (ADR-010, synthetic data)', () => {
     const again = await consoleLogin(rt, CRED);
     expect(again).toMatchObject({ reason: 'already_authenticated' });
     expect(driver.credentialLoginCalls).toBe(1); // form NOT re-filled
+  });
+
+  it('a cached session that does not bounce but serves no identity is NOT live: it mints (GH-139)', async () => {
+    // Over HTTP a dead jar once read as live (Mi SII's JS-only redirect), and every login then
+    // answered already_authenticated forever. The probe now needs Mi SII to serve the identity.
+    const driver = new FakePortalDriver({
+      credentialSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datosEval(realPersonaDatos),
+        storageState: { cookies: ['session-cookie'] },
+      },
+      restoreSession: { landingUrl: HOSTS.miSii }, // no bounce, and no DatosCntrNow
+    });
+    const rt = makeRuntime(driver);
+    await consoleLogin(rt, CRED);
+    const again = await consoleLogin(rt, CRED);
+    expect(again).toMatchObject({ reason: 'console_login' });
+    expect(driver.credentialLoginCalls).toBe(2);
   });
 
   it('a failed console login (lands back on the login host) raises LoginFailedError, no session', async () => {

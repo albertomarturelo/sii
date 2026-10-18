@@ -11,11 +11,19 @@
 // Auth detection stays URL-based (sii-py ADR-009) with ONE documented exception: the login
 // POST itself answers 200 on `zeusr` for BOTH success and failure (observed 2026-10-17), so
 // credentialLogin decides from the body (SII's error código) + the session cookie, not the host.
+// And where SII bounces a dead jar to the login with JS instead of an HTTP redirect (Mi SII,
+// GH-139), the driver reports the login URL as the landing, as a browser would.
 import { LOGIN_HOST, LOGIN_POST_URL, QUEUE_IT_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError, LoginQueuedError, BrowserRequiredError } from '../../errors/index.js';
 import { parseSiiLoginErrorDetail } from '../../auth/login-error.js';
 import { Rut } from '../../rut/index.js';
-import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
+import {
+  LOGIN_STUB_MAX_BYTES,
+  charsetOf,
+  formLoginWallError,
+  loginStubTarget,
+  nonJsonResponseError,
+} from './response.js';
 import { CookieJar } from './cookie-jar.js';
 import type {
   BinaryRequest,
@@ -102,15 +110,31 @@ async function fetchWithJar(
       }
       continue;
     }
-    const buffer = await res.arrayBuffer();
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const contentType = res.headers.get('content-type');
     return {
-      finalUrl: res.url || url,
+      finalUrl: jsLoginWallUrl(res.status, contentType, bytes) ?? (res.url || url),
       status: res.status,
-      contentType: res.headers.get('content-type'),
-      bytes: new Uint8Array(buffer),
+      contentType,
+      bytes,
     };
   }
   throw new Error(`Demasiadas redirecciones (> ${MAX_REDIRECTS}) desde ${startUrl}`);
+}
+
+/** Where a browser would land when SII bounces a dead jar to the login with JS instead of an
+ *  HTTP redirect (Mi SII, GH-139). Reporting THAT as the landed URL keeps auth detection
+ *  URL-based for every primitive (goto, requestText/Form/Binary, requestJson) without each one
+ *  parsing bodies. Only a small 2xx HTML page is scanned (`loginStubTarget` is the narrow test). */
+function jsLoginWallUrl(
+  status: number,
+  contentType: string | null,
+  bytes: Uint8Array,
+): string | null {
+  if (status < 200 || status >= 300) return null;
+  if (!(contentType ?? '').toLowerCase().includes('text/html')) return null;
+  if (bytes.length > LOGIN_STUB_MAX_BYTES) return null;
+  return loginStubTarget(new TextDecoder(charsetOf(contentType)).decode(bytes));
 }
 
 function stripBodyHeaders(headers: Record<string, string>): Record<string, string> {

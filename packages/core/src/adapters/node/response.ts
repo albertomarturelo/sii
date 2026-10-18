@@ -65,6 +65,39 @@ export function formLoginWallError(finalUrl: string): Error | null {
     : null;
 }
 
+/** Larger than the observed stub (344 bytes) with room for a longer origin URL; a real portal
+ *  page is tens of KB, so a size bound keeps the body scan off every normal response. */
+export const LOGIN_STUB_MAX_BYTES = 2048;
+
+/** Recognise SII's JS-only login-wall page and return where it sends the browser, else null.
+ *  Mi SII answers a DEAD jar with HTTP 200 and a page whose only content is
+ *  `location.replace('https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?<origin>')`
+ *  — no HTTP redirect, so a client that does not run JS stays on `misiir.sii.cl` and would read
+ *  the session as alive. Observed at https://misiir.sii.cl/cgi_misii/siihome.cgi on 2026-10-18
+ *  (GH-139); loa, www1, www3 and www4 bounced the same dead jar with a real HTTP redirect.
+ *  Deliberately narrow: once the markup is stripped, the page must hold NOTHING but one
+ *  navigation, and its target must be on `LOGIN_HOST`. A live page that merely links to zeusr
+ *  (the "cerrar sesión" handler) never matches, because it has content besides that statement.
+ *  Pure → unit-tested without fetch. */
+export function loginStubTarget(html: string): string | null {
+  const script = html
+    .replace(/<!DOCTYPE[^>]*>/gi, '')
+    .replace(/<\/?(?:html|head|body)\b[^>]*>/gi, '')
+    .replace(/<script\b[^>]*>|<\/script>/gi, '')
+    .trim();
+  const m =
+    /^(?:window\.)?location(?:\.replace\(|\.assign\(|\.href\s*=\s*|\s*=\s*)\s*(['"])([^'"]+)\1\s*\)?\s*;?$/.exec(
+      script,
+    );
+  if (!m?.[2]) return null;
+  try {
+    const target = new URL(m[2]);
+    return target.hostname === LOGIN_HOST ? target.href : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Extract the charset label from a `Content-Type` header for decoding a public
  *  (unauthenticated) response body (ADR-014). SII's palena reports declare
  *  `text/html; charset=ISO-8859-1`, so a UTF-8 decode would mangle accents (ó, é,

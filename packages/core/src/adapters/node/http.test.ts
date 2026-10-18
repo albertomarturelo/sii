@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { HttpPortalDriver } from './http.js';
 import type { FetchLike } from './http.js';
+import { MI_SII_LOGIN_STUB } from './__fixtures__/login-stub.js';
 import {
   BrowserRequiredError,
   LoginFailedError,
@@ -227,6 +228,31 @@ describe('HttpPortalDriver — session primitives', () => {
     expect(landed).toBe(MI_SII);
     // Second hop carried the cookie set on the first.
     expect(calls[1]?.headers['cookie']).toContain('HOP=1');
+  });
+
+  it('a dead jar that Mi SII bounces with JS lands on the login host, on every primitive (GH-139)', async () => {
+    const stub = fakeFetch(() => ({
+      headers: { 'content-type': 'text/html; charset=UTF-8' },
+      body: MI_SII_LOGIN_STUB,
+    }));
+    const dead = await new HttpPortalDriver(stub.impl).restore({ cookies: [] });
+    expect(new URL(await dead.goto(MI_SII)).hostname).toBe('zeusr.sii.cl');
+    await expect(dead.requestText(MI_SII, { method: 'GET' })).rejects.toBeInstanceOf(
+      SessionExpiredError,
+    );
+    await expect(dead.requestForm(MI_SII)).rejects.toBeInstanceOf(SessionExpiredError);
+    await expect(dead.requestBinary(MI_SII)).rejects.toBeInstanceOf(SessionExpiredError);
+    await expect(dead.requestJson(MI_SII)).rejects.toBeInstanceOf(SessionExpiredError);
+  });
+
+  it('a live page that only links to the login keeps its own URL', async () => {
+    const page =
+      "<html><head><script>function salir(){ location.replace('https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi'); }</script>" +
+      '</head><body>Mi SII</body></html>';
+    const { impl } = fakeFetch(() => ({ headers: { 'content-type': 'text/html' }, body: page }));
+    const live = await new HttpPortalDriver(impl).restore({ cookies: [] });
+    expect(await live.goto(MI_SII)).toBe(MI_SII);
+    expect((await live.requestText(MI_SII, { method: 'GET' })).body).toBe(page);
   });
 
   it('evaluate and interactiveLogin require the browser engine', async () => {

@@ -11,6 +11,7 @@ import {
   LoginBlockedError,
   LoginFailedError,
   NotAuthenticatedError,
+  UnexpectedResponseError,
   ValidationError,
 } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
@@ -146,16 +147,39 @@ export async function localStatus(store: Runtime['store'], now: Date): Promise<A
     : { authenticated: false, rut: null, sessionSource: 'none', www2: NO_WWW2, loginBlocked };
 }
 
-function identityFromDatos(datos: DatosCntr | null): AuthIdentity {
+/** The principal's identity from `DatosCntrNow`, or null when the page carries none. Each
+ *  caller decides what "none" means: a failed login right after the POST, a broken scraper on
+ *  a read, "not live" for the login probe (GH-139). */
+function identityOf(datos: DatosCntr | null): AuthIdentity | null {
   const c = datos?.contribuyente;
-  if (!c || c.rut === undefined || c.dv === undefined) {
-    throw new LoginFailedError('No se pudo leer la identidad del portal (DatosCntrNow ausente).');
-  }
+  if (!c || c.rut === undefined || c.dv === undefined) return null;
   const rut = Rut.parse(`${c.rut}-${c.dv}`).canonical;
   const accountType: AccountType = c.razonSocial ? 'empresa' : 'persona';
   const joined = [c.nombres, c.apellidoPaterno, c.apellidoMaterno].filter(Boolean).join(' ').trim();
   const nombre = c.razonSocial ?? (joined || null);
   return { rut, nombre, accountType };
+}
+
+/** The login path: no identity after the POST means the login did not complete. */
+function identityFromDatos(datos: DatosCntr | null): AuthIdentity {
+  const identity = identityOf(datos);
+  if (!identity) {
+    throw new LoginFailedError('No se pudo leer la identidad del portal (DatosCntrNow ausente).');
+  }
+  return identity;
+}
+
+/** A read path (`whoami`, `status --refresh`): the session did NOT bounce to the login, so a
+ *  page without `DatosCntrNow` is a changed portal, not a failed login (GH-139). Never retried. */
+function identityOnRead(datos: DatosCntr | null): AuthIdentity {
+  const identity = identityOf(datos);
+  if (!identity) {
+    throw new UnexpectedResponseError(
+      'Mi SII respondió sin la identidad del contribuyente (DatosCntrNow ausente) y sin ' +
+        'redirigir al login: la página cambió (scraper roto). No se reintenta.',
+    );
+  }
+  return identity;
 }
 
 function landedOnLoginHost(landed: string): boolean {
@@ -164,12 +188,17 @@ function landedOnLoginHost(landed: string): boolean {
 
 /** The session-principal RUT if the cached session is still live on the portal, else
  *  null — never throws (the login path needs "is it warm?", not an error). A single
- *  `withSession` acquisition (no separate pre-read); a missing/expired session → null. */
+ *  `withSession` acquisition (no separate pre-read); a missing/expired session → null.
+ *  Live means POSITIVE proof: Mi SII served the principal's identity. "No bounce seen" is not
+ *  enough: over HTTP a dead jar once read as live (a JS-only redirect, GH-139), and every login
+ *  then answered `already_authenticated` without minting, so an unattended caller never
+ *  recovered. A probe that is wrong in this direction only costs one fresh login. */
 async function liveSessionRut(runtime: Runtime): Promise<string | null> {
   try {
-    return await withSession(runtime, async (s, ctx) =>
-      landedOnLoginHost(await s.goto(HOSTS.miSii)) ? null : ctx.sessionRut,
-    );
+    return await withSession(runtime, async (s) => {
+      if (landedOnLoginHost(await s.goto(HOSTS.miSii))) return null;
+      return identityOf(await readDatos(s))?.rut ?? null;
+    });
   } catch {
     return null;
   }
@@ -597,7 +626,7 @@ export async function statusRefresh(runtime: Runtime): Promise<AuthIdentityRefre
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
       throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
     }
-    const identity = identityFromDatos(await readDatos(s));
+    const identity = identityOnRead(await readDatos(s));
     // The www2 layer, read live: a missing one is a plain `false` here, not an error — the
     // classic identity is the job; the layer is reported (ADR-026).
     let www2: AuthWww2Status = NO_WWW2;
@@ -624,7 +653,7 @@ export async function whoami(runtime: Runtime): Promise<AuthWhoami> {
       throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
     }
     const datos = await readDatos(s);
-    const identity = identityFromDatos(datos);
+    const identity = identityOnRead(datos);
     const email = (datos?.contribuyente?.eMail ?? '').trim() || null;
     recordAudit(runtime, { action: 'whoami', result: 'ok', rut: identity.rut });
     return { rut: identity.rut, accountType: identity.accountType, nombre: identity.nombre, email };
