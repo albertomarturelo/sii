@@ -9,6 +9,22 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.11.0 — 2026-10-18
+
+### Changed
+
+- **`auth_status` and the `sii://session` resource report the CLI's rejection latch**
+  (`loginBlocked`, ADR-028), so the model can tell the user that unattended logins for a RUT
+  are blocked after a rejected Clave. The MCP reports it and never lifts it; lifting it is a
+  person's act in the terminal.
+- Runs on the browser-free core driver for every read (ADR-027). The MCP's own `auth_login`
+  still opens SII's real page in a browser, so the MCP keeps needing Chromium for login.
+
+### Security
+
+- **No Clave source was added to the MCP.** The new env/stdin login tasks live in the
+  CLI-only subpath, and a test asserts the main barrel the MCP imports lacks them.
+
 ## 0.10.0 — 2026-09-12
 
 ### Added

@@ -9,6 +9,37 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.11.0 — 2026-10-18
+
+### Added
+
+- **`sii auth login --clave-env <VAR>`** — reads the Clave from the environment variable you
+  name (no default) and deletes it from the environment right after. Built for cron, CI and
+  agents (ADR-028). A bad name is refused without being echoed, because the likeliest mistake
+  is passing the Clave itself.
+- **`sii auth login --clave-stdin`** — reads one line from a pipe; refused on a terminal (that
+  is `--console`) and on an empty value. Both new sources require `--rut`, and the four sources
+  are mutually exclusive.
+- **The rejection latch.** After SII rejects a Clave, `--clave-env`, `--clave-stdin` and
+  `--keyring` refuse without contacting SII (exit 3) until a person fixes the Clave and runs
+  `sii auth login --console` or **`sii auth unblock [--rut]`**. `unblock` refuses when stdin is
+  not a terminal, so a cron cannot lift its own latch; an agent whose harness runs commands in
+  a pseudo-terminal still passes that check, so forbid it in the agent's instructions.
+- **`sii auth status`** reports the latch (`loginBlocked`).
+
+### Changed
+
+- **`sii auth login` no longer needs a browser (ADR-027).** It prompts for RUT and Clave in the
+  terminal and POSTs SII's real form; `--console` remains as an explicit alias. Chromium is now
+  needed only by `bte list` and `sii dte` (Portal MIPYME).
+- **A login with a live session for a different RUT is an error** naming `sii auth logout`.
+
+### Removed
+
+- **`sii auth login --www2`** and **`sii carpeta`**. The www2 layer needs SII's OAuth page,
+  where reCAPTCHA runs, and no CLI command may need a person at a browser window (ADR-027).
+  Both remain available through the MCP server.
+
 ## 0.10.0 — 2026-09-12
 
 ### Added
