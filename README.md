@@ -189,8 +189,9 @@ El ciclo recomendado para el agente se guía por el **código de salida**:
   contenedor efímero haría un login nuevo cada vez.
 - **El bloqueo es la red de seguridad.** Tras un rechazo de Clave, `--clave-env`,
   `--clave-stdin` y `--keyring` se niegan sin contactar al SII, así que una Clave vieja
-  en un bucle no bloquea tu cuenta. **El agente nunca debe correr `sii auth unblock`:**
-  levantar el bloqueo le corresponde a un humano, después de corregir la Clave.
+  en un bucle no bloquea tu cuenta. **El agente no puede levantarlo:** `sii auth unblock`
+  solo funciona desde una terminal, porque le corresponde a un humano, después de
+  corregir la Clave.
 - **Nunca** hagas `echo` de la variable ni teclees la Clave en el chat del agente.
 - **Lo que un agente no puede usar:** la Carpeta Tributaria (su sesión www2 exige
   reCAPTCHA en un navegador) y el login del MCP. `bte list` y `sii dte` necesitan
@@ -256,7 +257,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | Comando | Qué hace |
 |---|---|
 | `sii auth login [--console\|--keyring\|--clave-env <VAR>\|--clave-stdin]` | Inicia sesión cookies-only, sin navegador (por defecto pide RUT + Clave oculta por terminal; `--keyring` la lee del llavero del SO; `--clave-env` / `--clave-stdin` para uso desatendido, ADR-028) |
-| `sii auth unblock [--rut <rut>]` | Levanta el bloqueo de login desatendido tras un rechazo de Clave (local, no contacta al SII) |
+| `sii auth unblock [--rut <rut>]` | Levanta el bloqueo de login desatendido tras un rechazo de Clave (local, no contacta al SII; solo desde una terminal) |
 | `sii auth status [--refresh]` | Quién soy / a nombre de quién opero (`--refresh` lee del portal) |
 | `sii auth logout` | Cierra sesión (cierre server best-effort + wipe local) |
 | `sii operate <rut> \| --self \| --list` | Elige el RUT a nombre del cual actuar / lista el set operable |

@@ -94,14 +94,20 @@ export async function runJson(runtime: Runtime, ...argv: string[]): Promise<unkn
 }
 
 /** Fake prompters: hidden() returns the Clave; line() returns the RUT (if prompted). `piped`
- *  is stdin's content (`null` = a TTY) and `env` the environment `--clave-env` reads. */
+ *  is stdin's content (`null` = a TTY), `interactive` whether a human is at a terminal
+ *  (default yes) and `env` the environment `--clave-env` reads. */
 export const fakePrompters = (
   clave: string,
   rut = '',
-  input: { piped?: string | null; env?: Record<string, string | undefined> } = {},
+  input: {
+    piped?: string | null;
+    interactive?: boolean;
+    env?: Record<string, string | undefined>;
+  } = {},
 ): Prompters => ({
   line: () => Promise.resolve(rut),
   hidden: () => Promise.resolve(clave),
   piped: () => Promise.resolve(input.piped ?? null),
+  interactive: () => input.interactive ?? true,
   env: input.env ?? {},
 });

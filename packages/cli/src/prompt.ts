@@ -15,6 +15,9 @@ export interface Prompters {
   /** All of PIPED stdin (`--clave-stdin`, ADR-028), or `null` when stdin is a TTY: a human at
    *  a terminal is `--console`'s job, with its hidden prompt. */
   piped(): Promise<string | null>;
+  /** Is a human at a terminal (stdin is a TTY)? Gates `auth unblock`, the latch's reset,
+   *  which must be a person's act and never an unattended agent's (ADR-028). */
+  interactive(): boolean;
   /** The environment `--clave-env <VAR>` reads. Mutable on purpose: the variable is deleted
    *  right after the read, so no child process inherits the Clave (ADR-028). */
   readonly env: Record<string, string | undefined>;
@@ -61,5 +64,6 @@ export const nodePrompters: Prompters = {
   line: linePrompt,
   hidden: hiddenPrompt,
   piped: pipedStdin,
+  interactive: () => process.stdin.isTTY === true,
   env: process.env,
 };

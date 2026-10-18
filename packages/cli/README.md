@@ -59,7 +59,8 @@ sii auth login --rut 11111111-1 --clave-stdin < clave.txt
   (`~/.sii/login-blocked.json`, no secret inside) makes every later `--clave-env`,
   `--clave-stdin` or `--keyring` login refuse **without contacting SII**, so a stale
   Clave in a loop can't lock your account. Fix the Clave, then run
-  `sii auth login --console` or `sii auth unblock`.
+  `sii auth login --console` or `sii auth unblock` (which needs a terminal, so an
+  unattended caller can't lift its own latch).
 - **Drive it by exit code:** `0` ok; `2` not authenticated or session expired → run the
   login line above and retry the command **once**; `3` login failed or latched → stop
   and tell a human, never retry; `4` SII rate limit → stop. Errors are
@@ -67,8 +68,8 @@ sii auth login --rut 11111111-1 --clave-stdin < clave.txt
 - **Persist `~/.sii/`** across runs (session, `operate` pointer, latch). An ephemeral
   container would log in afresh every time.
 - **For AI agents:** provision `SII_CLAVE` through the platform's masked secret field.
-  Never `echo` the variable, never type the Clave into the agent's chat, and **never
-  let the agent run `sii auth unblock`**: lifting the latch is a human's job. An agent
+  Never `echo` the variable and never type the Clave into the agent's chat. The agent
+  can't lift the latch (`unblock` refuses without a TTY); that is a human's job. An agent
   that controls its machine can read any secret its process can. Use this only for
   your own account, and accept that risk knowingly.
 

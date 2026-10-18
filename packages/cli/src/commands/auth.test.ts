@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LoginFailedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { fakePrompters, makeRuntime, run, runJson, runWith } from '../test-helpers.js';
+import { fakePrompters, makeRuntime, run, runWith } from '../test-helpers.js';
 
 // Since ADR-027 the CLI login is the HTTP console flow (no browser): it prompts RUT + hidden
 // Clave, so these drive it with injected prompters. `--www2` and the headed browser login left
@@ -240,7 +240,7 @@ describe('sii auth login --clave-env / --clave-stdin (ADR-028, fakes only)', () 
     expect((rt.portal as testing.FakePortalDriver).credentialLoginCalls).toBe(1);
   });
 
-  it('auth unblock lifts the latch and reports it as JSON', async () => {
+  it('auth unblock lifts the latch from a terminal', async () => {
     const rt = rejecting();
     await expect(
       runWith(
@@ -253,7 +253,41 @@ describe('sii auth login --clave-env / --clave-stdin (ADR-028, fakes only)', () 
         ...RUT,
       ),
     ).rejects.toThrow();
-    expect(await runJson(rt, 'auth', 'unblock')).toEqual({ unblocked: ['11111111-1'] });
-    expect(await run(rt, 'auth', 'unblock')).toContain('No había bloqueo de login.');
+    const human = fakePrompters('');
+    expect(await runWith(rt, human, 'auth', 'unblock')).toContain(
+      'Bloqueo levantado para 11.111.111-1.',
+    );
+    expect(await runWith(rt, human, 'auth', 'unblock')).toContain('No había bloqueo de login.');
+  });
+
+  it('auth unblock refuses without a terminal, so an agent cannot lift its own latch', async () => {
+    const rt = rejecting();
+    await expect(
+      runWith(
+        rt,
+        withEnv({ SII_CLAVE: 'stale' }),
+        'auth',
+        'login',
+        '--clave-env',
+        'SII_CLAVE',
+        ...RUT,
+      ),
+    ).rejects.toThrow();
+    const agent = fakePrompters('', '', { interactive: false });
+    await expect(runWith(rt, agent, 'auth', 'unblock')).rejects.toThrow(
+      /solo se ejecuta desde una terminal/,
+    );
+    // Still latched: the next unattended login refuses without contacting SII.
+    await expect(
+      runWith(
+        rt,
+        withEnv({ SII_CLAVE: 'stale' }),
+        'auth',
+        'login',
+        '--clave-env',
+        'SII_CLAVE',
+        ...RUT,
+      ),
+    ).rejects.toThrow(/Login desatendido bloqueado/);
   });
 });

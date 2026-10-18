@@ -98,8 +98,12 @@ Settled while implementing; the Decision above stands except where this says oth
   `codigo` / `reason`.
 - **What clears it:** a FRESH successful `--console` or browser (MCP `auth_login`) login for
   that RUT. An `already_authenticated` answer does not clear it, since no Clave was verified.
-- **`unblock` is CLI-only** (the `/cli` subpath). The latch exists so an unattended caller
-  cannot retry a stale Clave, and lifting it is a human's act, never the model's.
+- **`unblock` is CLI-only** (the `/cli` subpath) **and needs a terminal**: it refuses when
+  stdin is not a TTY. The latch exists so an unattended caller cannot retry a stale Clave;
+  if that same caller could lift it, it would protect nothing. So the reset is a human's act
+  by construction, not by a line in the agent's instructions. An agent with full control of
+  its VM could still fake a TTY; the gate stops the accidental case, not a determined one
+  (the residual risk above).
 - **Audit:** every `auth_login` receipt carries `source`, and a latch refusal is
   `result: 'blocked'`. The new sources' `reason` values are `env_login` / `stdin_login`.
 

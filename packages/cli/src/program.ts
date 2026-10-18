@@ -197,10 +197,20 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
     .description(
       'Levanta el bloqueo de login desatendido (ADR-028): tras un rechazo de Clave, ' +
         '--clave-env / --clave-stdin / --keyring se niegan sin contactar al SII hasta un login ' +
-        'por consola exitoso o este comando. Local: no envía nada al SII. Corrige antes la Clave.',
+        'por consola exitoso o este comando. Local: no envía nada al SII. Corrige antes la Clave. ' +
+        'Solo desde una terminal: un agente o un cron no puede levantar el bloqueo.',
     )
     .option('--rut <rut>', 'Solo para este RUT (por defecto, todos).')
     .action(async (opts: { rut?: string }) => {
+      // The latch exists so an unattended caller cannot retry a stale Clave; if that same
+      // caller could lift it, it would protect nothing. So the reset needs a human at a TTY,
+      // by construction rather than by a line in the agent's instructions (ADR-028).
+      if (!prompters.interactive()) {
+        throw new ValidationError(
+          '`sii auth unblock` solo se ejecuta desde una terminal: levantar el bloqueo le ' +
+            'corresponde a una persona, después de corregir la Clave. No se levantó nada.',
+        );
+      }
       const unblocked = await unblockLogin(
         runtime,
         opts.rut === undefined ? {} : { rut: opts.rut },
