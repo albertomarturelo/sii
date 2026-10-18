@@ -2,10 +2,13 @@
 // the shared fixture is test-helpers.ts). Fakes only — no SII.
 import { describe, it, expect } from 'vitest';
 import {
+  LoginBlockedError,
   LoginFailedError,
+  LoginQueuedError,
   NotAuthenticatedError,
   RateLimitError,
   SessionExpiredError,
+  Www2SessionError,
 } from '@albertomarturelo/sii-core';
 import { exitCodeFor } from './io.js';
 
@@ -13,7 +16,10 @@ describe('exit-code mapping (errors.ts contract)', () => {
   it('maps domain errors to documented codes', () => {
     expect(exitCodeFor(new NotAuthenticatedError('x'))).toBe(2);
     expect(exitCodeFor(new SessionExpiredError('x'))).toBe(2); // subclass of NotAuthenticated
+    expect(exitCodeFor(new Www2SessionError('x'))).toBe(2);
     expect(exitCodeFor(new LoginFailedError('x'))).toBe(3);
+    expect(exitCodeFor(new LoginBlockedError('x'))).toBe(3); // the latch keeps LoginFailed's code
+    expect(exitCodeFor(new LoginQueuedError('x'))).toBe(3);
     expect(exitCodeFor(new RateLimitError('x'))).toBe(4);
     expect(exitCodeFor(new Error('x'))).toBe(1);
   });

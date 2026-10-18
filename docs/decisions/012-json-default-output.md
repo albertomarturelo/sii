@@ -1,5 +1,9 @@
 # ADR-012: JSON is the default output; `@altumstack/sii-core` is the JSON contract
 
+> **Amended 2026-10-18 (#134):** a JSON error now carries a stable `type` plus its exit code
+> and, for login failures, `reason` / `codigo`. The MCP reports errors in the same shape. See
+> [Amendment](#amendment-2026-10-18-134).
+
 ## Status
 
 Accepted — 2026-06-29. Driven by the requirement to embed `@altumstack/sii-core` as a library in
@@ -30,6 +34,62 @@ CLI is driven programmatically (Claude Code via Bash, scripts, other systems she
   message>" }` to STDERR with the documented exit code; `--human` prints the bare message.
 - One shared `emit(data, humanRenderer)` helper enforces this uniformly; each command computes
   its result object once and hands it to `emit`.
+
+## Amendment (2026-10-18, #134)
+
+`{ "error": "<message>" }` was not enough for an unattended agent (ADR-028). Three login
+failures share exit code `3`, and an agent must act differently on each:
+- SII rejected the Clave: stop, and a person must fix the Clave.
+- The latch refused without contacting SII: stop, and do NOT lift the latch.
+- The Queue-it waiting room: SII never judged the Clave.
+
+Before this amendment, telling them apart meant regex-parsing a Spanish message. The core
+already held the answer as data (the error class, `LoginFailedError.reason` / `.codigo`), and
+the CLI dropped it.
+
+- **The JSON error shape (CLI, STDERR):**
+  `{ "error": "<verbatim>", "type": "<kind>", "exitCode": n, "reason"?: …, "codigo"?: … }`.
+  - `error` is unchanged: the same verbatim message (ADR-004), never translated.
+  - `exitCode` repeats the process exit code, so a consumer that captured only STDERR still has it.
+  - `reason` and `codigo` appear on every `login_*` kind, and on no other kind. `codigo` is
+    `null` when SII printed none.
+  - Human mode is unchanged: the bare message.
+- **`type` is a stable kind name, never a JS class name.** A refactor may rename a class; it
+  must not rename a kind. One core function, `classifyError`, maps an error to its kind, so
+  both surfaces read the same table. The CLI's exit code is now derived from the kind (a
+  table that must list every kind, checked at compile time), so the two cannot drift apart.
+
+  | `type` | When | Exit |
+  | --- | --- | --- |
+  | `login_rejected` | SII judged the Clave and printed a código (the latch tripped) | 3 |
+  | `login_blocked` | The latch refused without contacting SII | 3 |
+  | `login_queued` | SII's Queue-it waiting room (SII never judged the Clave) | 3 |
+  | `login_failed` | Any other failed login: no código, timeout, empty Clave, missing `--clave-env` variable | 3 |
+  | `not_authenticated` | No session | 2 |
+  | `session_expired` | The stored session is dead | 2 |
+  | `www2_session_required` | The www2 app session is missing or expired (ADR-026) | 2 |
+  | `rate_limited` | SII's rate limit or block | 4 |
+  | `validation` | Invalid input: a RUT, an operate target, a flag combination | 1 |
+  | `credential_not_found` | No Clave in the keyring for that RUT | 1 |
+  | `browser_required` | The surface needs Chromium and none is installed | 1 |
+  | `unexpected_response` | An endpoint answered something that is neither JSON nor the login wall | 1 |
+  | `sii_error` | SII refused a domain read or write, or a scraper broke (`RcvError`, `F29Error`, …) | 1 |
+  | `unexpected` | Not a domain error (a bug) | 1 |
+
+  `login_rejected` uses the same rule as the latch's `siiJudgedClave`, and a test keeps the two
+  in agreement. `login_rejected` therefore always means "the latch is now set for this RUT".
+- **The compatibility rule.** Fields are only ever added. A kind is never renamed and never
+  reassigned to a different situation. A kind may be split into finer ones only by a new
+  amendment. A consumer that does not recognise a `type` treats it as `unexpected`: it stops
+  and alerts a person, and never retries.
+- **No secret in any field.** The only new fields are a kind name, a number, a reason enum and
+  SII's message código. None carries a Clave, a cookie or an environment value. An error that
+  must not echo its input (a `--clave-env` argument that looks like a value, ADR-028) still
+  does not, because `error` is the message the core already wrote.
+- **MCP parity.** A failed tool call's text is the same object without `exitCode` (an MCP tool
+  has no exit code): `{ "error", "type", "reason"?, "codigo"? }`, still with `isError: true`.
+  It was the bare message. The MCP already returns its results as JSON, and a model reads the
+  verbatim message inside `error` just as well.
 
 ## Alternatives Considered
 
