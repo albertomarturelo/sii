@@ -159,6 +159,15 @@ describe('HttpPortalDriver — session primitives', () => {
     expect(calls[0]?.headers['cookie']).toBe('TOKEN=tok');
   });
 
+  it('sends a browser User-Agent on authenticated requests (www4 WAF rejects a bare client)', async () => {
+    const { impl, calls } = okJson();
+    const session = await new HttpPortalDriver(impl).restore({ cookies: [] });
+    await session.requestJson('https://www4.sii.cl/consdcvinternetui/x');
+    // Regression guard (ADR-027 live validation 2026-10-18): a missing UA bounced www4 to the
+    // login wall even with a valid session (misiir was laxer, which hid it).
+    expect(calls[0]?.headers['user-agent']).toMatch(/Mozilla\/5\.0.*Chrome/);
+  });
+
   it('requestJson parses JSON, and maps an HTML login-wall bounce to SessionExpiredError', async () => {
     const good = okJson();
     const session = await new HttpPortalDriver(good.impl).restore({ cookies: [] });
