@@ -7,8 +7,8 @@ layer; keeps ADR-005 (identity), ADR-003 (seams), ADR-010/025 (console/keyring p
 Gates #109 (`carpeta regular`) and #110 (`carpeta instituciones`). Evidence:
 `docs/sii-contract/carpeta-tributaria.md` (probes 2026-09-11, headed spike 2026-09-12).
 **Amended by ADR-027 (2026-10-18):** `sii auth login --www2` leaves the CLI (no CLI command
-may need a human at a browser). The layer is minted only by MCP `auth_login` (`www2`); the
-shared session file still serves the CLI's `carpeta` commands.
+may need a human at a browser). The layer is minted only by MCP `auth_login` (`www2`), and
+Carpeta Tributaria becomes MCP-only (it is the sole consumer of the www2 session).
 
 ## Context
 

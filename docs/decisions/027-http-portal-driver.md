@@ -52,9 +52,11 @@ and MIPYME (the JS-built form plus `validaFacEx()` on a DOM).
   - The headed login and `--www2` (a human typing past reCAPTCHA, ADR-026) are removed
     from the CLI.
   - The MCP keeps both: `auth_login` (and its `www2` flag) remains its only login, since
-    no Clave crosses MCP (ADR-006). The session file is shared, so a www2 layer minted
-    through the MCP still serves the CLI's `carpeta` commands. Without it, their error
-    names that route.
+    no Clave crosses MCP (ADR-006).
+- **Carpeta Tributaria becomes MCP-only** (`carpeta_instituciones`, `carpeta_regular` when
+  built): the sole consumer of the www2 app session, which only the MCP can now mint. A CLI
+  `carpeta` would depend on a session minted elsewhere — a deliberate MCP-only carve-out
+  (inverse of the usual parity rule), justified by the www2 dependency.
 - **The session file is unchanged** (cookies in the `storageState` shape). A jar from
   any login restores into either engine, with no migration.
 - **The identity read leaves `evaluate`.** The `DatosCntrNow` literal is extracted from
@@ -88,13 +90,11 @@ and MIPYME (the JS-built form plus `validaFacEx()` on a DOM).
 
 - **Easier:** login, `whoami`, RCV, F22, F29 (+ PDFs), peticiones, `dte authorized`,
   `bte emit` and the MIPYME listings/PDFs run with no browser at all, on a bare Linux
-  VM. Chromium is needed only for BTE `list` and the MIPYME form flows, and it runs
-  headless.
+  VM. Chromium is needed only for BTE `list` and the MIPYME form flows, headless.
 - **Harder:** the cookie jar and login-success detection are ours to keep correct.
   They're covered by fake-`fetch` tests on synthetic `Set-Cookie`/HTML fixtures.
 - **Risk:** the F5 WAF may start fingerprinting non-browser clients. That surfaces as a
   rejected/challenged POST (never retried), with no CLI fallback; it reopens this ADR.
-- **Breaking:** a bare `sii auth login` no longer opens a browser, and `--www2` is gone
-  (the CLI's `carpeta` relies on a www2 layer minted via the MCP). Minor bump + release
-  note.
+- **Breaking:** a bare `sii auth login` no longer opens a browser; `--www2` is gone; and
+  `sii carpeta instituciones` (shipped 0.10.0) leaves the CLI. Minor bump + release note.
 - **Obligations:** update `sii-contract/auth-login.md` (HTTP flow), `STACK.md`, `ROADMAP.md`.
