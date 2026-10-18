@@ -316,9 +316,10 @@ Python `sii-cli`, adapted to TypeScript.
     barrel, so the MCP server cannot wire it.
   - A non-interactive login honours the rejection latch (`~/.sii/login-blocked.json`, one
     entry per RUT): after SII rejects a Clave, unattended logins refuse without contacting
-    SII until a human logs in or runs `sii auth unblock`, which refuses without a TTY so
-    the unattended caller the latch guards against cannot lift it. A safety rail an agent
-    must not undo is enforced in code, never only in the agent's instructions.
+    SII until a human logs in or runs `sii auth unblock`, which refuses without a TTY. A
+    safety rail an agent must not undo is enforced in code AND stated in the agent's
+    instructions, and the docs say honestly what the code check misses (here: a harness
+    that runs commands in a pseudo-terminal passes a TTY check).
     (ADR-006 / ADR-010 / ADR-028)
   - **Every credential login probes for a live session first and is RUT-aware.** A live
     session for the same RUT answers `already_authenticated` without reading the Clave; one

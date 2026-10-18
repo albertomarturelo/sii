@@ -56,12 +56,13 @@ sii auth login --rut 11111111-1 --clave-stdin < clave.txt
 Three rules govern every login: the Clave's source is always named; a live session for
 that RUT means nothing is sent; and after SII rejects a Clave, unattended logins refuse
 **without contacting SII** until a person fixes the Clave and lifts the latch
-(`sii auth login --console`, or `sii auth unblock` from a terminal). `sii auth status`
+(`sii auth login --console`, or `sii auth unblock`, which refuses without a terminal). `sii auth status`
 reports both the session and the latch (`loginBlocked`), so check it first.
 
 The agent's loop: `auth status` → stop and tell a human if `loginBlocked` names its RUT →
 run the command → on exit `2`, log in and retry once → on exit `3` or `4`, stop. Persist
-`~/.sii/` across runs. Provision `SII_CLAVE` through the platform's masked secret field,
+`~/.sii/` across runs. Forbid `sii auth unblock` in the agent's instructions: its TTY check
+stops a cron or a plain-pipe agent, but many harnesses run commands in a pseudo-terminal. Provision `SII_CLAVE` through the platform's masked secret field,
 never `echo` it, never type it into the agent's chat, and use this only for your own
 account: an agent that controls its machine can read any secret its process can. The
 full guide, with the state table, is in the

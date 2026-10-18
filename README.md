@@ -164,7 +164,9 @@ confirmación explícita.
 
 ## Cómo funciona el login
 
-Tres reglas, para la CLI y para el MCP. Todo lo demás es detalle.
+Tres reglas para la CLI. Todo lo demás es detalle. (El `auth_login` del MCP sigue la
+regla 2 sin elegir RUT, porque tecleas la Clave en la página del SII, y un login exitoso
+ahí levanta el bloqueo de la regla 3.)
 
 1. **`login` crea una sesión a partir de la Clave**, y de dónde sale la Clave se dice
    siempre en el comando (consola, `--keyring`, `--clave-env`, `--clave-stdin`). En disco
@@ -175,7 +177,7 @@ Tres reglas, para la CLI y para el MCP. Todo lo demás es detalle.
    bloqueo local (`~/.sii/login-blocked.json`, por RUT, sin ningún secreto) y desde ahí
    `--clave-env`, `--clave-stdin` y `--keyring` se niegan **sin contactar al SII**. Lo
    levanta una persona, después de corregir la Clave: con un login por consola exitoso o
-   con `sii auth unblock` (que exige una terminal). Un rechazo nunca se reintenta solo,
+   con `sii auth unblock` (que se niega sin terminal). Un rechazo nunca se reintenta solo,
    porque cada intento fallido acerca la cuenta al bloqueo del SII.
 
 `sii auth status` muestra las dos cosas que importan: si hay sesión y si hay bloqueo.
@@ -213,6 +215,9 @@ El ciclo del agente, en cada ejecución:
 
 - **Persiste `~/.sii/`** entre ejecuciones: ahí viven la sesión, el puntero `operate` y
   el bloqueo. Un contenedor efímero haría un login nuevo cada vez.
+- **Prohíbele `sii auth unblock` en sus instrucciones.** El comando se niega sin terminal,
+  lo que frena a un cron o a un agente que corre comandos por tuberías. Pero muchos
+  agentes corren sus comandos en una pseudo-terminal, y ahí la verificación no los frena.
 - **Nunca** hagas `echo` de la variable ni teclees la Clave en el chat del agente.
 - **Lo que un agente no puede usar:** la Carpeta Tributaria (su sesión www2 exige
   reCAPTCHA en un navegador) y el login del MCP. `bte list` y `sii dte` necesitan

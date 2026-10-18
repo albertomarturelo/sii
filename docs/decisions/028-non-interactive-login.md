@@ -100,10 +100,11 @@ Settled while implementing; the Decision above stands except where this says oth
   that RUT. An `already_authenticated` answer does not clear it, since no Clave was verified.
 - **`unblock` is CLI-only** (the `/cli` subpath) **and needs a terminal**: it refuses when
   stdin is not a TTY. The latch exists so an unattended caller cannot retry a stale Clave;
-  if that same caller could lift it, it would protect nothing. So the reset is a human's act
-  by construction, not by a line in the agent's instructions. An agent with full control of
-  its VM could still fake a TTY; the gate stops the accidental case, not a determined one
-  (the residual risk above).
+  if that same caller could lift it, it would protect nothing. The gate stops a cron and an
+  agent that runs commands over plain pipes. It does NOT stop an agent whose harness runs
+  commands in a pseudo-terminal (many do: `isTTY` is then true), nor a determined agent that
+  fakes one. So the agent's instructions must still forbid `unblock`; the gate is a second
+  line, not the only one (the residual risk above).
 - **`auth status` reports the latch** (`loginBlocked: [{rut, at, codigo}]`, CLI + MCP), so a
   caller sees it before it decides to log in rather than discovering it as a refusal. The
   MCP reports it and never lifts it.
