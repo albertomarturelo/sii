@@ -75,9 +75,14 @@ async function fetchWithJar(
   let headers = { ...init.headers };
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const cookie = jar.header(url);
-    // Browser headers first so a caller's explicit header (e.g. a facade's Accept) overrides.
-    const sent: Record<string, string> = { ...BROWSER_HEADERS, ...headers };
-    if (cookie) sent['cookie'] = cookie;
+    // Build the headers CASE-INSENSITIVELY via Headers.set: a facade passes `Content-Type`
+    // while BROWSER_HEADERS/`jsonHeaders` use `content-type`, and a plain object would keep
+    // BOTH keys — undici then appends them into `application/json, application/json`, which
+    // www4 answers with HTTP 500. `set` lowercases and overwrites, so each header is sent once.
+    // Browser headers first so a caller's explicit value wins. (ADR-027, GH live validation.)
+    const sent = new Headers();
+    for (const [k, v] of Object.entries({ ...BROWSER_HEADERS, ...headers })) sent.set(k, v);
+    if (cookie) sent.set('cookie', cookie);
     const res = await fetchImpl(url, {
       method,
       redirect: 'manual',
