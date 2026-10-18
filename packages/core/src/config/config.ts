@@ -56,6 +56,16 @@ export const LOGIN_URL = `${HOSTS.login}${HOSTS.loginPath}`;
 /** Full server-side logout URL (host + path). The close redirects OFF this path. */
 export const LOGOUT_URL = `${HOSTS.login}${HOSTS.logoutPath}`;
 
+/** The login form's POST target (`action=/cgi_AUT2000/CAutInicio.cgi`, observed 2026-06-28 /
+ *  re-confirmed 2026-10-17). The HTTP credential login POSTs the five form fields here after a
+ *  warm-up GET of the login page (ADR-027). */
+export const LOGIN_POST_URL = `${HOSTS.login}/cgi_AUT2000/CAutInicio.cgi`;
+
+/** SII's Queue-it waiting-room host (`salaespera.sii.cl`): the peak-load queue SII drops users
+ *  into on heavy days. An HTTP client cannot pass it, so a login redirected here raises
+ *  `LoginQueuedError` — surfaced, never retried (observed in the browser jar, ADR-027). */
+export const QUEUE_IT_HOST = 'salaespera.sii.cl';
+
 /** The www2 app page `sii auth login --www2` opens for the user to complete SII's OAuth login
  *  (`/bifurcacion` → `/oauthsii-v1/` → `/app/session/create` → back here), and the `Referer` /
  *  `originalUrl` the Carpeta SPA sends on its own calls. Observed 2026-09-11/12 (#110, ADR-026). */

@@ -47,6 +47,17 @@ export class LoginFailedError extends SiiError {
 /** SII server-side rate limit / block. NEVER retry — surface verbatim and stop. */
 export class RateLimitError extends SiiError {}
 
+/** A surface needs a JS engine (SII's own page JS must run — BTE inline maps, MIPYME's
+ *  in-page `validaFacEx`) but the runtime carries no `browser` engine: the default HTTP
+ *  `PortalDriver` cannot `evaluate`/`interactiveLogin` (ADR-027). Actionable — names the
+ *  Playwright install — never a silent fallback. */
+export class BrowserRequiredError extends SiiError {}
+
+/** The login POST was redirected into SII's Queue-it waiting room (`salaespera.sii.cl`),
+ *  the peak-load queue an HTTP client cannot pass (observed in the browser jar, ADR-027).
+ *  NOT a credential failure and NOT retryable here — surface it and stop. */
+export class LoginQueuedError extends LoginFailedError {}
+
 /** A stored credential was required (e.g. unattended re-mint) but none resolved. */
 export class CredentialNotFoundError extends SiiError {}
 
