@@ -186,6 +186,23 @@ Still NOT observed (deliberately — triggering it risks a real lockout): the
 **locked-account** page, distinct from this wrong-Clave page. Capture it
 opportunistically only; until then both map to "stop, surface verbatim".
 
+### código → `LoginFailedError.reason` (observed 2026-06-28; classified #124)
+
+`LoginFailedError` carries the classification as DATA so a downstream consumer never
+regex-parses the message: `reason` + `codigo` (the verbatim message is unchanged).
+`parseSiiLoginErrorDetail` (`auth/login-error.ts`) sets it; `WRONG_CLAVE_CODIGO` is the
+single códigos classified as `wrong-clave`.
+
+| código | `reason` | meaning |
+| --- | --- | --- |
+| `01.01.203.500.720.20` | `wrong-clave` | the Clave Tributaria is incorrect (observed 2026-06-28) |
+| any other código | `unknown` | `codigo` kept; NOT assumed to be a wrong Clave |
+| (no código line / shape changed / timeout) | `unknown` | `codigo: null`; the generic no-retry fallback message |
+
+The **locked-account** código is NOT yet observed (triggering it risks a real lock), so
+it stays `unknown` until captured — the safe direction: a consumer treats `unknown` as
+"blocked", never as "retry".
+
 ## The www2 app-session layer (`--www2`, ADR-026)
 
 Observed 2026-09-11/12 (#110). `www2.sii.cl/app/*` (the "nueva plataforma" apps and their
