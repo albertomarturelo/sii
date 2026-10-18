@@ -35,6 +35,9 @@ function makeRuntime(driver: FakePortalDriver): Runtime {
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
     portal: driver,
+    // The headed `login` runs on the browser engine (ADR-027); console/keyring + reads use
+    // `portal`. The same fake driver backs both, so a test's scripted session serves whichever.
+    browser: driver,
   };
 }
 
@@ -67,8 +70,10 @@ function www2Driver(): FakePortalDriver {
               ],
             }
           : { cookies: [{ name: 'TOKEN', domain: '.sii.cl', path: '/', value: 'c' }] },
+      // Only /app/session/status is scripted; `undefined` for Mi SII lets the fake synthesise
+      // the identity HTML from `evaluate` (ADR-027 reads identity from HTML, not `evaluate`).
       requestText: (url: string) => {
-        if (!url.includes('/app/session/status')) return '';
+        if (!url.includes('/app/session/status')) return undefined;
         if (!www2Done) {
           www2Done = true; // first status read after goto = still logging in
           return { status: 401, body: '' };
@@ -82,9 +87,11 @@ function www2Driver(): FakePortalDriver {
       landingUrl: HOSTS.miSii,
       evaluate: (e) => (e.includes('DatosCntrNow') ? personaDatos() : null),
       requestText: (url: string) =>
-        url.includes('/app/session/status') && www2Done
-          ? JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 })
-          : ({ status: 401, body: '' } as const),
+        !url.includes('/app/session/status')
+          ? undefined
+          : www2Done
+            ? JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 })
+            : ({ status: 401, body: '' } as const),
     },
   });
 }

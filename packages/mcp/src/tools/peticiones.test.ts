@@ -23,7 +23,7 @@ describe('@albertomarturelo/sii-mcp peticiones tools (in-memory client, fake run
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'peticiones_list', arguments: {} });
     const parsed = JSON.parse(toolText(res)) as {

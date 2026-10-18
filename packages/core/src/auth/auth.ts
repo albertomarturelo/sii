@@ -18,8 +18,16 @@ import type { AccountType, OperableEntry } from '../identity/index.js';
 import { fetchEmpresasAutorizadas } from '../portal/representacion.js';
 import type { EmpresaAutorizada } from '../portal/representacion.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
-import { deleteSession, readSession, withSession, writeSession } from './session.js';
+import {
+  deleteSession,
+  readSession,
+  requireBrowser,
+  withSession,
+  writeSession,
+} from './session.js';
 import type { StoredSession } from './session.js';
+import { parseDatosCntrNow } from './datos-cntr.js';
+import type { DatosCntr } from './datos-cntr.js';
 import { mergeStorageState, waitForWww2Session, www2ExpiresAt } from './www2-login.js';
 import { readWww2Session } from '../portal/www2-session.js';
 import { Www2SessionError } from '../errors/index.js';
@@ -28,20 +36,13 @@ const DEFAULT_LOGIN_TIMEOUT_MS = 180_000;
 // Console login submits machine-fast (no human typing in the browser) and fails
 // fast on a rejected Clave, so it needs a far smaller budget than the headed flow.
 const CONSOLE_LOGIN_TIMEOUT_MS = 60_000;
-// The Mi-SII landing serves this inline JS object with the contribuyente snapshot.
-const DATOS_EXPR = "typeof DatosCntrNow !== 'undefined' ? DatosCntrNow : null";
 
-interface DatosContribuyente {
-  rut?: number | string;
-  dv?: string;
-  razonSocial?: string;
-  nombres?: string;
-  apellidoPaterno?: string;
-  apellidoMaterno?: string;
-  eMail?: string;
-}
-interface DatosCntr {
-  contribuyente?: DatosContribuyente;
+/** Read the Mi SII identity. The landing serves `DatosCntrNow` as an inline JS literal, so we
+ *  fetch the HTML and parse it (ADR-027) — engine-agnostic (works over the HTTP driver and the
+ *  browser one), replacing the old `session.evaluate`. `null` ⇒ not present (dead session). */
+async function readDatos(session: PortalSession): Promise<DatosCntr | null> {
+  const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
+  return parseDatosCntrNow(body);
 }
 
 export interface AuthIdentity {
@@ -220,7 +221,7 @@ async function finalizeFreshSession(
   if (landedOnLoginHost(landed)) {
     throw new LoginFailedError('Login no completado (seguimos en la página de autenticación).');
   }
-  const datos = await session.evaluate<DatosCntr | null>(DATOS_EXPR);
+  const datos = await readDatos(session);
   const identity = identityFromDatos(datos);
   const cookies = await session.storageState();
   await writeSession(runtime.store, {
@@ -316,7 +317,9 @@ export async function login(
 
   let session: PortalSession | null = null;
   try {
-    session = await runtime.portal.interactiveLogin({
+    // The headed login is the browser engine's job (ADR-027): the CLI's default is the HTTP
+    // console login, so only the MCP (which wires the browser) reaches this.
+    session = await requireBrowser(runtime).interactiveLogin({
       destination: HOSTS.miSii,
       timeoutMs: DEFAULT_LOGIN_TIMEOUT_MS,
     });
@@ -474,7 +477,7 @@ export async function statusRefresh(runtime: Runtime): Promise<AuthIdentityRefre
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
       throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
     }
-    const identity = identityFromDatos(await s.evaluate<DatosCntr | null>(DATOS_EXPR));
+    const identity = identityFromDatos(await readDatos(s));
     // The www2 layer, read live: a missing one is a plain `false` here, not an error — the
     // classic identity is the job; the layer is reported (ADR-026).
     let www2: AuthWww2Status = NO_WWW2;
@@ -500,7 +503,7 @@ export async function whoami(runtime: Runtime): Promise<AuthWhoami> {
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
       throw new NotAuthenticatedError('La sesión expiró. Ejecuta `sii auth login`.');
     }
-    const datos = await s.evaluate<DatosCntr | null>(DATOS_EXPR);
+    const datos = await readDatos(s);
     const identity = identityFromDatos(datos);
     const email = (datos?.contribuyente?.eMail ?? '').trim() || null;
     recordAudit(runtime, { action: 'whoami', result: 'ok', rut: identity.rut });

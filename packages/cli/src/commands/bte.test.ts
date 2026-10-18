@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { datos, run, runJson } from '../test-helpers.js';
+import { datos, run, runJson, seed } from '../test-helpers.js';
 
 describe('sii bte command (fake runtime, no SII)', () => {
   const META = { total_boletas: '1', suma_liquido: '256500', nombre_contribuyente: 'PII-OWN-XYZ' };
@@ -21,14 +21,17 @@ describe('sii bte command (fake runtime, no SII)', () => {
     audit: new testing.RecordingAuditSink(),
     store: new testing.InMemoryKeyValueStore(),
     portal: new testing.FakePortalDriver({
-      loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+      restoreSession: { landingUrl: HOSTS.miSii, evaluate },
+    }),
+    // bte list reads SII's inline JS maps → the browser engine (ADR-027).
+    browser: new testing.FakePortalDriver({
       restoreSession: { landingUrl: HOSTS.miSii, evaluate },
     }),
   });
 
   it('bte list <periodo> prints the month boletas (EMITIDAS by default)', async () => {
     const rt = makeBteRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'bte', 'list', '2026-05');
     expect(out).toContain('BHE EMITIDAS 2026-05');
     expect(out).toContain('folio=101');
@@ -38,7 +41,7 @@ describe('sii bte command (fake runtime, no SII)', () => {
 
   it('JSON default: bte list emits the curated object (no --rut concept)', async () => {
     const rt = makeBteRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, 'bte', 'list', '2026-05', '--recibidas')) as {
       side: string;
       boletas: { folio: number }[];
@@ -102,7 +105,7 @@ describe('sii bte emit (fake runtime, no SII)', () => {
 
   it('--dry-run (default, no --confirm) previews WITHOUT issuing', async () => {
     const rt = makeEmitRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, ...EMIT_ARGS, '--human');
     expect(out).toContain('vista previa');
     expect(out).toContain('Líquido a recibir: 862.500');
@@ -115,7 +118,7 @@ describe('sii bte emit (fake runtime, no SII)', () => {
 
   it('--confirm with the matching total issues and returns the código de barras', async () => {
     const rt = makeEmitRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, ...EMIT_ARGS, '--confirm', '1000000')) as { codBarras: string };
     expect(json.codBarras).toBe('200000420000000123DD');
     expect((rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action)).toContain(
@@ -125,7 +128,7 @@ describe('sii bte emit (fake runtime, no SII)', () => {
 
   it('--confirm with a MISMATCHED total aborts (never issues)', async () => {
     const rt = makeEmitRuntime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     await expect(run(rt, ...EMIT_ARGS, '--confirm', '999')).rejects.toThrow('no coincide');
     expect((rt.audit as testing.RecordingAuditSink).entries.map((e) => e.action)).not.toContain(
       'bte_emit',

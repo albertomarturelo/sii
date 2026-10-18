@@ -31,7 +31,7 @@ describe('@albertomarturelo/sii-mcp rcv tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'rcv_summary', arguments: { periodo: '2026-06' } });
     const parsed = JSON.parse(toolText(res)) as {
@@ -80,7 +80,7 @@ describe('@albertomarturelo/sii-mcp rcv tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'rcv_all', arguments: { periodo: '2026-06' } });
     const parsed = JSON.parse(toolText(res)) as {

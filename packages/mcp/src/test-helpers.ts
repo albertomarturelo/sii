@@ -14,16 +14,18 @@ export const datos = (): unknown => ({
 export function makeRuntime(
   driverScript?: ConstructorParameters<typeof testing.FakePortalDriver>[0],
 ): Runtime {
+  const script = driverScript ?? {
+    loginSession: { landingUrl: HOSTS.miSii, datos, storageState: { cookies: [] } },
+    restoreSession: { landingUrl: HOSTS.miSii, datos },
+  };
   return {
     clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
     audit: new testing.RecordingAuditSink(),
     store: new testing.InMemoryKeyValueStore(),
-    portal: new testing.FakePortalDriver(
-      driverScript ?? {
-        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
-        restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos },
-      },
-    ),
+    portal: new testing.FakePortalDriver(script),
+    // The MCP keeps the headed login + the browser surfaces (ADR-027), so it carries the
+    // browser engine; the same script backs it, so whichever engine a tool picks is scripted.
+    browser: new testing.FakePortalDriver(script),
   };
 }
 

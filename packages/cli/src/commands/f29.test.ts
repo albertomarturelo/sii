@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { datos, run, runJson } from '../test-helpers.js';
+import { datos, run, runJson, seed } from '../test-helpers.js';
 
 describe('sii f29 command (fake runtime, no SII)', () => {
   const PROPUESTA = {
@@ -62,7 +62,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
 
   it('f29 formulario <periodo> prints the propuesta grouped + labeled (PII dropped)', async () => {
     const rt = makeF29Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f29', 'formulario', '2026-05');
     expect(out).toContain('F29 2026-05');
     expect(out).toContain('fuente: propuesta');
@@ -74,7 +74,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
 
   it('f29 overview <año> lists the per-month position with total', async () => {
     const rt = makeF29Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(rt, 'f29', 'overview', '2026')) as {
       desde: string;
       hasta: string;
@@ -88,7 +88,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
 
   it('f29 status <periodo> lists the presented declaración with total', async () => {
     const rt = makeF29Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f29', 'status', '2026-05');
     expect(out).toContain('(estado)');
     expect(out).toContain('Vigente');
@@ -104,7 +104,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
 
   it('f29 pdf <periodo> downloads to the given --out and prints the path', async () => {
     const rt = makeF29Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'f29', 'pdf', '2026-05', '--out', '/tmp/x');
 
     expect(out).toContain('folio 7654321');
@@ -114,7 +114,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
 
   it('f29 pdf --tipo ambos writes both artifacts; JSON is the default output', async () => {
     const rt = makeF29Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const json = (await runJson(
       rt,
       'f29',
@@ -136,7 +136,7 @@ describe('sii f29 command (fake runtime, no SII)', () => {
 
   it('f29 pdf rejects an unknown --tipo before touching SII', async () => {
     const rt = makeF29Runtime();
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     await expect(run(rt, 'f29', 'pdf', '2026-05', '--tipo', 'xml')).rejects.toThrow(/--tipo/);
     expect((rt.files as testing.InMemoryFileSink).files.size).toBe(0);
   });

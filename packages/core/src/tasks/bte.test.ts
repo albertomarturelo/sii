@@ -45,6 +45,8 @@ function makeRuntime(): Runtime {
     store: new InMemoryKeyValueStore(),
     // restore() backs withSession; the goto/evaluate facade reads the inline maps from `evaluate`.
     portal: new FakePortalDriver({ restoreSession: { evaluate } }),
+    // bte list runs on the browser engine (reads SII's page JS maps, ADR-027).
+    browser: new FakePortalDriver({ restoreSession: { evaluate } }),
   };
 }
 
@@ -103,7 +105,8 @@ describe('bte tasks (fakes, no SII)', () => {
   it('an empty month returns a clean 0-boleta result', async () => {
     const rt: Runtime = {
       ...makeRuntime(),
-      portal: new FakePortalDriver({
+      // bte list uses the browser engine, so the scripted maps go there (ADR-027).
+      browser: new FakePortalDriver({
         restoreSession: {
           evaluate: (e: string) => (e.includes('xml_values') ? { total_boletas: '0' } : null),
         },
