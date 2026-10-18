@@ -36,6 +36,17 @@ export type FetchLike = typeof globalThis.fetch;
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_REDIRECTS = 10;
+// A browser-like User-Agent is REQUIRED on the authenticated requests: Playwright's
+// APIRequestContext sent the Chromium UA automatically, and SII's www4 WAF bounces a UA-less
+// client to the login wall even with a valid session cookie — misiir is laxer, which masked it
+// (observed 2026-10-18, GH live validation of ADR-027; the 2026-10-17 spike worked only because
+// it set a Chrome UA). A caller's explicit `User-Agent` still wins.
+const BROWSER_HEADERS: Record<string, string> = {
+  'user-agent':
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+    '(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+  'accept-language': 'es-CL,es;q=0.9',
+};
 const BROWSER_ONLY =
   'Esta operación necesita el motor de navegador (JS de la página de SII). El PortalDriver ' +
   'HTTP no puede ejecutarlo (ADR-027). Instala y usa el motor Playwright: `npm i playwright` + ' +
@@ -64,7 +75,8 @@ async function fetchWithJar(
   let headers = { ...init.headers };
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const cookie = jar.header(url);
-    const sent: Record<string, string> = { ...headers };
+    // Browser headers first so a caller's explicit header (e.g. a facade's Accept) overrides.
+    const sent: Record<string, string> = { ...BROWSER_HEADERS, ...headers };
     if (cookie) sent['cookie'] = cookie;
     const res = await fetchImpl(url, {
       method,
