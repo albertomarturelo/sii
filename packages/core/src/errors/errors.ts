@@ -23,9 +23,26 @@ export class SessionExpiredError extends NotAuthenticatedError {}
  *  DISTINCT from `SessionExpiredError` (the classic Mi SII session may be perfectly alive). */
 export class Www2SessionError extends NotAuthenticatedError {}
 
-/** Browser login was not completed (timeout / window closed). No partial
- *  session is ever written. */
-export class LoginFailedError extends SiiError {}
+/** Why a login was rejected, as DATA so a downstream consumer never regex-parses the
+ *  message (#124). `'wrong-clave'` ONLY for SII's observed wrong-Clave código; every
+ *  other código, a changed page shape, a timeout or the generic fallback is `'unknown'`
+ *  — the safe direction (a consumer treats unknown as "blocked", never as "retry"). */
+export type LoginFailureReason = 'wrong-clave' | 'unknown';
+
+/** Browser login was not completed (timeout / window closed) OR SII rejected the Clave.
+ *  No partial session is ever written. Carries the classified `reason` + SII's message
+ *  `codigo` (when the page printed one) alongside the verbatim message, so a consumer
+ *  reads them as data (#124). Both are additive: `new LoginFailedError(msg)` still works
+ *  (`reason: 'unknown'`, `codigo: null`). */
+export class LoginFailedError extends SiiError {
+  readonly reason: LoginFailureReason;
+  readonly codigo: string | null;
+  constructor(message: string, opts?: { reason?: LoginFailureReason; codigo?: string | null }) {
+    super(message);
+    this.reason = opts?.reason ?? 'unknown';
+    this.codigo = opts?.codigo ?? null;
+  }
+}
 
 /** SII server-side rate limit / block. NEVER retry — surface verbatim and stop. */
 export class RateLimitError extends SiiError {}

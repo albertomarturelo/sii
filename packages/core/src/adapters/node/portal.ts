@@ -9,7 +9,8 @@
 import type { Browser, BrowserContext, BrowserContextOptions, BrowserType, Page } from 'playwright';
 import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
-import { parseSiiLoginError } from '../../auth/login-error.js';
+import { parseSiiLoginErrorDetail } from '../../auth/login-error.js';
+import type { LoginFailureReason } from '../../errors/index.js';
 import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
 import type {
   BinaryRequest,
@@ -54,7 +55,9 @@ async function loadChromium(): Promise<BrowserType> {
  *  the código line is the human cause (e.g. "La Clave Tributaria ingresada no es
  *  correcta…"). Pass it through unchanged (CONVENTIONS); fall back to a clear,
  *  no-retry message if the page shape changed. */
-async function readLoginError(page: Page): Promise<string> {
+async function readLoginError(
+  page: Page,
+): Promise<{ message: string; reason: LoginFailureReason; codigo: string | null }> {
   const fallback =
     'El SII rechazó el login (Clave incorrecta o cuenta bloqueada). NO reintentes a ciegas: ' +
     'varios intentos fallidos bloquean la cuenta. Verifica tu Clave o usa `sii auth login`.';
@@ -64,9 +67,11 @@ async function readLoginError(page: Page): Promise<string> {
     const body = (await page.evaluate(
       '(document.body && document.body.innerText) || ""',
     )) as string;
-    return parseSiiLoginError(body) ?? fallback;
+    const d = parseSiiLoginErrorDetail(body);
+    // A changed shape (message null) ⇒ fallback text, reason 'unknown', no código.
+    return { message: d.message ?? fallback, reason: d.reason, codigo: d.codigo };
   } catch {
-    return fallback;
+    return { message: fallback, reason: 'unknown', codigo: null };
   }
 }
 
@@ -250,7 +255,8 @@ export class PlaywrightPortalDriver implements PortalDriver {
       ]);
       if (new URL(page.url()).hostname === LOGIN_HOST) {
         // Rejected — surface SII's verbatim message (CONVENTIONS); do NOT retry.
-        throw new LoginFailedError(await readLoginError(page));
+        const e = await readLoginError(page);
+        throw new LoginFailedError(e.message, { reason: e.reason, codigo: e.codigo });
       }
       return new PlaywrightPortalSession(browser, context, page);
     } catch (err) {
