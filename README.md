@@ -5,8 +5,9 @@
 
 Núcleo TypeScript + CLI + servidor MCP para automatizar interacciones rutinarias
 con el SII de Chile, para un usuario sobre su propio RUT y las empresas que está
-autorizado a representar. Pensado para usarse tanto en **Claude Code** como en
-**Claude Desktop**.
+autorizado a representar. Pensado para usarse en **Claude Code** y **Claude Desktop**,
+y también para que un **agente** (un bot, un cron, un CI) opere la cuenta sin nadie al
+teclado a través de la CLI ([Uso autónomo](#uso-autónomo-agentes-cron-ci)).
 
 Reescritura desde cero en TypeScript del `sii-cli` (Python) ya probado: el
 conocimiento del SII y los guardrails se **portan**; el código se escribe nuevo.
@@ -65,6 +66,10 @@ lado del servidor, así que la Clave sola bastaría para emitir un documento con
 legal, y ese paso irreversible queda contigo en la UI del SII
 ([ADR-023](docs/decisions/023-factura-borradores-only.md)).
 
+**Novedades en 0.11.0:** la CLI ya no usa navegador y puede operar sin teclado (variable
+de entorno o stdin, con un bloqueo que protege la cuenta tras un rechazo de Clave). Qué se
+decidió y por qué: [Decisiones de 0.11.0](#decisiones-de-0110).
+
 Checklist completo en [`docs/ROADMAP.md`](docs/ROADMAP.md); el historial de
 versiones, en [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -91,6 +96,9 @@ real. Ver [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
   `claude_desktop_config.json`.
 - **Claude Code** — conecta el mismo MCP (`.mcp.json` / `claude mcp add`), y/o
   deja que Claude Code use la CLI directamente por Bash.
+- **Otros agentes, cron o CI** — usan la CLI con la Clave desde una variable de entorno;
+  ver [Uso autónomo](#uso-autónomo-agentes-cron-ci). El MCP no sirve para eso a propósito:
+  ningún tool recibe la Clave.
 
 La Clave Tributaria nunca llega a disco en texto plano y ningún tool de MCP recibe
 contraseña: el `auth_login` del MCP abre tu navegador en la página real del SII
@@ -198,6 +206,7 @@ Un agente (o un cron) puede iniciar sesión y operar la cuenta sin nadie al tecl
 usando la **CLI**. El MCP no sirve para esto a propósito: ningún tool recibe la Clave.
 
 ```bash
+npm i -g @albertomarturelo/sii-cli                      # ≥ 0.11.0
 # Provisiona SII_CLAVE desde el campo de secretos de la plataforma (enmascarado).
 sii auth login --rut 11111111-1 --clave-env SII_CLAVE   # regla 2: con sesión viva no envía nada
 sii f29 overview 2026                                   # JSON en STDOUT
@@ -225,6 +234,42 @@ El ciclo del agente, en cada ejecución:
 - **Riesgo residual, que aceptas tú:** un agente con control de su máquina puede leer
   cualquier secreto de su proceso. Quien lo comprometa (o le inyecte instrucciones)
   obtiene la Clave Tributaria completa. Úsalo solo con tu propia cuenta.
+
+## Decisiones de 0.11.0
+
+Qué cambió en esta versión y por qué, en corto. El detalle está en
+[ADR-027](docs/decisions/027-http-portal-driver.md) y
+[ADR-028](docs/decisions/028-non-interactive-login.md).
+
+- **La CLI no usa navegador.** El login es un POST directo al formulario real del SII.
+  Una CLI que abre una ventana no sirve en un servidor ni para un agente. Chromium queda
+  solo donde tiene que correr el JavaScript del propio SII (`bte list`, `sii dte` y el
+  login del MCP).
+- **Ningún comando de la CLI necesita a una persona frente a un navegador.** Por eso
+  `sii auth login --www2` y `sii carpeta` pasaron al MCP: la sesión www2 exige reCAPTCHA.
+  Es el principal cambio incompatible; la lista completa está en el [CHANGELOG](CHANGELOG.md).
+- **La Clave sale siempre de una fuente nombrada en el comando, sin respaldo.** Nunca
+  `--clave <valor>`, que quedaría en el historial del shell y en la transcripción del
+  agente. Nunca una variable con nombre por defecto, que podría tomar un valor olvidado.
+  Y `--keyring` nunca recurre a una variable si el llavero falla. La variable se borra del
+  entorno apenas se lee.
+- **No hay `--if-needed`.** Todo login ya revisaba si había una sesión viva y en ese caso
+  no enviaba nada. Lo nuevo es que una sesión viva de **otro** RUT es un error, en vez de
+  responder «ya autenticado» con la cuenta equivocada.
+- **El bloqueo tras un rechazo lo activa cualquier página de error del SII con código**,
+  desde cualquier fuente, también la consola, porque ese intento igual cuenta para el
+  bloqueo de la cuenta. No lo activan la sala de espera del SII, un timeout ni un error de
+  red: en esos casos el SII nunca evaluó la Clave. `auth status` lo muestra
+  (`loginBlocked`), para que el agente lo vea antes de intentar.
+- **`sii auth unblock` exige una terminal, y eso no basta.** Frena a un cron o a un agente
+  que corre comandos por tuberías, pero no a uno que los corre en una pseudo-terminal.
+  Por eso las instrucciones del agente deben prohibírselo.
+- **El MCP no gana ninguna fuente de Clave.** Las tareas nuevas viven en el subpath
+  exclusivo de la CLI, y un test verifica que el MCP no puede alcanzarlas.
+- **Riesgo aceptado:** un agente con control de su máquina puede leer cualquier secreto
+  de su proceso, incluida la Clave. Lo que sí se protege es que la Clave no entre en la
+  transcripción del agente, que un bucle con una Clave vieja no bloquee la cuenta, y que
+  solo se haga login cuando la sesión murió.
 
 ## Capacidades
 

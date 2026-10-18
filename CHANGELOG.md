@@ -15,6 +15,50 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.11.0 — 2026-10-18 — Sin navegador y sin teclado
+
+**The CLI no longer needs a browser** (ADR-027). `sii auth login` is now a plain HTTP POST to
+SII's real login form: you type RUT and Clave in the terminal, only cookies are kept, and
+Playwright is no longer installed or launched for it. Almost every read runs over the same
+browser-free driver: RCV, F22, F29, whoami, operate, peticiones (GWT-RPC) and the public DTE
+consulta, all live-validated 2026-10-18. Chromium is now needed only where SII's own page
+JavaScript must run: `bte list`, the Portal MIPYME (`sii dte`) and the MCP's login.
+
+**And it no longer needs a keyboard** (ADR-028). For cron, CI and agents, the Clave can come
+from an environment variable you **name** on the command line (`--clave-env SII_CLAVE`, deleted
+from the environment after the read) or from stdin (`--clave-stdin`). Three rules govern every
+login, and the README now states them once, in « Cómo funciona el login »:
+
+1. The Clave's source is always named in the command. There is no fallback from one source to
+   another.
+2. A live session for that RUT means nothing is sent. A live session for **another** RUT is
+   now an error instead of a silent "already authenticated" as the wrong account.
+3. After SII rejects a Clave, a local **latch** makes every unattended login refuse **without
+   contacting SII**, so a stale Clave in a loop cannot lock your account. A person lifts it
+   after fixing the Clave, with a `--console` login or `sii auth unblock`. `sii auth status`
+   reports the latch as `loginBlocked`.
+
+The README's new « Uso autónomo » section is the guide for running this from an agent: the
+exit-code loop, persisting `~/.sii/`, and the residual risk you accept by giving an agent your
+Clave.
+
+**Breaking changes (CLI):**
+
+- `sii auth login` no longer opens a browser; it prompts in the terminal. `--console` remains
+  as an explicit alias.
+- `sii auth login --www2` and `sii carpeta …` left the CLI. The www2 layer needs SII's OAuth
+  page, where reCAPTCHA runs, and no CLI command may need a person at a browser window. Both
+  live on in the MCP (`auth_login` with `www2`, `carpeta_instituciones`).
+- A credential login with a live session for a different RUT fails with an error naming
+  `logout` → `login`.
+
+**For library consumers:** `createNodeRuntime().portal` is now the `HttpPortalDriver`, and
+Playwright moved to the optional `Runtime.browser`, which `createNodeRuntime` wires for you. A
+consumer that builds its own `Runtime` must supply `browser` for `bteList` and the MIPYME `dte`
+tasks, or they raise `BrowserRequiredError`. `AuthLoginResult.reason` gains `env_login` and
+`stdin_login`, and `AuthStatusLocal` gains `loginBlocked`. `LoginFailedError` now carries a
+typed `reason` and SII's `codigo` (#129), so no consumer has to parse the Spanish message.
+
 ## 0.10.0 — 2026-09-12 — Carpeta Tributaria y la segunda sesión del SII
 
 `sii carpeta instituciones` reads SII's **live** list of destination institutions for the

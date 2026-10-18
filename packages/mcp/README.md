@@ -24,6 +24,15 @@ npx playwright install chromium
 Requires **Node ≥ 20**. (The `sii` CLI is handy for the first `sii auth login`;
 the login can also run through the `auth_login` tool.)
 
+Two things live **only** here: the www2 session (`auth_login` with `www2`, which opens
+SII's OAuth page, where reCAPTCHA runs) and the Carpeta Tributaria tools that need it
+(`carpeta_instituciones`). `auth_status` also reports when the CLI's unattended login is
+blocked after a rejected Clave (`loginBlocked`); the MCP shows it and never lifts it.
+
+The MCP is **not** the way to run this unattended: no tool receives the Clave, by design.
+For a bot, cron or CI, use the CLI with `--clave-env` (see the
+[project README](https://github.com/albertomarturelo/sii#uso-autónomo-agentes-cron-ci)).
+
 ## Connect to Claude
 
 **Claude Desktop** — add to `claude_desktop_config.json` and restart the app

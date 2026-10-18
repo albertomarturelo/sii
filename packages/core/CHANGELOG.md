@@ -4,6 +4,46 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.11.0 — 2026-10-18
+
+### Added
+
+- **`HttpPortalDriver` (ADR-027, #131)** — every `PortalSession` primitive over Node `fetch`
+  and an in-house cookie jar, which (de)serialises to Playwright's `storageState` shape, so a
+  session minted by either engine restores in the other. The login is the hand-built
+  five-field POST that SII's page computes; success is decided by the session cookies plus the
+  body's navigation off the login host, because SII answers `200` on both success and
+  rejection. Queue-it's waiting room raises `LoginQueuedError` (never retried).
+- **`Runtime.browser`** — the optional, lazy Playwright engine, used only by the tasks that
+  run SII's own page JS (BTE `list`, the MIPYME/DTE tasks). `createNodeRuntime` wires it; a
+  hand-built `Runtime` without it makes those tasks raise `BrowserRequiredError`, which names
+  the install. Internally, the Mi SII identity is now parsed from the page's inline JSON literal
+  (zod-validated) instead of `session.evaluate`, so it works on either engine.
+- **Typed login failures (#129).** `LoginFailedError` carries `reason: 'wrong-clave' |
+  'unknown'` and `codigo` (SII's message code). Only the observed wrong-Clave code classifies
+  as `wrong-clave`; anything else is `unknown`, the safe direction.
+- **Non-interactive login (ADR-028, #133).** `suppliedClaveLogin(runtime, {rut, clave,
+  source: 'env' | 'stdin'})` and `unblockLogin(runtime, {rut?})`, both exported only from the
+  CLI-only `@albertomarturelo/sii-core/cli` subpath (a test asserts the main barrel lacks them).
+- **The rejection latch** (`auth/login-block.ts`, `~/.sii/login-blocked.json`, one `{rut, at,
+  codigo}` entry per RUT, no secret). Any SII error page with a código trips it, from any Clave
+  source; Queue-it, timeouts and network errors never do. While set, env/stdin/keyring logins
+  for that RUT raise `LoginBlockedError` (a `LoginFailedError`) without contacting SII. A fresh
+  console or browser login for that RUT clears it, as does `unblockLogin`.
+- **`AuthStatusLocal.loginBlocked`** — the latch, reported by `authStatus`, so a caller checks
+  it before deciding to log in.
+- **`source` on every `auth_login` audit receipt** (`env | stdin | keyring | console |
+  browser`), never the value; a latch refusal is `result: 'blocked'`.
+
+### Changed
+
+- **`createNodeRuntime().portal` defaults to `HttpPortalDriver`**; Playwright moved to
+  `Runtime.browser`. A consumer that injects its own `portal` and expected it to run page JS
+  must now also supply `browser`.
+- **Every credential login is RUT-aware.** A live session for a different RUT raises
+  `ValidationError` instead of answering `already_authenticated` as the wrong account.
+- `AuthLoginResult.reason` gains `env_login` and `stdin_login`.
+
 ## 0.10.0 — 2026-09-12
 
 ### Added
