@@ -168,6 +168,19 @@ describe('HttpPortalDriver — session primitives', () => {
     expect(calls[0]?.headers['user-agent']).toMatch(/Mozilla\/5\.0.*Chrome/);
   });
 
+  it('does not duplicate content-type when a facade passes a CamelCase one', async () => {
+    const { impl, calls } = okJson();
+    const session = await new HttpPortalDriver(impl).restore({ cookies: [] });
+    // The facade sends `Content-Type`; the driver's default is `content-type`. A plain object
+    // would keep both and undici would append them to `application/json, application/json`,
+    // which www4 answered with HTTP 500 (GH live validation 2026-10-18). Must be ONE value.
+    await session.requestJson('https://www4.sii.cl/x', {
+      headers: { 'Content-Type': 'application/json' },
+      body: { a: 1 },
+    });
+    expect(calls[0]?.headers['content-type']).toBe('application/json');
+  });
+
   it('requestJson parses JSON, and maps an HTML login-wall bounce to SessionExpiredError', async () => {
     const good = okJson();
     const session = await new HttpPortalDriver(good.impl).restore({ cookies: [] });
