@@ -8,7 +8,9 @@ import type {
   AuthStatusLocal,
   AuthWhoami,
   AuthWww2Status,
+  LoginBlockEntry,
   LoginOptions,
+  LoginSource,
 } from '../auth/index.js';
 import type { Runtime } from '../seams/index.js';
 
@@ -31,6 +33,23 @@ export function consoleLogin(
  *  the RUT) instead of the terminal. ONE attempt, no implicit re-login. NEVER over MCP. */
 export function keyringLogin(runtime: Runtime, args: { rut: string }): Promise<AuthLoginResult> {
   return auth.keyringLogin(runtime, args);
+}
+
+/** CLI-only (ADR-028): the surface read the Clave from a NAMED environment variable or piped
+ *  stdin. ONE attempt; refused without contacting SII while the rejection latch is set for the
+ *  RUT. NEVER over MCP. */
+export function suppliedClaveLogin(
+  runtime: Runtime,
+  args: { rut: string; clave: string; source: 'env' | 'stdin' },
+): Promise<AuthLoginResult> {
+  return auth.suppliedClaveLogin(runtime, args);
+}
+
+/** CLI-only (ADR-028): lift the rejection latch, for one RUT or all. Local only. Kept off the
+ *  MCP on purpose: the latch exists so an unattended caller cannot retry a stale Clave, and
+ *  the reset is a human's act, never the model's. */
+export function unblockLogin(runtime: Runtime, args: { rut?: string } = {}): Promise<string[]> {
+  return auth.unblockLogin(runtime, args);
 }
 
 export function logout(runtime: Runtime): Promise<AuthLogoutResult> {
@@ -62,5 +81,7 @@ export type {
   AuthStatusLocal,
   AuthWhoami,
   AuthWww2Status,
+  LoginBlockEntry,
   LoginOptions,
+  LoginSource,
 };

@@ -144,10 +144,18 @@ export function buildServer(runtime: Runtime): McpServer {
           return `RUT: ${fmt(id.rut)}\nNombre: ${id.nombre ?? '—'}\nTipo: ${id.accountType}\n${www2Line(id.www2)}`;
         }
         const s = await authStatus(runtime);
-        if (!s.authenticated || !s.rut) return 'No autenticado. Usa la tool auth_login.';
+        // The rejection latch (ADR-028) is reported, never lifted here: unblock is CLI-only.
+        const blocked = s.loginBlocked
+          .map(
+            (b) =>
+              `\nLogin desatendido (CLI) bloqueado para ${fmt(b.rut)} desde ${b.at}` +
+              `${b.codigo ? ` (código ${b.codigo})` : ''}; lo levanta una persona en la terminal.`,
+          )
+          .join('');
+        if (!s.authenticated || !s.rut) return `No autenticado. Usa la tool auth_login.${blocked}`;
         const ctx = await operatingStatus(runtime);
         const op = ctx && !ctx.isSelf ? `\n${describeOperating(ctx)}` : '';
-        return `Autenticado (sesión local) como ${fmt(s.rut)}.${op}\n${www2Line(s.www2)}`;
+        return `Autenticado (sesión local) como ${fmt(s.rut)}.${op}\n${www2Line(s.www2)}${blocked}`;
       }),
   );
 

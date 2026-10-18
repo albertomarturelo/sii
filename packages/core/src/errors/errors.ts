@@ -58,6 +58,13 @@ export class BrowserRequiredError extends SiiError {}
  *  NOT a credential failure and NOT retryable here — surface it and stop. */
 export class LoginQueuedError extends LoginFailedError {}
 
+/** A NON-interactive login (`--clave-env` / `--clave-stdin` / `--keyring`) refused WITHOUT
+ *  contacting SII because the rejection latch is set for that RUT: SII rejected a Clave for
+ *  it earlier, and an unattended retry of the same stale value is how an account gets locked
+ *  (ADR-028). Carries the latched `codigo`/`reason`. Lifted by an interactive login or
+ *  `sii auth unblock`. A LoginFailed subclass, so it keeps that exit code. */
+export class LoginBlockedError extends LoginFailedError {}
+
 /** A stored credential was required (e.g. unattended re-mint) but none resolved. */
 export class CredentialNotFoundError extends SiiError {}
 

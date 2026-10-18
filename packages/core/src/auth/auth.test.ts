@@ -10,8 +10,11 @@ import type { Runtime } from '../seams/index.js';
 import { HOSTS } from '../config/index.js';
 import {
   CredentialNotFoundError,
+  LoginBlockedError,
   LoginFailedError,
+  LoginQueuedError,
   NotAuthenticatedError,
+  ValidationError,
 } from '../errors/index.js';
 import {
   consoleLogin,
@@ -20,8 +23,12 @@ import {
   login,
   logout,
   statusRefresh,
+  suppliedClaveLogin,
+  unblockLogin,
   whoami,
 } from './auth.js';
+import { readLoginBlock, tripLoginBlock } from './login-block.js';
+import { WRONG_CLAVE_CODIGO } from './login-error.js';
 import { readSession } from './session.js';
 import { readOperateState } from '../identity/index.js';
 
@@ -747,5 +754,184 @@ describe('auth — keyring login (ADR-025, synthetic data)', () => {
     await expect(keyringLogin(rt, { rut: '20000042-0' })).rejects.toBeInstanceOf(LoginFailedError);
     expect(driver.credentialLoginCalls).toBe(1);
     expect(await readSession(rt.store)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Non-interactive login (ADR-028): the CLI read the Clave from a named env var or stdin.
+// Same one-attempt core, plus the RUT-aware live probe and the rejection latch. Synthetic
+// RUTs + Clave only; SII is the fake driver.
+// ---------------------------------------------------------------------------
+
+const OTHER_RUT = '11111111-1'; // synthetic, Mod-11-valid, not the fixture's principal
+const wrongClave = (): LoginFailedError =>
+  new LoginFailedError(
+    `La Clave Tributaria ingresada no es correcta (código ${WRONG_CLAVE_CODIGO})`,
+    {
+      reason: 'wrong-clave',
+      codigo: WRONG_CLAVE_CODIGO,
+    },
+  );
+const ENV = { rut: CRED.rut, clave: CRED.clave, source: 'env' } as const;
+
+describe('auth — non-interactive login (ADR-028, synthetic data)', () => {
+  it('mints a cookies-only session and audits the source, never the Clave', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    const res = await suppliedClaveLogin(rt, ENV);
+    expect(res).toMatchObject({ authenticated: true, rut: CRED.rut, reason: 'env_login' });
+    expect(driver.lastCredential).toEqual({ rut: CRED.rut, clave: CRED.clave });
+    const audit = rt.audit as RecordingAuditSink;
+    expect(audit.entries.find((e) => e.action === 'auth_login')).toMatchObject({
+      result: 'ok',
+      source: 'env',
+    });
+    expect(JSON.stringify(audit.entries)).not.toContain(CRED.clave);
+    expect(JSON.stringify(await readSession(rt.store))).not.toContain(CRED.clave);
+  });
+
+  it('records stdin as its own source', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos));
+    const res = await suppliedClaveLogin(rt, { ...ENV, source: 'stdin' });
+    expect(res.reason).toBe('stdin_login');
+  });
+
+  it('a live session for the same RUT answers already_authenticated, nothing submitted', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    await suppliedClaveLogin(rt, ENV);
+    const again = await suppliedClaveLogin(rt, ENV);
+    expect(again).toMatchObject({ reason: 'already_authenticated', rut: CRED.rut });
+    expect(driver.credentialLoginCalls).toBe(1);
+  });
+
+  it('a live session for ANOTHER RUT is an error on every Clave source (ADR-005)', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    await suppliedClaveLogin(rt, ENV); // live as 20000042-0
+    await expect(suppliedClaveLogin(rt, { ...ENV, rut: OTHER_RUT })).rejects.toThrow(
+      /sesión activa como 20000042-0[\s\S]*sii auth logout/,
+    );
+    await expect(consoleLogin(rt, { rut: OTHER_RUT, clave: 'x' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    expect(driver.credentialLoginCalls).toBe(1);
+  });
+
+  it('a SII rejection with a código trips the latch: {rut, at, codigo}, no secret', async () => {
+    const rt = makeRuntime(new FakePortalDriver({ failCredentialLogin: wrongClave() }));
+    await expect(suppliedClaveLogin(rt, ENV)).rejects.toBeInstanceOf(LoginFailedError);
+    const block = await readLoginBlock(rt.store, CRED.rut);
+    expect(block).toEqual({
+      rut: CRED.rut,
+      at: '2026-06-27T12:00:00.000Z',
+      codigo: WRONG_CLAVE_CODIGO,
+    });
+    expect(JSON.stringify(block)).not.toContain(CRED.clave);
+  });
+
+  it('while latched, env / stdin / keyring refuse WITHOUT contacting SII', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const secrets = new InMemorySecretStore(new Map([[CRED.rut, CRED.clave]]));
+    const rt = keyringRuntime(driver, secrets);
+    await tripLoginBlock(rt, CRED.rut, WRONG_CLAVE_CODIGO);
+    for (const source of ['env', 'stdin'] as const) {
+      const err = await suppliedClaveLogin(rt, { ...ENV, source }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(LoginBlockedError);
+      expect(err).toMatchObject({ reason: 'wrong-clave', codigo: WRONG_CLAVE_CODIGO });
+    }
+    await expect(keyringLogin(rt, { rut: CRED.rut })).rejects.toBeInstanceOf(LoginBlockedError);
+    expect(driver.credentialLoginCalls).toBe(0);
+    expect(secrets.reads).toEqual([]); // not even the keyring was read
+  });
+
+  it('the latch is per RUT: another RUT logs in normally', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    await tripLoginBlock(rt, OTHER_RUT, WRONG_CLAVE_CODIGO);
+    await expect(suppliedClaveLogin(rt, ENV)).resolves.toMatchObject({ reason: 'env_login' });
+    expect(await readLoginBlock(rt.store, OTHER_RUT)).not.toBeNull();
+  });
+
+  it('a live session still answers while latched (nothing would be submitted)', async () => {
+    const driver = credDriver(realPersonaDatos);
+    const rt = makeRuntime(driver);
+    await suppliedClaveLogin(rt, ENV);
+    await tripLoginBlock(rt, CRED.rut, WRONG_CLAVE_CODIGO);
+    await expect(suppliedClaveLogin(rt, ENV)).resolves.toMatchObject({
+      reason: 'already_authenticated',
+    });
+  });
+
+  it.each([
+    ['Queue-it', new LoginQueuedError('sala de espera')],
+    ['a timeout / changed page (no código)', new LoginFailedError('Login no completado')],
+    ['a network error', new Error('fetch failed')],
+  ])('never trips on %s: SII never judged the Clave', async (_label, error) => {
+    const rt = makeRuntime(new FakePortalDriver({ failCredentialLogin: error }));
+    await expect(suppliedClaveLogin(rt, ENV)).rejects.toBe(error);
+    expect(await readLoginBlock(rt.store, CRED.rut)).toBeNull();
+  });
+
+  it('an unrecognised código (e.g. the unobserved locked-account page) trips too', async () => {
+    const locked = new LoginFailedError('Cuenta bloqueada (código 99.99)', { codigo: '99.99' });
+    const rt = makeRuntime(new FakePortalDriver({ failCredentialLogin: locked }));
+    await expect(suppliedClaveLogin(rt, ENV)).rejects.toBe(locked);
+    expect(await readLoginBlock(rt.store, CRED.rut)).toMatchObject({ codigo: '99.99' });
+  });
+
+  it('a successful console login (a human typing) lifts the latch for that RUT', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos));
+    await tripLoginBlock(rt, CRED.rut, WRONG_CLAVE_CODIGO);
+    await consoleLogin(rt, CRED);
+    expect(await readLoginBlock(rt.store, CRED.rut)).toBeNull();
+  });
+
+  it('a successful browser login (the MCP auth_login) lifts it too', async () => {
+    const rt = makeRuntime(successDriver());
+    await tripLoginBlock(rt, '20000042-0', WRONG_CLAVE_CODIGO);
+    await login(rt);
+    expect(await readLoginBlock(rt.store, '20000042-0')).toBeNull();
+  });
+
+  it('a rejected console login trips the latch as well (the attempt counted toward a lock)', async () => {
+    const rt = makeRuntime(new FakePortalDriver({ failCredentialLogin: wrongClave() }));
+    await expect(consoleLogin(rt, CRED)).rejects.toBeInstanceOf(LoginFailedError);
+    expect(await readLoginBlock(rt.store, CRED.rut)).not.toBeNull();
+  });
+
+  it('localStatus reports the latch, with or without a session, so a caller checks first', async () => {
+    const rt = makeRuntime(credDriver(realPersonaDatos));
+    expect((await localStatus(rt.store, rt.clock.now())).loginBlocked).toEqual([]);
+    await tripLoginBlock(rt, OTHER_RUT, WRONG_CLAVE_CODIGO);
+    const noSession = await localStatus(rt.store, rt.clock.now());
+    expect(noSession).toMatchObject({
+      authenticated: false,
+      loginBlocked: [
+        { rut: OTHER_RUT, at: '2026-06-27T12:00:00.000Z', codigo: WRONG_CLAVE_CODIGO },
+      ],
+    });
+    await suppliedClaveLogin(rt, ENV); // another RUT logs in; the latch stays reported
+    const withSession = await localStatus(rt.store, rt.clock.now());
+    expect(withSession.authenticated).toBe(true);
+    expect(withSession.loginBlocked.map((b) => b.rut)).toEqual([OTHER_RUT]);
+  });
+
+  it('unblockLogin lifts one RUT or all, and reports which', async () => {
+    const rt = makeRuntime(new FakePortalDriver({}));
+    await tripLoginBlock(rt, CRED.rut, WRONG_CLAVE_CODIGO);
+    await tripLoginBlock(rt, OTHER_RUT, null);
+    expect(await unblockLogin(rt, { rut: '20.000.042-0' })).toEqual([CRED.rut]);
+    expect(await readLoginBlock(rt.store, OTHER_RUT)).not.toBeNull();
+    expect(await unblockLogin(rt)).toEqual([OTHER_RUT]);
+    expect(await unblockLogin(rt)).toEqual([]);
+  });
+
+  it('a malformed RUT is rejected locally — no attempt (ADR-004)', async () => {
+    const driver = credDriver(realPersonaDatos);
+    await expect(
+      suppliedClaveLogin(makeRuntime(driver), { ...ENV, rut: '20000042-9' }),
+    ).rejects.toThrow();
+    expect(driver.credentialLoginCalls).toBe(0);
   });
 });
