@@ -215,6 +215,13 @@ Python `sii-cli`, adapted to TypeScript.
   **Never retry a write after a SII error.** Server-computed values (retención rate) are READ from
   the form, never hardcoded. Live-validate the ISSUE path against a real (needed) document — never
   a throwaway.
+- **A write that creates a debt stops at the declaration and returns SII's payment link (ADR-029).**
+  We never pay. The result carries `pagoUrl` (`null` when nothing is owed): SII's own payment
+  entry, which the user opens in THEIR browser and authenticates there themselves. The link must
+  carry no session material from our jar. If SII's only link embeds a session-bound token, return
+  the generic entry point plus the folio. Never inject our cookies into the user's browser
+  (ADR-006). The confirm echo guards against a mistake, not against an unattended agent; say so
+  in the ADR of every write surface an agent can reach. `f29 submit` is the template.
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
