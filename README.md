@@ -25,20 +25,31 @@ Superficies de **lectura** operativas y validadas en vivo: autenticación
 observaciones / historial), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
 (consulta pública), **whoami** y **peticiones administrativas** (SISPAD).
 
-Tres formas de iniciar sesión, todas cookies-only: **navegador** (tecleas la Clave en
-la página real del SII), **consola** (`--console`, Clave oculta por terminal) y
-**llavero del sistema** (`--keyring`: la Clave que tú guardaste en Keychain / Secret
-Service, un intento, sin re-login automático —
-[ADR-025](docs/decisions/025-keyring-secret-store.md)). La CLI nunca escribe la Clave
-en ningún lado, y el servidor MCP no tiene acceso al llavero en absoluto.
+El login de la CLI **no usa navegador**
+([ADR-027](docs/decisions/027-http-portal-driver.md)): es un POST directo al formulario
+del SII y se guardan solo cookies. La Clave puede venir de cuatro fuentes, siempre
+nombradas en la línea de comandos y sin respaldo implícito de una a otra:
+- la **consola** (por defecto, Clave oculta);
+- el **llavero del sistema** (`--keyring`, la Clave que tú guardaste en Keychain o Secret
+  Service; [ADR-025](docs/decisions/025-keyring-secret-store.md));
+- una **variable de entorno que nombras** (`--clave-env <VAR>`);
+- **stdin** (`--clave-stdin`).
+
+Las dos últimas existen para el uso desatendido (cron, CI, agentes;
+[ADR-028](docs/decisions/028-non-interactive-login.md)), ver
+[Uso autónomo](#uso-autónomo-agentes-cron-ci). La CLI nunca escribe la Clave en ningún
+lado. El servidor MCP no tiene acceso al llavero ni recibe la Clave: su `auth_login` abre
+tu navegador en la página real del SII.
 
 **Carpeta Tributaria**: `carpeta instituciones` lee la lista vigente de instituciones
 destinatarias directamente del SII (los códigos cambian, así que no se empaqueta ninguno).
-Vive en la plataforma **www2** del SII, que autoriza con una **sesión propia**: por eso
-existe `sii auth login --www2`, un segundo login cookies-only en el que tecleas la Clave en
-la página OAuth real del SII —nunca headless, porque ahí corre reCAPTCHA
-([ADR-026](docs/decisions/026-www2-app-session-login.md))—. Ambas sesiones conviven en el
-mismo archivo; `auth status` las muestra y `auth logout` cierra las dos.
+Vive en la plataforma **www2** del SII, que autoriza con una **sesión propia**: un segundo
+login cookies-only en el que tecleas la Clave en la página OAuth real del SII, nunca
+headless, porque ahí corre reCAPTCHA
+([ADR-026](docs/decisions/026-www2-app-session-login.md)). Esa sesión la abre solo el MCP
+(`auth_login` con `www2`), así que **la Carpeta es solo MCP**
+([ADR-027](docs/decisions/027-http-portal-driver.md)). Ambas sesiones conviven en el mismo
+archivo; `auth status` las muestra y `auth logout` cierra las dos.
 
 Primera superficie de **descarga de documentos**: `f29 pdf`, que guarda en disco
 el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuando el
@@ -82,8 +93,9 @@ real. Ver [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 - **Claude Code** — conecta el mismo MCP (`.mcp.json` / `claude mcp add`), y/o
   deja que Claude Code use la CLI directamente por Bash.
 
-El Clave Tributaria nunca llega al LLM ni a disco en texto plano: login por
-navegador (cookies-only) — ningún tool de MCP recibe contraseña. Ver
+La Clave Tributaria nunca llega a disco en texto plano y ningún tool de MCP recibe
+contraseña: el `auth_login` del MCP abre tu navegador en la página real del SII
+(cookies-only). Ver
 [ADR-006](docs/decisions/006-auth-posture-browser-cookies-host-secrets.md).
 
 ## Instalación y uso
@@ -95,17 +107,20 @@ ver [Desarrollo](#desarrollo).
 # 1) Instala la CLI y el servidor MCP
 npm i -g @albertomarturelo/sii-cli @albertomarturelo/sii-mcp
 
-# 2) Instala el navegador que usa el login (una sola vez, ~100–150 MB)
+# 2) Solo si usarás el login del MCP, `bte list` o `sii dte` (Portal MIPYME):
+#    el navegador que ejecuta el JS del SII (una sola vez, ~100–150 MB)
 npx playwright install chromium
 
-# 3) Inicia sesión — abre tu navegador en la página REAL del SII;
-#    tecleas tu RUT + Clave ahí. La Clave nunca llega al modelo ni a disco.
+# 3) Inicia sesión: RUT + Clave oculta en la terminal, sin navegador.
+#    Se guardan solo cookies; la Clave nunca llega a disco.
 sii auth login
 
 #    Alternativa sin tipear: guarda la Clave en el llavero del sistema y usa --keyring
 #    secret-tool store --label='SII' service sii username <tu-rut>       # Linux
 #    security add-generic-password -s sii -a <tu-rut> -w                  # macOS
 #    sii auth login --keyring --rut <tu-rut>                         # un intento, sin re-login automático
+#    Desatendido (cron / agentes): la Clave desde una variable que NOMBRAS (ADR-028)
+#    sii auth login --rut <tu-rut> --clave-env SII_CLAVE
 
 # 4) Úsalo desde la terminal
 sii peticiones list            # ¿tengo trámites detenidos ("en espera de Antecedentes")?
@@ -142,10 +157,47 @@ Luego pídele en lenguaje natural (p. ej. «¿cuál es el estado de mi sesión?�
 tu navegador). Los tools de lectura no cambian nada; emitir una BHE exige
 confirmación explícita.
 
-> **Playwright** es la única dependencia con peso: `sii` lo usa para el login por
-> navegador (cookies-only, ADR-006). Por eso el paso 2 (`npx playwright install
-> chromium`) es obligatorio la primera vez; el paquete npm no descarga navegadores
-> automáticamente.
+> **Playwright** es la única dependencia con peso, y ya no es obligatoria
+> ([ADR-027](docs/decisions/027-http-portal-driver.md)). El login de la CLI y casi todas
+> las lecturas van por HTTP. Chromium solo hace falta para el login del MCP, `bte list`
+> y el Portal MIPYME (`sii dte`), donde debe correr el JS del propio SII. El paquete npm
+> no descarga navegadores automáticamente.
+
+## Uso autónomo (agentes, cron, CI)
+
+Un agente (o un cron) puede iniciar sesión y operar la cuenta sin nadie al teclado,
+usando la **CLI**. El MCP no sirve para esto a propósito: ningún tool recibe la Clave
+([ADR-028](docs/decisions/028-non-interactive-login.md)).
+
+```bash
+# Provisiona SII_CLAVE desde el campo de secretos de la plataforma (enmascarado).
+sii auth login --rut 11111111-1 --clave-env SII_CLAVE   # idempotente: con sesión viva no envía nada
+sii f29 overview 2026                                   # JSON en STDOUT
+```
+
+El ciclo recomendado para el agente se guía por el **código de salida**:
+
+| Salida | Significa | Qué hace el agente |
+|---|---|---|
+| `0` | OK | Lee el JSON de STDOUT. |
+| `2` | No autenticado / sesión expirada | Corre el `auth login … --clave-env` de arriba y reintenta el comando **una vez**. |
+| `3` | El login falló, o está bloqueado tras un rechazo de Clave | **Se detiene y avisa a un humano.** No reintenta el login. |
+| `4` | Límite de tasa del SII | Se detiene; no reintenta. |
+| `1` | Otro error (entrada inválida, sesión de otro RUT…) | Se detiene; el mensaje del SII va tal cual en `{"error": …}` por STDERR. |
+
+- **Persiste `~/.sii/`** entre ejecuciones (sesión, puntero `operate`, bloqueo). Un
+  contenedor efímero haría un login nuevo cada vez.
+- **El bloqueo es la red de seguridad.** Tras un rechazo de Clave, `--clave-env`,
+  `--clave-stdin` y `--keyring` se niegan sin contactar al SII, así que una Clave vieja
+  en un bucle no bloquea tu cuenta. **El agente nunca debe correr `sii auth unblock`:**
+  levantar el bloqueo le corresponde a un humano, después de corregir la Clave.
+- **Nunca** hagas `echo` de la variable ni teclees la Clave en el chat del agente.
+- **Lo que un agente no puede usar:** la Carpeta Tributaria (su sesión www2 exige
+  reCAPTCHA en un navegador) y el login del MCP. `bte list` y `sii dte` necesitan
+  Chromium instalado en la máquina del agente.
+- **Riesgo residual, que aceptas tú:** un agente con control de su máquina puede leer
+  cualquier secreto de su proceso. Quien lo comprometa (o le inyecte instrucciones)
+  obtiene la Clave Tributaria completa. Úsalo solo con tu propia cuenta.
 
 ## Capacidades
 
@@ -203,7 +255,8 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 
 | Comando | Qué hace |
 |---|---|
-| `sii auth login [--console\|--keyring]` | Inicia sesión (navegador cookies-only; `--console` pide la Clave por terminal; `--keyring` la lee del llavero del SO) |
+| `sii auth login [--console\|--keyring\|--clave-env <VAR>\|--clave-stdin]` | Inicia sesión cookies-only, sin navegador (por defecto pide RUT + Clave oculta por terminal; `--keyring` la lee del llavero del SO; `--clave-env` / `--clave-stdin` para uso desatendido, ADR-028) |
+| `sii auth unblock [--rut <rut>]` | Levanta el bloqueo de login desatendido tras un rechazo de Clave (local, no contacta al SII) |
 | `sii auth status [--refresh]` | Quién soy / a nombre de quién opero (`--refresh` lee del portal) |
 | `sii auth logout` | Cierra sesión (cierre server best-effort + wipe local) |
 | `sii operate <rut> \| --self \| --list` | Elige el RUT a nombre del cual actuar / lista el set operable |
