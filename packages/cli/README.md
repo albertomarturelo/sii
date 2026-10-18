@@ -3,7 +3,8 @@
 Command-line interface for Chile's **SII** (Servicio de Impuestos Internos), for a
 single user acting on their own RUT plus the empresas they represent. Authenticated
 **reads** — RCV, F22, F29, boletas de honorarios (BHE), DTE-authorized (public),
-peticiones administrativas, whoami — plus a confirm-gated BHE **emit**. A thin
+peticiones administrativas, whoami — plus a confirm-gated BHE **emit**. Runs
+unattended too (cron, CI, agents), with no browser and no keyboard. A thin
 surface over [`@albertomarturelo/sii-core`](https://www.npmjs.com/package/@albertomarturelo/sii-core);
 all the legal/operational guardrails live in the core.
 
@@ -29,7 +30,9 @@ reaches disk in plaintext (ADR-006).
 ```bash
 sii auth login                 # RUT + hidden Clave in the terminal; cookies-only
 sii auth login --keyring       # the Clave you stored in the OS keyring (service "sii")
-sii auth status                # who am I / operating as whom
+sii auth login --rut <rut> --clave-env SII_CLAVE   # unattended: the Clave from a NAMED env var
+sii auth status                # who am I / operating as whom / is unattended login blocked
+sii auth unblock               # lift the block after fixing the Clave (terminal only)
 sii peticiones list            # administrative requests + their state timeline
 sii rcv summary 2026-05        # RCV (compras) summary for a period
 sii rcv all 2026-05            # RCV (compras) — every doc type in one flat table
@@ -37,6 +40,9 @@ sii f29 overview 2026          # month-by-month IVA position
 sii dte authorized 77777777-7  # public consulta — no login
 sii bte emit … --confirm <monto>   # issue a BHE (defaults to a safe preview)
 ```
+
+`sii auth login --www2` and `sii carpeta` left the CLI in 0.11.0: the www2 session needs
+SII's OAuth page, where reCAPTCHA runs. Both remain in the MCP server.
 
 Output is **JSON by default** (pipe to `jq`); add `--human` for a readable render.
 The `operando como …` header goes to STDERR. Full command list, the identity model
