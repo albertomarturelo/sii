@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { datos, run, runJson } from '../test-helpers.js';
+import { datos, run, runJson, seed } from '../test-helpers.js';
 
 describe('sii rcv command (fake runtime, no SII)', () => {
   const RESUMEN_ENV = {
@@ -31,7 +31,7 @@ describe('sii rcv command (fake runtime, no SII)', () => {
 
   it('rcv summary prints the resumen rows for a period', async () => {
     const rt = makeRcvRuntime(() => RESUMEN_ENV);
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'rcv', 'summary', '2026-06');
     expect(out).toContain('RCV COMPRA 2026-06');
     expect(out).toContain('33');
@@ -74,7 +74,7 @@ describe('sii rcv command (fake runtime, no SII)', () => {
         '34': { respEstado: { codRespuesta: 0 }, data: [{ detNroDoc: 2, detMntTotal: 200 }] },
       }),
     );
-    await run(rt, 'auth', 'login');
+    await seed(rt);
     const out = await run(rt, 'rcv', 'all', '2026-06');
     expect(out).toContain('RCV COMPRA 2026-06 — todos los tipos');
     expect(out).toContain('tipo=33');
@@ -90,7 +90,7 @@ describe('sii rcv command (fake runtime, no SII)', () => {
         '34': { respEstado: { codRespuesta: 1, msgeRespuesta: 'Tipo no disponible' } },
       }),
     );
-    await run(rt, 'auth', 'login');
+    await seed(rt);
 
     const human = await run(rt, 'rcv', 'all', '2026-06');
     expect(human).toContain('⚠ Resultado incompleto');
@@ -104,7 +104,7 @@ describe('sii rcv command (fake runtime, no SII)', () => {
         '34': { respEstado: { codRespuesta: 1, msgeRespuesta: 'Tipo no disponible' } },
       }),
     );
-    await run(rt2, 'auth', 'login');
+    await seed(rt2);
     const json = (await runJson(rt2, 'rcv', 'all', '2026-06')) as {
       incomplete: boolean;
       rejectedTypes: string[];

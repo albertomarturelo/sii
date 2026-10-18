@@ -38,7 +38,7 @@ describe('@albertomarturelo/sii-mcp f22 tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'f22_status', arguments: { anio: '2025' } });
     const parsed = JSON.parse(toolText(res)) as {
@@ -98,7 +98,7 @@ describe('@albertomarturelo/sii-mcp f22 tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({
       name: 'f22_formulario',
@@ -163,7 +163,7 @@ describe('@albertomarturelo/sii-mcp f22 tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'f22_observaciones', arguments: { anio: '2025' } });
     const parsed = JSON.parse(toolText(res)) as {
@@ -223,7 +223,7 @@ describe('@albertomarturelo/sii-mcp f22 tools (in-memory client, fake runtime, n
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'f22_historial', arguments: { anio: '2025' } });
     const parsed = JSON.parse(toolText(res)) as {

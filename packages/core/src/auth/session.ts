@@ -1,7 +1,21 @@
-import { NotAuthenticatedError } from '../errors/index.js';
+import { BrowserRequiredError, NotAuthenticatedError } from '../errors/index.js';
 import { readOperateState, resolveOperableTarget } from '../identity/index.js';
 import { Rut } from '../rut/index.js';
-import type { KeyValueStore, PortalSession, Runtime } from '../seams/index.js';
+import type { KeyValueStore, PortalDriver, PortalSession, Runtime } from '../seams/index.js';
+
+/** The runtime's JS engine (Playwright), or an actionable error. The HTTP default `portal`
+ *  cannot run SII's page JS (ADR-027); a surface that needs it (BTE list, MIPYME) asks for the
+ *  `browser` engine, and the MCP's headed / www2 logins use it directly. */
+export function requireBrowser(runtime: Runtime): PortalDriver {
+  if (!runtime.browser) {
+    throw new BrowserRequiredError(
+      'Esta operación necesita el motor de navegador (Playwright), que este runtime no tiene ' +
+        'configurado. En el CLI, las superficies que lo requieren (BTE list, factura MIPYME) ' +
+        'necesitan `playwright` instalado; el login con navegador vive en el MCP (ADR-027).',
+    );
+  }
+  return runtime.browser;
+}
 
 // Distinct KeyValueStore key (ADR-007) — never shares a file with `identity`'s 'operate'.
 const SESSION_KEY = 'session';
@@ -71,7 +85,7 @@ export interface SessionContext {
 export async function withSession<T>(
   runtime: Runtime,
   fn: (session: PortalSession, ctx: SessionContext) => Promise<T>,
-  options: { rut?: string } = {},
+  options: { rut?: string; engine?: 'browser' } = {},
 ): Promise<T> {
   const stored = await readSession(runtime.store);
   if (!stored) {
@@ -93,11 +107,27 @@ export async function withSession<T>(
     operatingRut = operateState?.operatingRut ?? stored.rut;
   }
 
+  // The default engine is the browser-free HTTP driver; a surface that runs SII's page JS
+  // asks for the `browser` engine, restored into the same cookies-only jar (ADR-027).
+  const driver = options.engine === 'browser' ? requireBrowser(runtime) : runtime.portal;
+
   let s: PortalSession | null = null;
   try {
-    s = await runtime.portal.restore(stored.cookies);
+    s = await driver.restore(stored.cookies);
     return await fn(s, { sessionRut: stored.rut, operatingRut });
   } finally {
     await s?.close();
   }
+}
+
+/** `withSession` pinned to the browser engine — for the surfaces that run SII's OWN page JS
+ *  (BTE `list`'s inline maps, MIPYME's `validaFacEx`), ADR-027. Sugar so those call sites read
+ *  intent-first and never need Chromium elsewhere. Raises `BrowserRequiredError` when the
+ *  runtime carries no `browser` engine. */
+export function withBrowserSession<T>(
+  runtime: Runtime,
+  fn: (session: PortalSession, ctx: SessionContext) => Promise<T>,
+  options: { rut?: string } = {},
+): Promise<T> {
+  return withSession(runtime, fn, { ...options, engine: 'browser' });
 }

@@ -20,60 +20,27 @@ export function makeRuntime(): Runtime {
     audit: new testing.RecordingAuditSink(),
     store: new testing.InMemoryKeyValueStore(),
     portal: new testing.FakePortalDriver({
-      loginSession: {
-        landingUrl: HOSTS.miSii, // off zeusr.sii.cl ⇒ authenticated (URL-based detection)
-        evaluate: datos,
-        storageState: { cookies: [] },
-      },
-      // credentialLogin() backs `auth login --console` (ADR-010).
+      // credentialLogin() backs the default/`--console` HTTP login (ADR-010 / ADR-027).
       credentialSession: {
         landingUrl: HOSTS.miSii,
-        evaluate: datos,
+        datos,
         storageState: { cookies: [] },
       },
       // restore() backs the idempotent live-probe and `auth status --refresh`.
-      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos },
+      restoreSession: { landingUrl: HOSTS.miSii, datos },
     }),
+    // The browser engine (BTE list / MIPYME) — present so requireBrowser never throws; the
+    // surfaces that need its page-JS behaviour build their own scripted browser driver.
+    browser: new testing.FakePortalDriver({ restoreSession: { landingUrl: HOSTS.miSii, datos } }),
   };
 }
 
-/** A runtime whose browser login ALSO completes the www2 OAuth step (ADR-026): after the classic
- *  login, /app/session/status answers a session JSON and the jar grows the X-SII-STATE-CT cookie.
- *  Synthetic cookies/expiry (no SII, no PII). */
-export const WWW2_EXPIRES = 1_789_006_000; // epoch s
-export function makeWww2Runtime(): Runtime {
-  let www2Done = false;
-  const status = (url: string): { status: number; body: string } | string =>
-    url.includes('/app/session/status') && www2Done
-      ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT', seconds: 5999 })
-      : { status: 401, body: '' };
-  const jar = () =>
-    www2Done
-      ? {
-          cookies: [
-            { name: 'X-SII-STATE-CT', domain: '.sii.cl', path: '/', expires: WWW2_EXPIRES },
-          ],
-        }
-      : { cookies: [{ name: 'TOKEN', domain: '.sii.cl', path: '/', value: 'c' }] };
-  return {
-    clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
-    audit: new testing.RecordingAuditSink(),
-    store: new testing.InMemoryKeyValueStore(),
-    portal: new testing.FakePortalDriver({
-      loginSession: {
-        landingUrl: HOSTS.miSii,
-        evaluate: datos,
-        storageState: jar,
-        requestText: (url: string) => {
-          const r = status(url);
-          if (!www2Done && url.includes('/app/session/status')) www2Done = true;
-          return r;
-        },
-      },
-      restoreSession: { landingUrl: HOSTS.miSii, evaluate: datos, requestText: status },
-    }),
-  };
-}
+/** Seed an authenticated self session directly (ADR-027: the CLI login now prompts for a Clave,
+ *  so surface tests that just need "logged in" skip the command). */
+export const seed = (runtime: Runtime): Promise<void> => testing.seedSession(runtime);
+
+// The www2 app-session login left the CLI (ADR-027: it's MCP-only, reCAPTCHA-gated), so its
+// test runtime lives in the MCP suite now (packages/mcp/src/server.test.ts).
 
 /** Capture STDOUT while running `fn` (STDERR — incl. the header + prompts — muted). */
 async function capture(fn: () => Promise<void>): Promise<string> {

@@ -26,7 +26,7 @@ describe('@albertomarturelo/sii-mcp carpeta tools (in-memory client, fake runtim
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
 
     const res = await client.callTool({ name: 'carpeta_instituciones', arguments: {} });
     expect(JSON.parse(toolText(res))).toEqual([
@@ -58,7 +58,7 @@ describe('@albertomarturelo/sii-mcp carpeta tools (in-memory client, fake runtim
       }),
     };
     const client = await connect(runtime);
-    await client.callTool({ name: 'auth_login', arguments: {} });
+    await testing.seedSession(runtime);
     const res = await client.callTool({ name: 'carpeta_instituciones', arguments: {} });
     expect((res as { isError?: boolean }).isError).toBe(true);
     expect(toolText(res)).toContain('sii auth login --www2');

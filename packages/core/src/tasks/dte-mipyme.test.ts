@@ -106,7 +106,10 @@ function makeRuntime(borradores: unknown[] = []): Runtime & { written: string[] 
     clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
+    // MIPYME runs SII's in-page form JS, so it uses the browser engine (ADR-027); the scripted
+    // session backs it. `portal` kept too (harmless; the tasks only touch `browser`).
     portal: new FakePortalDriver({ restoreSession: sessionScript(borradores) }),
+    browser: new FakePortalDriver({ restoreSession: sessionScript(borradores) }),
     files,
     written,
   };
@@ -119,6 +122,16 @@ async function seed(runtime: Runtime): Promise<void> {
     accountType: 'persona',
     operable: [{ rut: SELF, razonSocial: 'Titular', isSelf: true }],
   });
+}
+
+/** Build ONE fake driver and expose it as BOTH engines: the MIPYME tasks run on the browser
+ *  engine (ADR-027), and sharing the instance keeps a stateful script (page counters, a reads
+ *  array) single rather than split across two drivers. */
+function bothEngines(
+  script: ConstructorParameters<typeof FakePortalDriver>[0],
+): Pick<Runtime, 'portal' | 'browser'> {
+  const driver = new FakePortalDriver(script);
+  return { portal: driver, browser: driver };
 }
 
 const entries = (rt: Runtime) => (rt.audit as RecordingAuditSink).entries;
@@ -255,11 +268,8 @@ describe('retry policy (CONVENTIONS: never retry after a SII block)', () => {
   class Timeout extends Error {
     override name = 'TimeoutError';
   }
-  const runtimeWith = (fail: () => never, calls: { n: number }): Runtime => ({
-    clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
-    audit: new RecordingAuditSink(),
-    store: new InMemoryKeyValueStore(),
-    portal: new FakePortalDriver({
+  const runtimeWith = (fail: () => never, calls: { n: number }): Runtime => {
+    const driver = new FakePortalDriver({
       restoreSession: {
         requestForm: (url: string) => {
           if (url.includes('mipeSelEmpresa.cgi?')) {
@@ -269,8 +279,15 @@ describe('retry policy (CONVENTIONS: never retry after a SII block)', () => {
           return '';
         },
       },
-    }),
-  });
+    });
+    return {
+      clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
+      audit: new RecordingAuditSink(),
+      store: new InMemoryKeyValueStore(),
+      portal: driver,
+      browser: driver, // MIPYME uses the browser engine (ADR-027)
+    };
+  };
 
   it('does NOT retry a 429 / rate-limit answered by SII', async () => {
     const calls = { n: 0 };
@@ -374,7 +391,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     clock: new FixedClock(new Date('2026-09-08T12:00:00Z')),
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
-    portal: new FakePortalDriver({
+    ...bothEngines({
       restoreSession: {
         requestForm: (url: string) => {
           if (url.includes('mipeSelEmpresa.cgi?')) {
@@ -419,7 +436,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
     files: { write: async (dir: string, name: string) => `${dir}/${name}` } as FileSink,
-    portal: new FakePortalDriver({
+    ...bothEngines({
       restoreSession: {
         requestForm: (url: string) => {
           if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;
@@ -478,7 +495,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
     files: { write: async (dir: string, name: string) => `${dir}/${name}` } as FileSink,
-    portal: new FakePortalDriver({
+    ...bothEngines({
       restoreSession: {
         requestForm: (url: string) => {
           if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;
@@ -510,7 +527,7 @@ describe('GH-93: emitidas/pdf follow the patterns settled in #90', () => {
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
     files: { write: async (dir: string, name: string) => `${dir}/${name}` } as FileSink,
-    portal: new FakePortalDriver({
+    ...bothEngines({
       restoreSession: {
         requestForm: (url: string) => {
           if (url.includes('mipeSelEmpresa.cgi?')) return EMPRESAS_HTML;

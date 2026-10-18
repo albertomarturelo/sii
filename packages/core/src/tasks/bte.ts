@@ -7,7 +7,7 @@
 // it ignores the pointer and takes NO `--rut`. The período is validated locally BEFORE any
 // session. Pagination is paced via `Clock.sleep` (ADR-004); the facade reads inline JS maps via
 // `PortalSession.goto`/`evaluate` (not the SDI-JSON path).
-import { withSession } from '../auth/index.js';
+import { withBrowserSession, withSession } from '../auth/index.js';
 import { recordAudit } from '../audit/index.js';
 import { readOperateState } from '../identity/index.js';
 import { Periodo } from '../periodo/index.js';
@@ -65,7 +65,9 @@ export async function bteList(
   await assertSelfOperating(runtime);
   const start = runtime.clock.now().getTime();
   try {
-    const res = await withSession(runtime, async (session, ctx) =>
+    // BTE list reads SII's inline JS maps (xml_values / arr_informe_mensual), so it needs the
+    // browser engine — unlike bte emit below, which is HTTP form-POSTs (ADR-027).
+    const res = await withBrowserSession(runtime, async (session, ctx) =>
       fetchBteMensual(
         session,
         { rut: Rut.parse(ctx.sessionRut), periodo, side: args.side }, // session-keyed: the principal
