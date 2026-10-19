@@ -293,13 +293,13 @@ The **locked-account** código is NOT yet observed (triggering it risks a real l
 it stays `unknown` until captured — the safe direction: a consumer treats `unknown` as
 "blocked", never as "retry".
 
-## The www2 app-session layer (`--www2`, ADR-026)
+## The www2 app-session layer (the `www2` login, ADR-026; MCP-only since ADR-027)
 
 Observed 2026-09-11/12 (#110). `www2.sii.cl/app/*` (the "nueva plataforma" apps and their
 `/app/<name>-api/*` JSON facades — first the Carpeta Tributaria) do NOT ride the classic
 `.sii.cl` cookies this login captures. They need a **www2 app session** minted by an OAuth2
-code flow, and `sii auth login --www2` runs it as a SECOND cookies-only login in the same
-headed browser, right after the classic one.
+code flow, and the `www2` login (the MCP's `auth_login`; the CLI's `--www2` until ADR-027) runs
+it as a SECOND cookies-only login in the same headed browser, right after the classic one.
 
 ### Flow (`--www2`)
 

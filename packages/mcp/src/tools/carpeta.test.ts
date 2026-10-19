@@ -61,7 +61,8 @@ describe('@albertomarturelo/sii-mcp carpeta tools (in-memory client, fake runtim
     await testing.seedSession(runtime);
     const res = await client.callTool({ name: 'carpeta_instituciones', arguments: {} });
     expect((res as { isError?: boolean }).isError).toBe(true);
-    expect(toolText(res)).toContain('sii auth login --www2');
+    expect(toolText(res)).toContain('`auth_login` y `www2: true`');
+    expect(toolText(res)).not.toContain('--www2');
   });
 
   it('carpeta_instituciones without a session is an error result carrying the message', async () => {

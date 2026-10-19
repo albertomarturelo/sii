@@ -51,7 +51,10 @@ describe('www2 app-session read (fake session, no SII)', () => {
     expect(err).toBeInstanceOf(Www2SessionError);
     expect(err).toBeInstanceOf(NotAuthenticatedError);
     expect((err as Error).message).toContain('HTTP 401');
-    expect((err as Error).message).toContain('sii auth login --www2');
+    // The route since ADR-027: the MCP's auth_login, never the removed CLI flag (#151).
+    expect((err as Error).message).toContain('`auth_login` y `www2: true`');
+    expect((err as Error).message).not.toContain('--www2');
+    expect((err as Error).message).not.toContain('pendiente');
   });
 
   it('a 200 that is the SPA shell HTML (a cold hit) is "no session" too, never a parse crash', async () => {

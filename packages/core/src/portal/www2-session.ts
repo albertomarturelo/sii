@@ -61,11 +61,12 @@ export async function readWww2Session(
   const app = parsed === null ? null : SessionJson.safeParse(parsed);
   if (!app || !app.success) {
     throw new Www2SessionError(
-      'No hay sesión en la plataforma www2 del SII (www2.sii.cl/app/*), que autoriza con una ' +
-        'sesión propia (login OAuth) y no con la sesión de Mi SII que esta herramienta guarda ' +
+      'No hay sesión en la plataforma www2 del SII (www2.sii.cl/app/*), o expiró. Esa ' +
+        'plataforma autoriza con una sesión propia (login OAuth), no con la de Mi SII ' +
         `(HTTP ${res.status}${res.status === 200 ? ' sin JSON de sesión' : ''} en ` +
-        '/app/session/status). Iniciarla aún no está soportado — ADR-026 la define como un ' +
-        'segundo login en el navegador (`sii auth login --www2`, pendiente).',
+        '/app/session/status). Se inicia desde el MCP con `auth_login` y `www2: true`: ' +
+        'escribes la Clave en la página del SII, que pide reCAPTCHA. La CLI no puede ' +
+        'iniciarla (ADR-026, ADR-027).',
     );
   }
   const authType = app.data['userAuthType'];

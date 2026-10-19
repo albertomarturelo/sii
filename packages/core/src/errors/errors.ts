@@ -19,8 +19,9 @@ export class SessionExpiredError extends NotAuthenticatedError {}
 
 /** The www2 APP SESSION (the second cookies-only layer `www2.sii.cl/app/*` needs — ADR-026) is
  *  missing or expired: `/app/session/status` did not answer a session JSON. A subclass of
- *  NotAuthenticated because the fix is a login (`sii auth login --www2`), never a retry — but
- *  DISTINCT from `SessionExpiredError` (the classic Mi SII session may be perfectly alive). */
+ *  NotAuthenticated because the fix is a login (the MCP's `auth_login` with `www2`), never a
+ *  retry — but DISTINCT from `SessionExpiredError` (the classic Mi SII session may be perfectly
+ *  alive). */
 export class Www2SessionError extends NotAuthenticatedError {}
 
 /** Why a login was rejected, as DATA so a downstream consumer never regex-parses the

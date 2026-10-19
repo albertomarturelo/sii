@@ -116,7 +116,7 @@ describe('auth', () => {
     expect(op?.accountType).toBe('persona');
   });
 
-  it('login --www2 mints both layers: classic cookies kept + the www2 cookie, expiry stored', async () => {
+  it('login with www2 mints both layers: classic cookies kept + the www2 cookie, expiry stored', async () => {
     const rt = makeRuntime(www2Driver());
     const res = await login(rt, { www2: true });
     expect(res.reason).toBe('browser_login');
