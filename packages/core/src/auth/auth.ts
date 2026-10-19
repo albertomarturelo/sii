@@ -119,12 +119,13 @@ export interface AuthLoginResult {
 export interface AuthLogoutResult {
   readonly loggedOut: boolean;
   readonly serverClosed: boolean;
-  /** The www2 app session (ADR-026) is proven closed on the server: its own liveness read
-   *  refuses the pre-logout cookies. `false` when there was no layer or the close is unproven. */
+  /** The www2 app session (ADR-026) is proven no longer valid on the server: its own liveness
+   *  read refuses the pre-logout cookies (a layer that expired on its own reads `true` too).
+   *  `false` when there was no layer or the close is unproven. */
   readonly www2Closed: boolean;
-  /** Set when a www2 layer was stored and its close is NOT proven: SII keeps it valid until its
-   *  own expiry (observed 2026-10-19, #146), so this is when it stops working (`null` if the
-   *  stored layer had no expiry). Absent otherwise. */
+  /** Set when a www2 layer was stored, its close is NOT proven, and its stored expiry is still
+   *  ahead: SII keeps it valid until then (observed 2026-10-19, #146), so this is when it stops
+   *  working (`null` if the stored layer had no expiry). Absent otherwise. */
   readonly www2ValidUntil?: string | null;
 }
 
@@ -637,7 +638,8 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   // Each close runs in its own session restored from the ORIGINAL cookies. The www2 close (the
   // SPA's `$logout`) answers 307 with Set-Cookie deletions for the CLASSIC cookies too (TOKEN,
   // CSESSIONID, NETSCAPE_LIVEWIRE.*; observed at www2.sii.cl/app/session/close on 2026-10-19,
-  // #146): on a shared jar, `autTermino.cgi` then went out without the session it should end.
+  // #146), and the jar applies them (the same jar then got a 401). So on a shared jar,
+  // `autTermino.cgi` would go out without the session it has to end.
   const www2CloseSent = session.www2
     ? await sendClose(
         runtime,
@@ -670,11 +672,18 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
     serverClosed,
     ...(session.www2 ? { www2Closed } : {}),
   });
+  // "Still valid until" only while that is in the future: an unproven close of a layer whose
+  // stored expiry has passed must not claim it still works.
+  const until = session.www2?.expiresAt ?? null;
+  const stillValid =
+    session.www2 !== undefined &&
+    !www2Closed &&
+    (until === null || Date.parse(until) > runtime.clock.now().getTime());
   return {
     loggedOut: true,
     serverClosed,
     www2Closed,
-    ...(session.www2 && !www2Closed ? { www2ValidUntil: session.www2.expiresAt } : {}),
+    ...(stillValid ? { www2ValidUntil: until } : {}),
   };
 }
 

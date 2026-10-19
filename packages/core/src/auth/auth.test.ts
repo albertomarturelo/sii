@@ -163,8 +163,11 @@ describe('auth', () => {
   /** A fake SII holding BOTH layers, with one jar PER restored session (#146). The www2 close
    *  (the SPA's `$logout`) answers by leaving its path and wipes the classic cookies from THAT
    *  jar, as observed, so an `autTermino.cgi` sent on the same jar ends nothing. The www2 layer
-   *  survives both closes unless `www2Revokes`; `failWww2Close` makes that GET throw. */
-  function www2LogoutDriver(opts: { www2Revokes?: boolean; failWww2Close?: boolean } = {}) {
+   *  survives both closes unless `www2Revokes`; `failWww2Close` makes that GET throw, and
+   *  `failStatus` makes the www2 liveness read throw (an inconclusive probe). */
+  function www2LogoutDriver(
+    opts: { www2Revokes?: boolean; failWww2Close?: boolean; failStatus?: boolean } = {},
+  ) {
     let classicClosed = false;
     let www2Revoked = false;
     const sessionJson = JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 });
@@ -186,24 +189,23 @@ describe('auth', () => {
             }
             return url === HOSTS.miSii && (classicClosed || jarWiped) ? LOGIN_URL : undefined;
           },
-          requestText: (url: string) =>
-            !url.includes('/app/session/status')
-              ? undefined
-              : www2Revoked || jarWiped
-                ? ({ status: 401, body: '' } as const)
-                : sessionJson,
+          requestText: (url: string) => {
+            if (!url.includes('/app/session/status')) return undefined;
+            if (opts.failStatus) throw new Error('network down');
+            return www2Revoked || jarWiped ? ({ status: 401, body: '' } as const) : sessionJson;
+          },
         };
       },
     });
   }
 
   const WWW2_UNTIL = '2026-06-27T13:40:00.000Z';
-  async function storeBothLayers(rt: Runtime): Promise<void> {
+  async function storeBothLayers(rt: Runtime, expiresAt: string = WWW2_UNTIL): Promise<void> {
     await writeSession(rt.store, {
       rut: '20000042-0',
       cookies: { cookies: [] },
       savedAt: '2026-06-27T12:00:00.000Z',
-      www2: { savedAt: '2026-06-27T12:00:00.000Z', expiresAt: WWW2_UNTIL },
+      www2: { savedAt: '2026-06-27T12:00:00.000Z', expiresAt },
     });
   }
 
@@ -253,6 +255,26 @@ describe('auth', () => {
     });
     expect(driver.restoreCalls).toBe(3); // no www2 probe after a close that never ran
     expect(await readSession(rt.store)).toBeNull();
+  });
+
+  it('an inconclusive www2 probe is not a proof: www2Closed false, still valid until expiry', async () => {
+    const rt = makeRuntime(www2LogoutDriver({ failStatus: true }));
+    await storeBothLayers(rt);
+    const res = await logout(rt);
+    expect(res).toMatchObject({
+      serverClosed: true,
+      www2Closed: false,
+      www2ValidUntil: WWW2_UNTIL,
+    });
+  });
+
+  it('a stored www2 expiry already past is never reported as "still valid until"', async () => {
+    // The runtime clock is 2026-06-27T12:00Z; the layer's stored expiry is an hour before.
+    const rt = makeRuntime(www2LogoutDriver({ failStatus: true }));
+    await storeBothLayers(rt, '2026-06-27T11:00:00.000Z');
+    const res = await logout(rt);
+    expect(res.www2Closed).toBe(false);
+    expect(res.www2ValidUntil).toBeUndefined();
   });
 
   it('logout without a www2 layer reports www2Closed false and omits it from the receipt', async () => {

@@ -361,17 +361,22 @@ fresh sessions. Cookie names only; no value was printed.
 | Then `autTermino.cgi` with the full PRE-close jar, and both probes again | Mi SII: **login wall** (classic closed). `/app/session/status`: **still `200`**. |
 
 What this means:
-- **SII does not revoke the www2 app session.** Neither its own close nor the classic one ends
-  it server-side; the cookies stay valid until they expire (~100 min). The SPA's `$logout`
-  only clears vuex and navigates to that URL (`chunk-vendors.659f67b1.js`, fetched
-  2026-10-19), and `barrasii.js`'s close does the same, so there is no other call to make.
+- **SII does not revoke the www2 app session** (observed for a `userAuthType: "CT"`, Clave
+  Tributaria, session). Neither its own close nor the classic one ends it server-side; the
+  cookies stay valid until they expire (~100 min). The SPA's `$logout` only clears vuex and
+  navigates to that URL (`chunk-vendors.659f67b1.js`, fetched 2026-10-19), so there is no
+  other call to make. `barrasii.js` holds two closes: `urlRedirect`, the same relative
+  `/app/session/close` with Clave Única's logout as `originalUrl`, and `cerrarSesion()`, which
+  goes to `renta.w.sii.cl/app/session/close` instead. That host was not probed.
 - **The old landing-URL test read a false "closed"**: the 307 leaves the close path while the
   session stays valid. `www2Closed` is now decided like `serverClosed` (#135): the PRE-close
   cookies in a fresh session must be refused by `/app/session/status`, after both closes.
   Today that answers `false`.
-- **The www2 close empties the classic jar.** On one shared session, `autTermino.cgi` then went
-  out without `TOKEN`/`CSESSIONID`, so a logout with a www2 layer never closed the classic
-  session. Each close now runs in its own session restored from the PRE-close cookies.
+- **The www2 close empties the classic jar.** This is derived, not seen on the wire: the 307's
+  deletions above are applied by the jar (the same jar then got a `401`), so on one shared
+  session `autTermino.cgi` would go out without `TOKEN`/`CSESSIONID` and close nothing. That
+  was `logout`'s order. Each close now runs in its own session restored from the PRE-close
+  cookies.
 - When the layer is not proven closed, the result carries `www2ValidUntil` (the stored
   expiry), and both surfaces say the www2 session stays valid at SII until then.
 - Validated live (the stored session after the probes): `sii auth logout --json` answered
