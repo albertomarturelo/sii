@@ -9,6 +9,15 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.13.0 — 2026-10-19
+
+### Added
+
+- **`SII_HOME` moves every piece of state (#164):** session, `operate` pointer, rejection latch,
+  `audit.jsonl` and the default `--out` of `f29 pdf` / `dte pdf` / `dte preview`. It must be an
+  absolute path; otherwise every command fails with `type` `validation` and exit code 1. `--out`'s
+  help names it, and its default shows the resolved folder.
+
 ## 0.12.2 — 2026-10-19
 
 ### Fixed
