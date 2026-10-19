@@ -216,11 +216,33 @@ El ciclo del agente, en cada ejecución:
 
 1. `sii auth status`. Si `loginBlocked` incluye su RUT, **se detiene y avisa a una
    persona**; no intenta nada más.
-2. Corre el comando que necesita. Si sale con `2` (sin sesión o sesión expirada), hace el
-   `auth login` de arriba y reintenta el comando **una vez**.
-3. Si el login sale con `3` (rechazo o bloqueo), **se detiene y avisa**. Con `4` (límite
-   del SII) también se detiene. Los errores van como `{"error": "<mensaje del SII>"}` por
-   STDERR.
+2. Corre el comando que necesita. Si falla con `session_expired` o `not_authenticated`,
+   hace el `auth login` de arriba y reintenta el comando **una vez**.
+3. Ante cualquier otro error, **se detiene y avisa**. Ningún error de login se reintenta.
+
+Los errores van por STDERR como un objeto JSON. El agente decide por `type`, nunca por el
+texto del mensaje:
+
+```json
+{ "error": "<mensaje del SII, tal cual>", "type": "login_rejected", "exitCode": 3,
+  "reason": "wrong-clave", "codigo": "<código del SII>" }
+```
+
+| `type` | Qué pasó | Salida | El agente |
+| --- | --- | --- | --- |
+| `not_authenticated` / `session_expired` | No hay sesión, o murió | 2 | `auth login` y reintenta una vez |
+| `www2_session_required` | Falta la sesión www2, que solo abre el MCP | 2 | Se detiene: un agente no puede abrirla |
+| `login_rejected` | El SII rechazó la Clave; el bloqueo quedó puesto | 3 | Se detiene y avisa: hay que corregir la Clave |
+| `login_blocked` | El bloqueo negó el login sin contactar al SII | 3 | Se detiene y avisa; **nunca** `auth unblock` |
+| `login_queued` | Sala de espera del SII; la Clave no se evaluó | 3 | Se detiene; lo intentará la próxima ejecución |
+| `login_failed` | Otro fallo de login: la variable no existe, Clave vacía, timeout | 3 | Se detiene y avisa |
+| `rate_limited` | Límite o bloqueo del SII | 4 | Se detiene; nunca reintenta |
+| `validation`, `credential_not_found`, `browser_required` | El comando o la máquina están mal configurados | 1 | Se detiene y avisa |
+| `sii_error`, `unexpected_response`, `unexpected` | El SII rechazó la operación, o algo cambió | 1 | Se detiene y avisa |
+
+`reason` y `codigo` solo vienen en los `login_*` (`codigo` es `null` si el SII no imprimió
+ninguno). Un `type` desconocido se trata como `unexpected`. Los tipos no cambian de nombre;
+la lista completa está en [ADR-012](docs/decisions/012-json-default-output.md).
 
 - **Persiste `~/.sii/`** entre ejecuciones: ahí viven la sesión, el puntero `operate` y
   el bloqueo. Un contenedor efímero haría un login nuevo cada vez.

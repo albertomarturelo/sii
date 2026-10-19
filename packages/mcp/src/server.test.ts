@@ -204,6 +204,17 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     // A valid RUT NOT in the operable set → domain error surfaced as isError.
     const res = await client.callTool({ name: 'operate', arguments: { rut: '12345670-K' } });
     expect(isError(res)).toBe(true);
-    expect(toolText(res).length).toBeGreaterThan(0); // SII/domain message passed through
+    // The CLI's JSON error without exitCode (ADR-012 amendment): verbatim message + kind.
+    const e = JSON.parse(toolText(res)) as Record<string, unknown>;
+    expect(e.type).toBe('validation');
+    expect(e.error).toEqual(expect.any(String));
+    expect(e).not.toHaveProperty('exitCode');
+  });
+
+  it('a tool error names its stable type (not_authenticated with no session)', async () => {
+    const client = await connect(makeRuntime());
+    const res = await client.callTool({ name: 'whoami', arguments: {} });
+    expect(isError(res)).toBe(true);
+    expect(JSON.parse(toolText(res))).toMatchObject({ type: 'not_authenticated' });
   });
 });

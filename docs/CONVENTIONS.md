@@ -32,6 +32,12 @@ Python `sii-cli`, adapted to TypeScript.
   ONCE and renders it through the shared `emit(data, humanFn)` — never bare `out()`
   for a result. STDOUT carries only the result (JSON pipeable to `jq`); the
   `operating as:` header + diagnostics go to STDERR and are human-mode-only. (ADR-012)
+  **A JSON error is `{ error, type, exitCode, reason?, codigo? }` on STDERR** (the MCP's
+  tool error is the same object, minus `exitCode`). `error` is the verbatim message. `type`
+  is a stable kind from the core's `classifyError` (`login_rejected`, `session_expired`, …),
+  never a class name. A consumer branches on `type`, never on the text. The CLI's exit code
+  is derived from `type`. A new error class either maps to an existing kind or gets a new
+  kind through an ADR-012 amendment. Kinds are never renamed. (ADR-012 amendment, #134)
 - **External dependencies sit behind injectable seams.** `PortalDriver`,
   `SecretStore`, `SessionStore`, `AuditSink`, `Clock` are interfaces in
   `@albertomarturelo/sii-core` with Node default implementations; tests inject fakes so they

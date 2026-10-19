@@ -1,5 +1,8 @@
 # ADR-012: JSON is the default output; `@altumstack/sii-core` is the JSON contract
 
+> **Amended 2026-10-18 (#134):** a JSON error carries a stable `type`, its exit code and, for
+> logins, `reason` / `codigo`; the MCP uses the same shape. [Amendment](#amendment-2026-10-18-134).
+
 ## Status
 
 Accepted — 2026-06-29. Driven by the requirement to embed `@altumstack/sii-core` as a library in
@@ -30,6 +33,47 @@ CLI is driven programmatically (Claude Code via Bash, scripts, other systems she
   message>" }` to STDERR with the documented exit code; `--human` prints the bare message.
 - One shared `emit(data, humanRenderer)` helper enforces this uniformly; each command computes
   its result object once and hands it to `emit`.
+
+## Amendment (2026-10-18, #134)
+
+`{ "error": "<message>" }` was not enough for an unattended agent (ADR-028): three login failures
+share exit `3` but need different actions (Clave rejected; latch refused without contacting SII;
+Queue-it). That meant regex-parsing Spanish, though the core held the answer as data.
+
+- **The JSON error shape (CLI, STDERR):**
+  `{ "error": "<verbatim>", "type": "<kind>", "exitCode": n, "reason"?: …, "codigo"?: … }`.
+  `error` is the same verbatim message (ADR-004). `exitCode` repeats the process exit code.
+  `reason` / `codigo` appear on every `login_*` kind and on no other (`codigo` is `null` when
+  SII printed none). Human mode is unchanged: the bare message.
+- **`type` is a stable kind name, never a JS class name.** One core function, `classifyError`,
+  maps an error to its kind for both surfaces. The CLI's exit code is derived from the kind
+  through a table the compiler checks for completeness, so the two cannot drift apart.
+
+  | `type` | When | Exit |
+  | --- | --- | --- |
+  | `login_rejected` | SII judged the Clave and printed a código (the latch tripped) | 3 |
+  | `login_blocked` | The latch refused without contacting SII | 3 |
+  | `login_queued` | SII's Queue-it waiting room (SII never judged the Clave) | 3 |
+  | `login_failed` | Any other failed login: no código, timeout, empty Clave, missing `--clave-env` variable | 3 |
+  | `not_authenticated` | No session | 2 |
+  | `session_expired` | The stored session is dead | 2 |
+  | `www2_session_required` | The www2 app session is missing or expired (ADR-026) | 2 |
+  | `rate_limited` | SII's rate limit or block | 4 |
+  | `validation` | Invalid input: a RUT, an operate target, a flag combination | 1 |
+  | `credential_not_found` | No Clave in the keyring for that RUT | 1 |
+  | `browser_required` | The surface needs Chromium and none is installed | 1 |
+  | `unexpected_response` | An endpoint answered something the surface does not recognise and that is not the login wall: a non-JSON body from a JSON endpoint, or a changed page (e.g. Mi SII without `DatosCntrNow`, #139) | 1 |
+  | `sii_error` | SII refused a domain read or write, or a scraper broke (`RcvError`, `F29Error`, …) | 1 |
+  | `unexpected` | Not a domain error (a bug) | 1 |
+
+  `login_rejected` uses the latch's own rule (`siiJudgedClave`, kept in agreement by a test), so
+  it always means "the latch is now set for this RUT".
+- **Compatibility.** Fields are only added; a kind is never renamed or reassigned, and is split only
+  by a new amendment. An unrecognised `type` is treated as `unexpected`: stop, alert, never retry.
+- **No secret in any field:** a kind name, a number, a reason enum and SII's código. `error` is
+  the message the core wrote, so an input that must not be echoed (ADR-028) still is not.
+- **MCP parity.** A failed tool call's text is the same object without `exitCode` (a tool has
+  none), still with `isError: true`. It was the bare message.
 
 ## Alternatives Considered
 

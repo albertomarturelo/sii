@@ -4,7 +4,7 @@
 // documented exit codes; their Spanish messages pass through unchanged.
 import { KeyringSecretStore, createNodeRuntime } from '@albertomarturelo/sii-core/node';
 import { buildProgram } from './program.js';
-import { err, exitCodeFor, isHumanMode, messageOf } from './io.js';
+import { err, exitCodeFor, formatError } from './io.js';
 
 async function main(): Promise<void> {
   // The OS keyring is wired HERE and only here: the MCP server builds from the same
@@ -14,9 +14,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  const message = messageOf(error);
   // Errors go to STDERR (STDOUT stays clean for piping). JSON mode (the default) wraps the
-  // verbatim SII message in a `{ error }` object so a consumer can parse failures too.
-  err(isHumanMode() ? message : JSON.stringify({ error: message }));
+  // verbatim SII message with its stable `type` and exit code (ADR-012 amendment).
+  err(formatError(error));
   process.exitCode = exitCodeFor(error);
 });
