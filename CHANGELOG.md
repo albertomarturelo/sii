@@ -15,6 +15,35 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.13.0 — 2026-10-19 — El estado donde lo guarde tu agente
+
+The CLI and the MCP keep their state wherever you point them, and `f29 submit` has its decision.
+
+**`SII_HOME` moves the state directory (#164).** Session, `operate` pointer, rejection latch,
+audit log and downloaded documents lived in a fixed `~/.sii`. Some agent hosts keep only one
+path: Grok Bot keeps `/workspace` and may replace the home directory. There, losing `~/.sii`
+meant a fresh login on every run and, worse, a lost rejection latch, so an unattended agent
+could retry a Clave SII had already rejected. Now `SII_HOME=/workspace/.sii` keeps all of it
+there.
+- Unset or empty means `~/.sii`, exactly as before.
+- It must be an absolute path. A relative or `~` value is refused as a `validation` error that
+  names the variable, never resolved against the working directory (a cron's moves).
+- Whoever lifts the latch uses the same value: `SII_HOME=/workspace/.sii sii auth unblock`.
+- The contador bot's skills now set it, and drop the `~/.sii` symlink they needed before. An
+  existing link points at the same folder and is harmless.
+
+**`f29 submit` is decided (#158).** ADR-029 and its amendment are on `main`, from the live
+capture of the filing flow (#138). The submit replays SII's own form app without a browser,
+fills the form with an in-house interpreter of SII's formula metadata, and refuses to file
+when what SII validated disagrees with the propuesta: SII's "no presenta errores" passed a
+form missing the remanente. Nothing is implemented yet; the plan is #159–#162.
+
+**Breaking, for library consumers of `@albertomarturelo/sii-core/node` only:** the constants
+`SII_DIR` and `DOCUMENTOS_DIR` are replaced by the functions `siiDir()` and `documentosDir()`.
+A constant is computed at import, and validating `SII_HOME` there would crash the import
+before any error handler runs. `createNodeRuntime` now builds a default only for a seam you
+did not override. The CLI and MCP are unaffected.
+
 ## 0.12.2 — 2026-10-19 — Un contador para tu agente
 
 The logout tells the truth about the www2 session, and the first agent integration ships.

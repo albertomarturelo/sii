@@ -4,6 +4,24 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.13.0 — 2026-10-19
+
+### Added
+
+- **`SII_HOME` (#164).** `siiDir()` returns `$SII_HOME` when it is set to an absolute path, and
+  `~/.sii` when it is unset or empty. The fs store (session, `operate` pointer, rejection latch),
+  `FileAuditSink` and `documentosDir()` all derive from it. A relative or `~` value throws a
+  `ValidationError` (kind `validation`) naming the variable.
+
+### Changed
+
+- **Breaking (`./node` subpath): `SII_DIR` → `siiDir()`, `DOCUMENTOS_DIR` → `documentosDir()`.**
+  Both read the environment when called, never at import, so a bad `SII_HOME` reaches the
+  surface's error handler instead of crashing the import. The main barrel still reads no
+  environment (ADR-016 amendment).
+- **`createNodeRuntime` builds a default only for a seam not overridden.** Supplying your own
+  `store` and `audit` no longer reads `SII_HOME` at all.
+
 ## 0.12.2 — 2026-10-19
 
 ### Fixed

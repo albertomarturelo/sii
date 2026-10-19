@@ -9,6 +9,15 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.13.0 — 2026-10-19
+
+### Added
+
+- **`SII_HOME` moves the server's state (#164)**, including the default `directorio` of
+  `f29_pdf`, `dte_pdf` and `dte_preview_pdf`. A relative or `~` value stops the server at startup
+  with the message on STDERR. The `directorio` descriptions name it; the `dte` ones said
+  `documentos/factura`, and the folder is `documentos/dte`.
+
 ## 0.12.2 — 2026-10-19
 
 ### Fixed
