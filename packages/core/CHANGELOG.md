@@ -4,6 +4,23 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.12.1 — 2026-10-18
+
+### Fixed
+
+- **`logout` reported `serverClosed: false` over the HTTP driver although SII closes the
+  session (#135).** `autTermino.cgi` answers `200` on its own path and navigates by JS
+  (observed 2026-10-19), so the old "left the logout path" test always read false. After the
+  close GET, `logout` now restores the PRE-logout cookies into a fresh session and asks Mi
+  SII. A login-wall landing proves the close. Still best-effort: the local wipe always runs.
+
+### Changed
+
+- **The `logout` audit receipt is `result: "ok"` only for a proven server close**, and
+  `"local_only"` otherwise. A consumer that counted every logout as `ok` sees the new value.
+- **`testing.FakePortalDriver`:** a session script accepts `gotoLanding(url)` to script
+  per-URL landings, for server state that changes mid-test. It is additive and optional.
+
 ## 0.12.0 — 2026-10-18
 
 ### Added
