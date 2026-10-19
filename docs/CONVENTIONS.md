@@ -119,7 +119,11 @@ Python `sii-cli`, adapted to TypeScript.
   `autTermino.cgi` answers `200` on its own path and navigates by JS, so "we left the logout
   page" proves nothing. Prove a server-side close by restoring the PRE-close cookies into a
   fresh session and seeing Mi SII bounce to the login. Never decide it on the same jar, which
-  SII may simply have cleared. An unproven close is reported as local only.
+  SII may simply have cleared. An unproven close is reported as local only. **Each close runs
+  in its own session restored from the PRE-close cookies (#146):** the www2 close deletes the
+  classic cookies too, so on a shared jar the classic close went out without the session it had
+  to end. The www2 layer gets the same proof through its own liveness read, and SII was observed
+  NOT to revoke it at all (it expires on its own), so the result says until when it stays valid.
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The

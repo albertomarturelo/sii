@@ -7,7 +7,7 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { HOSTS, LOGIN_URL, LOGOUT_URL } from '../config/index.js';
+import { HOSTS, LOGIN_URL, LOGOUT_URL, WWW2_SESSION_CLOSE_URL } from '../config/index.js';
 import {
   CredentialNotFoundError,
   LoginBlockedError,
@@ -31,7 +31,7 @@ import {
 } from './auth.js';
 import { readLoginBlock, tripLoginBlock } from './login-block.js';
 import { WRONG_CLAVE_CODIGO } from './login-error.js';
-import { readSession } from './session.js';
+import { readSession, writeSession } from './session.js';
 import { readOperateState } from '../identity/index.js';
 
 function personaDatos(): unknown {
@@ -160,13 +160,99 @@ describe('auth', () => {
     expect(e).toMatchObject({ action: 'auth_login', result: 'ok' });
   });
 
-  it('logout closes the www2 layer first and reports www2Closed', async () => {
-    const rt = makeRuntime(www2Driver());
-    await login(rt, { www2: true });
+  /** A fake SII holding BOTH layers, with one jar PER restored session (#146). The www2 close
+   *  (the SPA's `$logout`) answers by leaving its path and wipes the classic cookies from THAT
+   *  jar, as observed, so an `autTermino.cgi` sent on the same jar ends nothing. The www2 layer
+   *  survives both closes unless `www2Revokes`; `failWww2Close` makes that GET throw. */
+  function www2LogoutDriver(opts: { www2Revokes?: boolean; failWww2Close?: boolean } = {}) {
+    let classicClosed = false;
+    let www2Revoked = false;
+    const sessionJson = JSON.stringify({ userId: '20000042-0', userAuthType: 'CT', seconds: 5999 });
+    return new FakePortalDriver({
+      restoreSession: () => {
+        let jarWiped = false;
+        return {
+          landingUrl: HOSTS.miSii,
+          gotoLanding: (url: string) => {
+            if (url.startsWith(WWW2_SESSION_CLOSE_URL)) {
+              if (opts.failWww2Close) throw new Error('network down');
+              jarWiped = true;
+              if (opts.www2Revokes) www2Revoked = true;
+              return 'https://accounts.example.invalid/logout'; // the 307 left the close path
+            }
+            if (url === LOGOUT_URL) {
+              if (!jarWiped) classicClosed = true;
+              return LOGOUT_URL;
+            }
+            return url === HOSTS.miSii && (classicClosed || jarWiped) ? LOGIN_URL : undefined;
+          },
+          requestText: (url: string) =>
+            !url.includes('/app/session/status')
+              ? undefined
+              : www2Revoked || jarWiped
+                ? ({ status: 401, body: '' } as const)
+                : sessionJson,
+        };
+      },
+    });
+  }
+
+  const WWW2_UNTIL = '2026-06-27T13:40:00.000Z';
+  async function storeBothLayers(rt: Runtime): Promise<void> {
+    await writeSession(rt.store, {
+      rut: '20000042-0',
+      cookies: { cookies: [] },
+      savedAt: '2026-06-27T12:00:00.000Z',
+      www2: { savedAt: '2026-06-27T12:00:00.000Z', expiresAt: WWW2_UNTIL },
+    });
+  }
+
+  it('logout with a www2 layer still closes the classic session, each close on its own jar (#146)', async () => {
+    const driver = www2LogoutDriver();
+    const rt = makeRuntime(driver);
+    await storeBothLayers(rt);
     const res = await logout(rt);
-    expect(res).toMatchObject({ loggedOut: true, www2Closed: true });
+    // On one shared jar the www2 close wiped the classic cookies first, so autTermino.cgi ended
+    // nothing and serverClosed read false.
+    expect(res).toMatchObject({ loggedOut: true, serverClosed: true });
+    // www2 close, classic close, classic probe, www2 probe: one fresh session each.
+    expect(driver.restoreCalls).toBe(4);
+  });
+
+  it('logout reports a www2 layer SII keeps valid: www2Closed false + when it expires (#146)', async () => {
+    const rt = makeRuntime(www2LogoutDriver());
+    await storeBothLayers(rt);
+    const res = await logout(rt);
+    // The old landing-URL test read the 307 as "closed"; the probe with the original cookies
+    // still passes /app/session/status, so it is not.
+    expect(res).toMatchObject({ www2Closed: false, www2ValidUntil: WWW2_UNTIL });
+    const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout');
+    expect(e).toMatchObject({ result: 'ok', www2Closed: false });
+    expect(await readSession(rt.store)).toBeNull();
+  });
+
+  it('logout proves a www2 close that does take, and then reports no expiry', async () => {
+    const rt = makeRuntime(www2LogoutDriver({ www2Revokes: true }));
+    await storeBothLayers(rt);
+    const res = await logout(rt);
+    expect(res).toMatchObject({ serverClosed: true, www2Closed: true });
+    expect(res.www2ValidUntil).toBeUndefined();
     const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout');
     expect(e).toMatchObject({ www2Closed: true });
+  });
+
+  it('a failed www2 close GET skips its probe; the classic close still runs and is proven', async () => {
+    const driver = www2LogoutDriver({ failWww2Close: true });
+    const rt = makeRuntime(driver);
+    await storeBothLayers(rt);
+    const res = await logout(rt);
+    expect(res).toMatchObject({
+      serverClosed: true,
+      www2Closed: false,
+      www2ValidUntil: WWW2_UNTIL,
+    });
+    expect(driver.restoreCalls).toBe(3); // no www2 probe after a close that never ran
+    expect(await readSession(rt.store)).toBeNull();
   });
 
   it('logout without a www2 layer reports www2Closed false and omits it from the receipt', async () => {
@@ -174,6 +260,7 @@ describe('auth', () => {
     await login(rt);
     const res = await logout(rt);
     expect(res.www2Closed).toBe(false);
+    expect(res.www2ValidUntil).toBeUndefined();
     const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout')!;
     expect(e.www2Closed).toBeUndefined();
   });

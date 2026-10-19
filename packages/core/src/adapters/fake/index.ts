@@ -1,6 +1,7 @@
 // In-memory fakes for tests — never touch the real SII / fs / clock.
 import { HOSTS } from '../../config/index.js';
 import { writeSession } from '../../auth/session.js';
+import type { StoredWww2Layer } from '../../auth/session.js';
 import { initOperateState } from '../../identity/index.js';
 import type { AccountType } from '../../identity/index.js';
 import type {
@@ -239,10 +240,11 @@ export class InMemoryFileSink implements FileSink {
 
 /** Seed an authenticated cookies-only session + operate state directly into a runtime's store
  *  — so a surface test that just needs "logged in as self" doesn't drive the login command
- *  (which, since ADR-027, prompts for a Clave on the CLI). Synthetic RUT, no SII touched. */
+ *  (which, since ADR-027, prompts for a Clave on the CLI). `www2` also stores the app-session
+ *  layer (ADR-026). Synthetic RUT, no SII touched. */
 export async function seedSession(
   runtime: Runtime,
-  opts: { rut?: string; accountType?: AccountType } = {},
+  opts: { rut?: string; accountType?: AccountType; www2?: StoredWww2Layer } = {},
 ): Promise<void> {
   const rut = opts.rut ?? '11111111-1';
   const accountType = opts.accountType ?? 'persona';
@@ -250,6 +252,7 @@ export async function seedSession(
     rut,
     cookies: { cookies: [] },
     savedAt: runtime.clock.now().toISOString(),
+    ...(opts.www2 ? { www2: opts.www2 } : {}),
   });
   await initOperateState(runtime.store, {
     selfRut: rut,

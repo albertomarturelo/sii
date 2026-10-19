@@ -2,7 +2,7 @@
 // registered in server.ts itself (per-module tool suites live in tools/*.test.ts;
 // the shared fixture is test-helpers.ts). Fakes only — no SII.
 import { describe, it, expect } from 'vitest';
-import { HOSTS } from '@albertomarturelo/sii-core';
+import { HOSTS, testing } from '@albertomarturelo/sii-core';
 import {
   connect,
   datos,
@@ -167,6 +167,28 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     expect(toolText(await client.callTool({ name: 'auth_status', arguments: {} }))).toContain(
       'No autenticado',
     );
+  });
+
+  it('auth_logout says when a www2 layer SII did not revoke stops working (#146)', async () => {
+    // The www2 status read keeps answering a session after the close, as observed live.
+    const runtime = makeRuntime({
+      restoreSession: {
+        landingUrl: HOSTS.miSii,
+        datos,
+        requestText: (url) =>
+          url.includes('/app/session/status')
+            ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT' })
+            : undefined,
+      },
+    });
+    const until = '2026-06-27T13:40:00.000Z';
+    await testing.seedSession(runtime, {
+      www2: { savedAt: '2026-06-27T12:00:00.000Z', expiresAt: until },
+    });
+    const client = await connect(runtime);
+    const text = toolText(await client.callTool({ name: 'auth_logout', arguments: {} }));
+    expect(text).toContain(`La sesión www2 sigue válida en el SII hasta ${until}`);
+    expect(text).not.toContain('Sesión www2 cerrada.');
   });
 
   it('auth_logout with no live session reports nothing to close', async () => {

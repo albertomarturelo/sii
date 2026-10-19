@@ -340,6 +340,41 @@ open spike (#117). `--console` / `--keyring` never get a `--www2` variant (reCAP
 
 - `sii auth status` prints a www2 line from the STORED expiry (no live call); `--refresh` reads
   `/app/session/status` live and reports the layer authenticated/absent.
-- `sii auth logout` best-effort closes the www2 session first (`GET /app/session/close?originalUrl=…`,
-  the SPA's own `$logout`), then the classic close, then wipes local state.
+- `sii auth logout` best-effort closes the www2 session (`GET /app/session/close?originalUrl=…`,
+  the SPA's own `$logout`), then the classic close, each in its own session restored from the
+  pre-logout cookies, then wipes local state. See below for what the close does and does not do.
 - Audit: `auth_login_www2` records rut + result only (no cookie value); `logout` adds `www2Closed`.
+
+### Logout of the www2 layer over HTTP (observed 2026-10-19, GH-146)
+
+A scrubbed probe on a fresh `www2` login (owner's persona account) sent the close through
+`HttpPortalDriver` with a logging `fetch`, then probed with the PRE-close cookies restored into
+fresh sessions. Cookie names only; no value was printed.
+
+| Step | Observed |
+| --- | --- |
+| `GET www2.sii.cl/app/session/close?originalUrl=…` | **`307`**, `Location: accounts.claveunica.gob.cl/api/v1/accounts/app/logout?redirect=…`. |
+| Its `Set-Cookie` | **Deletes** (empty value, `Max-Age=0`, 1970 `Expires`, `Domain=.sii.cl`) the www2 pair (`X-SII-STATE-TYPE`, `X-SII-STATE-CL`) **and the classic session cookies**: `TOKEN`, `CSESSIONID`, `NETSCAPE_LIVEWIRE.*`, `RUT_NS`/`DV_NS`, plus analytics. Re-sends the F5 `TS*` cookies. |
+| The Clave Única hop | `204`, empty body, deletes its own `csrftoken`/`sessionid`. Nothing navigates further. |
+| The same jar, then `GET /app/session/status` | `401` (the jar was cleared). |
+| The PRE-close cookies in a fresh session, then `/app/session/status` | **`200` session JSON: still live.** |
+| Then `autTermino.cgi` with the full PRE-close jar, and both probes again | Mi SII: **login wall** (classic closed). `/app/session/status`: **still `200`**. |
+
+What this means:
+- **SII does not revoke the www2 app session.** Neither its own close nor the classic one ends
+  it server-side; the cookies stay valid until they expire (~100 min). The SPA's `$logout`
+  only clears vuex and navigates to that URL (`chunk-vendors.659f67b1.js`, fetched
+  2026-10-19), and `barrasii.js`'s close does the same, so there is no other call to make.
+- **The old landing-URL test read a false "closed"**: the 307 leaves the close path while the
+  session stays valid. `www2Closed` is now decided like `serverClosed` (#135): the PRE-close
+  cookies in a fresh session must be refused by `/app/session/status`, after both closes.
+  Today that answers `false`.
+- **The www2 close empties the classic jar.** On one shared session, `autTermino.cgi` then went
+  out without `TOKEN`/`CSESSIONID`, so a logout with a www2 layer never closed the classic
+  session. Each close now runs in its own session restored from the PRE-close cookies.
+- When the layer is not proven closed, the result carries `www2ValidUntil` (the stored
+  expiry), and both surfaces say the www2 session stays valid at SII until then.
+- Validated live (the stored session after the probes): `sii auth logout --json` answered
+  `serverClosed: true, www2Closed: false, www2ValidUntil: <the layer's expiry>`, with an `ok`
+  receipt. The classic session had already been closed by the probe's `autTermino.cgi`, so
+  that `true` proves the state, not this run's close. The shared-jar fix is covered by fakes.
