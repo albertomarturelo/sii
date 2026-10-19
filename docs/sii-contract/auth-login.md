@@ -298,8 +298,8 @@ it stays `unknown` until captured — the safe direction: a consumer treats `unk
 Observed 2026-09-11/12 (#110). `www2.sii.cl/app/*` (the "nueva plataforma" apps and their
 `/app/<name>-api/*` JSON facades — first the Carpeta Tributaria) do NOT ride the classic
 `.sii.cl` cookies this login captures. They need a **www2 app session** minted by an OAuth2
-code flow, and `sii auth login --www2` runs it as a SECOND cookies-only login in the same
-headed browser, right after the classic one.
+code flow, and the `www2` login (the MCP's `auth_login`; the CLI's `--www2` until ADR-027) runs
+it as a SECOND cookies-only login in the same headed browser, right after the classic one.
 
 ### Flow (`--www2`)
 

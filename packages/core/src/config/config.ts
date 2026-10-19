@@ -67,9 +67,9 @@ export const LOGIN_POST_URL = `${HOSTS.login}/cgi_AUT2000/CAutInicio.cgi`;
 export const QUEUE_IT_HOST = 'salaespera.sii.cl';
 
 /** The www2 app page the `www2` login (the MCP's `auth_login`) opens for the user to complete
- *  SII's OAuth login
- *  (`/bifurcacion` → `/oauthsii-v1/` → `/app/session/create` → back here), and the `Referer` /
- *  `originalUrl` the Carpeta SPA sends on its own calls. Observed 2026-09-11/12 (#110, ADR-026). */
+ *  SII's OAuth login (`/bifurcacion` → `/oauthsii-v1/` → `/app/session/create` → back here),
+ *  and the `Referer` / `originalUrl` the Carpeta SPA sends on its own calls. Observed
+ *  2026-09-11/12 (#110, ADR-026). */
 export const WWW2_APP_CARPETA = `${HOSTS.portalApp}/carpetatributaria/generarcteregular`;
 
 /** The www2 app-session close (the SPA's `$logout`: `/app/session/close?originalUrl=…`, from the

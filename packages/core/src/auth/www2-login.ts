@@ -1,7 +1,7 @@
 // The www2 APP-SESSION step of the headed login with `www2` (ADR-026; the MCP's `auth_login`,
-// since ADR-027 took `--www2` out of the CLI): mint the second cookies-only
-// layer `www2.sii.cl/app/*` needs, the ADR-006 way — the user types the Clave into SII's real
-// OAuth page in the SAME headed browser the classic login used; we keep cookies only.
+// since ADR-027 took `--www2` out of the CLI): mint the second cookies-only layer
+// `www2.sii.cl/app/*` needs, the ADR-006 way — the user types the Clave into SII's real OAuth
+// page in the SAME headed browser the classic login used; we keep cookies only.
 //
 // Observed 2026-09-11/12 (#110, docs/sii-contract/auth-login.md § www2): the app page bounces an
 // app-session-less browser to `/bifurcacion` (the chooser) → `/oauthsii-v1/` (Clave + reCAPTCHA

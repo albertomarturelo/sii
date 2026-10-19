@@ -105,12 +105,11 @@ describe('waitForWww2Session (the headed OAuth step, fake session)', () => {
         return { status: 401, body: '' };
       },
     });
-    await expect(waitForWww2Session(runtime(clock), session)).rejects.toThrow(LoginFailedError);
-    await expect(waitForWww2Session(runtime(clock), session)).rejects.toThrow(/www2 no completado/);
+    const err = await waitForWww2Session(runtime(clock), session).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(LoginFailedError);
+    expect((err as Error).message).toMatch(/www2 no completado/);
     // The retry route is the MCP's auth_login, never the CLI flag ADR-027 removed (#151).
-    await expect(waitForWww2Session(runtime(clock), session)).rejects.toThrow(
-      /`auth_login` con `www2: true`/,
-    );
+    expect((err as Error).message).toContain('`auth_login` con `www2: true`');
   });
 
   it('propagates anything that is not "no app session yet" (a dead classic jar) unretried', async () => {
