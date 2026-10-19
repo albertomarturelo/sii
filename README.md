@@ -70,6 +70,15 @@ legal, y ese paso irreversible queda contigo en la UI del SII
 de entorno o stdin, con un bloqueo que protege la cuenta tras un rechazo de Clave). Qué se
 decidió y por qué: [Decisiones de 0.11.0](#decisiones-de-0110).
 
+**Después de 0.11.0** (en `main`, aún sin publicar en npm):
+- **Errores con un tipo estable.** Cada error trae un `type` (`session_expired`,
+  `login_blocked`, `rate_limited`…) junto al mensaje del SII tal cual. Un agente, un script o
+  un sistema que embebe el núcleo decide por `type` y no por el texto. Funciona igual en la
+  CLI, el MCP y la librería ([Uso autónomo](#uso-autónomo-agentes-cron-ci)).
+- **Una sesión muerta se detecta como muerta.** Sin navegador, el SII podía cerrar la sesión
+  sin que se notara, y `login` respondía «ya autenticado» sin volver a entrar. Ahora una
+  sesión solo cuenta como viva si Mi SII devuelve tu identidad.
+
 Checklist completo en [`docs/ROADMAP.md`](docs/ROADMAP.md); el historial de
 versiones, en [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -180,7 +189,9 @@ ahí levanta el bloqueo de la regla 3.)
    siempre en el comando (consola, `--keyring`, `--clave-env`, `--clave-stdin`). En disco
    quedan solo cookies.
 2. **Si ya hay sesión viva para ese RUT, `login` no envía nada.** Si la sesión viva es de
-   otro RUT, es un error: cambiar de cuenta es `logout` y luego `login`.
+   otro RUT, es un error: cambiar de cuenta es `logout` y luego `login`. «Viva» significa que
+   Mi SII devuelve tu identidad. Una sesión que el SII ya cerró cuenta como muerta, aunque el
+   SII lo indique solo con JavaScript, y entonces `login` sí vuelve a entrar.
 3. **Si el SII rechaza la Clave, los logins sin persona dejan de intentar.** Se escribe un
    bloqueo local (`~/.sii/login-blocked.json`, por RUT, sin ningún secreto) y desde ahí
    `--clave-env`, `--clave-stdin` y `--keyring` se niegan **sin contactar al SII**. Lo
@@ -243,6 +254,21 @@ texto del mensaje:
 `reason` y `codigo` solo vienen en los `login_*` (`codigo` es `null` si el SII no imprimió
 ninguno). Un `type` desconocido se trata como `unexpected`. Los tipos no cambian de nombre;
 la lista completa está en [ADR-012](docs/decisions/012-json-default-output.md).
+
+El mismo contrato vale fuera de la CLI:
+- **MCP:** una herramienta que falla devuelve el mismo objeto, sin `exitCode`, con
+  `isError: true`.
+- **Librería:** quien embebe el núcleo clasifica cualquier error con la misma tabla.
+
+```ts
+import { classifyError } from '@albertomarturelo/sii-core';
+
+try {
+  await f29Overview(runtime, { anio: '2026' });
+} catch (e) {
+  const { type, reason, codigo } = classifyError(e); // p. ej. { type: 'session_expired' }
+}
+```
 
 - **Persiste `~/.sii/`** entre ejecuciones: ahí viven la sesión, el puntero `operate` y
   el bloqueo. Un contenedor efímero haría un login nuevo cada vez.
