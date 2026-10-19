@@ -1,6 +1,7 @@
 // The `./node` composition subpath (ADR-016). Constructing the default runtime is
 // side-effect free (no fs writes, no playwright import) — the assertions here rely
-// on that: nothing in this suite may touch ~/.sii or launch a browser.
+// on that: nothing in this suite may touch ~/.sii or launch a browser. The SII_HOME
+// tests write only under a fresh tmp dir they point the variable at.
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';

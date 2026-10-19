@@ -193,8 +193,9 @@ ahí levanta el bloqueo de la regla 3.)
    Mi SII devuelve tu identidad. Una sesión que el SII ya cerró cuenta como muerta, aunque el
    SII lo indique solo con JavaScript, y entonces `login` sí vuelve a entrar.
 3. **Si el SII rechaza la Clave, los logins sin persona dejan de intentar.** Se escribe un
-   bloqueo local (`~/.sii/login-blocked.json`, por RUT, sin ningún secreto) y desde ahí
-   `--clave-env`, `--clave-stdin` y `--keyring` se niegan **sin contactar al SII**. Lo
+   bloqueo local (`~/.sii/login-blocked.json`, o bajo `SII_HOME`; por RUT, sin ningún
+   secreto) y desde ahí `--clave-env`, `--clave-stdin` y `--keyring` se niegan **sin
+   contactar al SII**. Lo
    levanta una persona, después de corregir la Clave: con un login por consola exitoso o
    con `sii auth unblock` (que se niega sin terminal). Un rechazo nunca se reintenta solo,
    porque cada intento fallido acerca la cuenta al bloqueo del SII.

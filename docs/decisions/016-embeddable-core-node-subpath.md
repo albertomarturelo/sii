@@ -1,5 +1,8 @@
 # ADR-016: Embeddable core — pure main barrel, `./node` composition subpath, optional Playwright peer
 
+> **Amended 2026-10-19 (#164):** the `SII_DIR` constant became the function `siiDir()`, which
+> honours `SII_HOME`. See [Amendment](#amendment-2026-10-19-164).
+
 ## Status
 
 Accepted — 2026-07-02. Builds on ADR-003 (injectable seams — the contract this makes
@@ -90,3 +93,20 @@ the CHANGELOG already states this):
   in an exported signature would drag the dependency back into consumers' typecheck.
   `prepack` now cleans before building (`tsc -b --clean && tsc -b`) so deleted modules
   (e.g. `runtime.ts`) never ship as stale `dist` artifacts.
+
+## Amendment (2026-10-19, #164)
+
+Some agent hosts persist only one path (Grok Bot keeps `/workspace`), and a lost `~/.sii` loses
+the session and the ADR-028 rejection latch. So the state directory is now `$SII_HOME` when set,
+`~/.sii` otherwise.
+
+- **`SII_DIR` is replaced by `siiDir(env = process.env)`** on the `./node` subpath. A constant
+  is computed at import, so validating the variable there would crash the import before the
+  surface's error handler runs. The function is read when a default adapter is BUILT, and a
+  bad value reaches the surface as a `validation` error.
+- **A relative or `~` value is refused**, never resolved against the cwd: a cron's cwd moves,
+  and a state directory that silently moves loses the latch.
+- **`createNodeRuntime` builds a default only for a seam not overridden**, so a consumer that
+  supplies its own `store` and `audit` never reads `SII_HOME`.
+- The main barrel still reads no environment: the variable is read in `adapters/node` only.
+- Breaking for `./node` consumers that imported `SII_DIR` (pre-1.0: next minor).
