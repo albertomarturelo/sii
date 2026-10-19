@@ -304,7 +304,7 @@ asynchronously: `+ @albertomarturelo/sii-core@X.Y.Z` in the log can come minutes
 the registry serves it, and in that window `sii-cli` / `sii-mcp` are live but depend on
 a core version npm cannot resolve yet (`ETARGET`). The step **"Wait until the registry
 serves all three packages"** polls `registry.npmjs.org` until each one lists the version,
-and only then does the `release` job announce it. If that step times out (10 min), the
+and only then does the `release` job announce it. If that step times out (`TIMEOUT_SECONDS`, 10 min), the
 release was not created: check the package on npm, then re-run the workflow. A re-run
 is safe — published versions are skipped, the wait passes at once, and an existing
 release is left alone.
