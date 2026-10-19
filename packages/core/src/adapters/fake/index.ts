@@ -65,6 +65,9 @@ export class InMemoryKeyValueStore implements KeyValueStore {
 export interface FakeSessionScript {
   /** URL the session "lands on" after goto (defaults to the requested URL). */
   landingUrl?: string;
+  /** Per-URL landing, consulted before `landingUrl`; `undefined` falls through. Lets a test
+   *  script server state that changes mid-test (a logout that kills the session, #135). */
+  gotoLanding?: (url: string) => string | undefined;
   /** Result for `evaluate(expression)`. */
   evaluate?: (expression: string) => unknown;
   /** The Mi SII identity snapshot (`DatosCntrNow`). Since ADR-027 the auth flows read identity
@@ -102,7 +105,7 @@ export class FakePortalSession implements PortalSession {
   constructor(private readonly script: FakeSessionScript = {}) {}
   async goto(url: string): Promise<string> {
     this.gotos.push(url);
-    return this.script.landingUrl ?? url;
+    return this.script.gotoLanding?.(url) ?? this.script.landingUrl ?? url;
   }
   async evaluate<T>(expression: string): Promise<T> {
     return (this.script.evaluate?.(expression) ?? null) as T;

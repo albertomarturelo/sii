@@ -131,7 +131,25 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
   });
 
   it('auth_logout takes no input and ends the session (server + local)', async () => {
-    const runtime = makeRuntime();
+    // A fake SII whose logout kills the session: after autTermino.cgi, Mi SII bounces any
+    // session restored from the old cookies to the login, which is the close proof (#135).
+    const LOGOUT_URL = `${HOSTS.login}${HOSTS.logoutPath}`;
+    const LOGIN_URL = `${HOSTS.login}${HOSTS.loginPath}`;
+    let closed = false;
+    const runtime = makeRuntime({
+      loginSession: { landingUrl: HOSTS.miSii, datos, storageState: { cookies: [] } },
+      restoreSession: {
+        landingUrl: HOSTS.miSii,
+        datos,
+        gotoLanding: (url) => {
+          if (url === LOGOUT_URL) {
+            closed = true;
+            return LOGOUT_URL;
+          }
+          return url === HOSTS.miSii && closed ? LOGIN_URL : undefined;
+        },
+      },
+    });
     const client = await connect(runtime);
 
     // No input fields — it delegates to the logout task, carries no secret (ADR-006).
@@ -139,7 +157,7 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     expect(propKeys(tools.find((t) => t.name === 'auth_logout')?.inputSchema)).toEqual([]);
 
     await client.callTool({ name: 'auth_login', arguments: {} });
-    // The fake lands off the logout host → serverClosed=true; pin the exact mapped
+    // The close is proven → serverClosed=true; pin the exact mapped
     // string so the branch that ran is unambiguous (the false-branch mapping is
     // trivial and is core's concern — see auth.test.ts).
     expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toBe(

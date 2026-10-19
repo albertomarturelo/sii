@@ -575,6 +575,21 @@ export async function unblockLogin(
   return lifted;
 }
 
+/** True when the pre-logout cookies no longer authenticate: a fresh session restored from them
+ *  lands on the login wall at Mi SII (a redirect or the JS-only page, GH-139). Never throws;
+ *  an inconclusive probe is `false`, the honest answer for "not confirmed". */
+async function closedOnServer(runtime: Runtime, cookies: unknown): Promise<boolean> {
+  let probe: PortalSession | null = null;
+  try {
+    probe = await runtime.portal.restore(cookies);
+    return landedOnLoginHost(await probe.goto(HOSTS.miSii));
+  } catch {
+    return false;
+  } finally {
+    await probe?.close();
+  }
+}
+
 /** Server-side close (best-effort) + wipe local session + operate context. */
 export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   const session = await readSession(runtime.store);
@@ -585,6 +600,7 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
 
   let serverClosed = false;
   let www2Closed = false;
+  let closeAttempted = false;
   let s: PortalSession | null = null;
   try {
     s = await runtime.portal.restore(session.cookies);
@@ -599,19 +615,26 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
         // best-effort
       }
     }
-    const landed = await s.goto(LOGOUT_URL);
-    serverClosed = new URL(landed).pathname !== new URL(LOGOUT_URL).pathname;
+    await s.goto(LOGOUT_URL);
+    closeAttempted = true;
   } catch {
     // best-effort server close; the local wipe still runs
   } finally {
     await s?.close();
   }
+  // Decided by PROOF, not by where the close GET landed (#135): over the HTTP driver
+  // `autTermino.cgi` answers 200 on its own path and navigates by JS (observed at
+  // zeusr.sii.cl/cgi_AUT2000/autTermino.cgi on 2026-10-19), so the old "left the logout
+  // path" test always read false. Probe with the ORIGINAL cookies in a fresh session: if SII
+  // only cleared our jar, a probe on the same jar would bounce and wrongly read "closed".
+  if (closeAttempted) serverClosed = await closedOnServer(runtime, session.cookies);
 
   await deleteSession(runtime.store);
   await clearOperateState(runtime.store);
   recordAudit(runtime, {
     action: 'logout',
-    result: 'ok',
+    // `ok` only when SII confirmed the close; otherwise the receipt says the logout was local.
+    result: serverClosed ? 'ok' : 'local_only',
     rut: session.rut,
     serverClosed,
     ...(session.www2 ? { www2Closed } : {}),

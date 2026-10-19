@@ -32,10 +32,10 @@ Surface: `@albertomarturelo/sii-core` `auth.login` / `auth.statusRefresh`
    is written to `~/.sii/session.json` (mode `0600`) as
    `{ rut, cookies, savedAt }`. Verified: 21 cookies, no `password`/`clave` key
    anywhere in the file.
-5. **Logout.** `goto` `https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi`;
-   server-side close is best-effort (redirect OFF that path ⇒ closed), then the
-   local session + operate state are wiped. Observed: the `goto` redirected OFF
-   `autTermino.cgi` (server close detected).
+5. **Logout.** `goto` `https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi` (best-effort), then
+   the local session + operate state are wiped. Under Playwright (2026-06-28) the page's JS
+   navigated OFF that path. Since #135 the close is decided by **proof**, not by the landing:
+   see « Logout over HTTP » below.
 
 ## `DatosCntrNow` response shape (observed, types only — values redacted)
 
@@ -210,6 +210,37 @@ How the driver handles it now:
   to `LOGIN_HOST`.
 - The login probe also needs positive proof: a session is live only when Mi SII serves the
   principal's `DatosCntrNow`.
+
+Live-validated 2026-10-19 on the empresa account:
+- A session that expired on its own got the 344-byte page (`200`, no `Location`,
+  `location.replace` to zeusr), and `sii whoami` (0.12.0) answered `session_expired`.
+- A session closed server-side but still in the local jar made `sii auth login --clave-env`
+  log in for real (`env_login`), not answer `already_authenticated`.
+
+### Logout over HTTP (observed 2026-10-19, GH-135)
+
+The HTTP driver does not run page JS, and under it `sii auth logout` always reported
+`serverClosed: false`. A scrubbed probe on a live session (owner's empresa account) showed
+why. The probe sent the classic close as a raw GET with the session cookies and
+`redirect: 'manual'`.
+
+| Step | Observed |
+| --- | --- |
+| `GET zeusr.sii.cl/cgi_AUT2000/autTermino.cgi` | **`200 text/html`, 159 bytes, NO `Location`.** The body only navigates by JS to `accounts.claveunica.gob.cl/api/v1/accounts/app/logout`. |
+| Its `Set-Cookie` | Re-sends the session cookies (`CSESSIONID`, `TOKEN`, `NETSCAPE_LIVEWIRE.*`, `RUT_NS`/`DV_NS`, the F5 `TS*` pair, and the www2 `X-SII-STATE-*` pair) with **no clearing** (no `Max-Age=0`, no empty value). |
+| The PRE-logout cookies, restored into a fresh session, then `GET` Mi SII | **Login wall** (`zeusr.sii.cl`). |
+
+So SII **does** close the session. The old URL test ("we left `autTermino.cgi`") was a false
+negative over HTTP, because the client never leaves that path.
+
+The fix: after the close GET, `logout` restores the **original** cookies into a fresh session
+and asks Mi SII.
+- `serverClosed` is `true` only when that lands on the login wall: a redirect, or the JS-only
+  page above.
+- A probe on the same jar is not enough: a cleared jar would bounce even if the server still
+  held the session.
+- The audit receipt is `result: "ok"` only for a proven close, and `"local_only"` otherwise.
+- Validated live: `sii auth logout` answered `serverClosed: true`, with an `ok` receipt.
 
 ### Client-side error rendering
 
