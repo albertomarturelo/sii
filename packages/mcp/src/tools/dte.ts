@@ -23,7 +23,7 @@ import {
   type FormaPago,
   type Runtime,
 } from '@albertomarturelo/sii-core';
-import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
+import { documentosDir } from '@albertomarturelo/sii-core/node';
 import { join } from 'node:path';
 import { toolText } from '../tool-helpers.js';
 
@@ -173,7 +173,7 @@ export function registerDteTools(server: McpServer, runtime: Runtime): void {
         directorio: z
           .string()
           .optional()
-          .describe('Carpeta destino; por defecto ~/.sii/documentos/factura.'),
+          .describe('Carpeta destino; por defecto documentos/dte bajo $SII_HOME (o ~/.sii).'),
       },
       annotations: { readOnlyHint: false },
     },
@@ -183,7 +183,7 @@ export function registerDteTools(server: McpServer, runtime: Runtime): void {
           await dtePdf(runtime, {
             empresa,
             folio,
-            directorio: directorio ?? join(DOCUMENTOS_DIR, 'dte'),
+            directorio: directorio ?? join(documentosDir(), 'dte'),
           }),
           null,
           2,
@@ -296,7 +296,7 @@ export function registerDteTools(server: McpServer, runtime: Runtime): void {
         directorio: z
           .string()
           .optional()
-          .describe('Carpeta destino; por defecto ~/.sii/documentos/factura.'),
+          .describe('Carpeta destino; por defecto documentos/dte bajo $SII_HOME (o ~/.sii).'),
       },
       annotations: { readOnlyHint: false },
     },
@@ -306,7 +306,7 @@ export function registerDteTools(server: McpServer, runtime: Runtime): void {
         JSON.stringify(
           await dtePreviewPdf(runtime, {
             ...toArgs(doc),
-            directorio: directorio ?? join(DOCUMENTOS_DIR, 'dte'),
+            directorio: directorio ?? join(documentosDir(), 'dte'),
           }),
           null,
           2,

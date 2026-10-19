@@ -70,7 +70,7 @@ or the wall clock:
   `@napi-rs/keyring`; ADR-025). Optional on `Runtime`, typed there as a READER (`get`
   only), and wired by the CLI's composition root ALONE — the MCP server carries none.
 - `SessionStore` — persist + load cookies-only sessions (default: fs under
-  `~/.sii/`).
+  `~/.sii/`, or the absolute path in `SII_HOME`, #164).
 - `AuditSink` — append the JSONL receipt (default: fs append).
 - `Clock` — time, for testable/resumable flows.
 

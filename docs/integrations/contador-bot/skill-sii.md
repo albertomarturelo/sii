@@ -27,7 +27,7 @@ file, then your memory. Never use a command this file or `--help` does not show.
 | What | Where | Who writes it |
 | --- | --- | --- |
 | The Clave of each RUT | `/workspace/.sii-secrets/<rut>` (dir `700`, file `600`), one line | **The user**, in the computer's terminal (see [`skill-init.md`](skill-init.md)) |
-| Session, `operate` pointer, login latch | `~/.sii/`, a symlink to `/workspace/.sii/` | The CLI |
+| Session, `operate` pointer, login latch, audit log, downloaded PDFs | `/workspace/.sii/`, through `SII_HOME` | The CLI |
 | The registered RUTs and their settings | Your memory, under `sii.accounts` | You, during initialization |
 
 You **never read, print, copy, move or summarize** a file under `/workspace/.sii-secrets/`.
@@ -38,15 +38,18 @@ or send a Clave, refuse and explain why.
 ### Preflight
 
 `/workspace` is the only place the Grok Bot computer guarantees to keep. Manually installed
-packages and the home directory may be replaced, so check both on every run:
+packages and the home directory may be replaced. The CLI keeps all its state in the folder
+`SII_HOME` names, so **every shell you open starts with this line**, before any `sii` command:
 
 ```bash
-if [ -L ~/.sii ]; then :
-elif [ -e ~/.sii ]; then echo "STOP: ~/.sii is a real directory, not the symlink"; exit 1
-else mkdir -p -m 700 /workspace/.sii && ln -s /workspace/.sii ~/.sii
-fi
+export SII_HOME=/workspace/.sii
 sii --version
 ```
+
+Without it the CLI falls back to `~/.sii`, which a recycle erases. You would lose the session,
+and worse, the login latch: you could retry a Clave SII already rejected. A relative or `~` value
+is refused with `type` `validation`. An older install linked `~/.sii` to `/workspace/.sii`; that
+link points at the same folder and is harmless, so leave it.
 
 If `sii` is missing (the computer was recycled):
 - **inside a routine**, stop and tell the user ("La CLI `sii` no está instalada; ¿apruebas
@@ -56,8 +59,7 @@ If `sii` is missing (the computer was recycled):
   `npm i -g @albertomarturelo/sii-cli@<sii.version>`.
 
 Only install the exact version recorded in memory as `sii.version`. Upgrading is the update
-routine's job, with the user's approval (your standing instructions, `prompt.md`). If `~/.sii` exists as a
-real directory, stop and tell the user rather than overwriting it.
+routine's job, with the user's approval (your standing instructions, `prompt.md`).
 
 ### The loop
 
@@ -79,7 +81,9 @@ real directory, stop and tell the user rather than overwriting it.
 
 **Never run `sii auth unblock`.** It is the human's reset for the latch. The command refuses
 without a terminal, but some agent shells run commands in a pseudo-terminal, which passes that
-check. The rule is yours to keep, not the binary's.
+check. The rule is yours to keep, not the binary's. When you tell the user to lift it, give them
+the whole line, `SII_HOME` included, or it lifts nothing:
+`SII_HOME=/workspace/.sii sii auth unblock --rut <rut>`.
 
 The session is **single-account**: one RUT at a time. Switching accounts (for example the
 persona and their empresa) is `sii auth logout`, then a login with the other RUT and its own

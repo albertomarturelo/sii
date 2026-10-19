@@ -23,7 +23,7 @@ import {
 } from '@albertomarturelo/sii-core';
 // The default destination lives in the `./node` subpath (the pure core cannot know $HOME —
 // ADR-016/ADR-022); the SURFACE applies it.
-import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
+import { documentosDir } from '@albertomarturelo/sii-core/node';
 import { emit, out } from '../io.js';
 
 const GROUP_ORDER: readonly F29Grupo[] = ['debitos', 'creditos', 'retenciones', 'otros', 'totales'];
@@ -113,7 +113,11 @@ export function registerF29(program: Command, runtime: Runtime): void {
       `Documento a descargar: ${F29_PDF_TIPO_ARGS.join(' | ')}.`,
       'compacto' satisfies F29PdfTipoArg,
     )
-    .option('--out <dir>', 'Carpeta destino.', join(DOCUMENTOS_DIR, 'f29'))
+    .option(
+      '--out <dir>',
+      'Carpeta destino (por defecto, documentos/f29 bajo $SII_HOME, o ~/.sii sin ella).',
+      join(documentosDir(), 'f29'),
+    )
     .option('--folio <folio>', 'Folio específico (por defecto, la declaración vigente).')
     .action(async (periodoArg: string, opts: { tipo: string; out: string; folio?: string }) => {
       if (!(F29_PDF_TIPO_ARGS as readonly string[]).includes(opts.tipo)) {

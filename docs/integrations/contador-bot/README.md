@@ -59,7 +59,8 @@ markdown, so any agent with a shell, a scheduler and memory can use them.
   file only the CLI's stdin reads.
 - **The rejection latch protects the account.** If SII rejects a Clave, every unattended login
   for that RUT refuses without contacting SII (ADR-028). Lifting it is yours: in the takeover
-  terminal, `sii auth unblock --rut <rut>`. The Bot's rules forbid it from running that, and an
+  terminal, `SII_HOME=/workspace/.sii sii auth unblock --rut <rut>`. The Bot's rules forbid it
+  from running that, and an
   Auto-review rule backs that up.
 - **Approval to file is yours, in three layers:**
   1. the Bot's protocol: you type `APRUEBO F29 <periodo> <rut> TOTAL <monto>` yourself;
@@ -74,9 +75,10 @@ markdown, so any agent with a shell, a scheduler and memory can use them.
   - An agent that controls a machine can, in principle, read any secret on it, and anyone who
     compromises or prompt-injects it gets the full Clave. Use it only for accounts that are
     yours.
-- **Persistence:** Grok Bot only guarantees `/workspace`. The CLI keeps its state in `~/.sii`,
-  so the skill links `~/.sii → /workspace/.sii` and re-checks the link on every run. It also
-  reinstalls the pinned CLI version if the computer was recycled.
+- **Persistence:** Grok Bot only guarantees `/workspace`. The Bot runs every command with
+  `SII_HOME=/workspace/.sii`, so the session, the latch and the downloaded PDFs live there and
+  survive a recycle (#164; earlier versions needed a `~/.sii` symlink). It also reinstalls the
+  pinned CLI version if the computer was recycled.
 
 ## Keeping it current
 

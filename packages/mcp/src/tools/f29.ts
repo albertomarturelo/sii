@@ -15,7 +15,7 @@ import {
 } from '@albertomarturelo/sii-core';
 // The default destination lives in the `./node` subpath (the pure core cannot know $HOME —
 // ADR-016/ADR-022); the SURFACE applies it.
-import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
+import { documentosDir } from '@albertomarturelo/sii-core/node';
 import { join } from 'node:path';
 import { toolText } from '../tool-helpers.js';
 
@@ -86,7 +86,7 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
         'Devuelve SOLO la ruta y el tamaño del archivo, NO su contenido: el documento lleva ' +
         'datos tributarios personales (razón social, domicilio, posición financiera) y no debe ' +
         'entrar en la conversación — ábrelo tú desde la ruta indicada. `directorio` elige la ' +
-        'carpeta destino (por defecto ~/.sii/documentos/f29). `folio` apunta a una declaración ' +
+        'carpeta destino (por defecto documentos/f29 bajo $SII_HOME, o ~/.sii). `folio` apunta a una declaración ' +
         'concreta cuando el período tiene varias; por defecto, la vigente. ' +
         'Session-keyed: descarga tu propio F29; para una empresa, inicia sesión como ella.',
       inputSchema: {
@@ -104,7 +104,7 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
           await f29Pdf(runtime, {
             periodo,
             ...(tipo !== undefined ? { tipo } : {}),
-            directorio: directorio ?? join(DOCUMENTOS_DIR, 'f29'),
+            directorio: directorio ?? join(documentosDir(), 'f29'),
             ...(folio !== undefined ? { folio } : {}),
           }),
           null,

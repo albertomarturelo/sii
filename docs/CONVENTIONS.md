@@ -202,7 +202,8 @@ Python `sii-cli`, adapted to TypeScript.
   actionable error. **Success is decided by `content-type` + magic bytes, NEVER by HTTP status**
   — SII answers `200` for its own error page AND for the login-wall bounce (observed). The
   destination directory is a REQUIRED task argument (the pure core cannot know `$HOME`); each
-  SURFACE applies the default from `DOCUMENTOS_DIR` (`./node` subpath). Compose the local
+  SURFACE applies the default from `documentosDir()` (`./node` subpath; it follows `SII_HOME`,
+  #164). Compose the local
   filename yourself — SII's `Content-Disposition` is generic and carries no folio/período.
 - **Write surfaces are two-phase, session-keyed, confirm-gated, PII-free in the audit (ADR-017).**
   A state-changing op (first: `bte emit`) exposes a non-mutating PREVIEW (server computes the

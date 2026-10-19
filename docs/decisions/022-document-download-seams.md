@@ -1,5 +1,8 @@
 # ADR-022: Binary download seam + document output contract (F29 PDFs)
 
+> **Amended 2026-10-19 (#164):** `DOCUMENTOS_DIR` became the function `documentosDir()`, under
+> the state directory `SII_HOME` can move. See [Amendment](#amendment-2026-10-19-164).
+
 ## Status
 
 Accepted — 2026-08-31. Scopes the F29 PDF read surface (#80, spike result in
@@ -195,3 +198,11 @@ session-level error is not a per-item error and still aborts the whole operation
   small — a shape worth repeating for any future document surface.
 - A wrong `codInt` and an expired session are now distinguishable to the user, because
   detection is content-based rather than status-based.
+
+## Amendment (2026-10-19, #164)
+
+The default destination follows the state directory, which `SII_HOME` can now move (ADR-016
+amendment). **`DOCUMENTOS_DIR` is replaced by `documentosDir()`** on the `./node` subpath: it
+returns `<siiDir()>/documentos`, read when the surface applies its default (the CLI's `--out`
+default, the MCP's `directorio` fallback), never at import. Everything else here stands: the
+destination is still a required task argument, and the pure core still cannot know `$HOME`.

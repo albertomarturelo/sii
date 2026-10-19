@@ -55,12 +55,10 @@ Ask the user to approve, then:
 node --version                     # needs v20 or later
 v=$(npm view @albertomarturelo/sii-cli version) && npm i -g "@albertomarturelo/sii-cli@$v" && sii --version
 mkdir -p -m 700 /workspace/.sii /workspace/.sii-secrets /workspace/sii-setup
-# The same check as the "sii" skill's preflight: never link INTO an existing real directory.
-if [ -L ~/.sii ]; then :
-elif [ -e ~/.sii ]; then echo "STOP: ~/.sii is a real directory, not the symlink"; exit 1
-else ln -s /workspace/.sii ~/.sii
-fi
 ```
+
+From here on, every shell starts with `export SII_HOME=/workspace/.sii`, as the "sii" skill's
+preflight says: it keeps the CLI's state in `/workspace`, which survives a recycle.
 
 Record the installed version in memory as `sii.version`. Then write this helper. It contains no
 secret, and the user can read it before running it:
@@ -108,6 +106,7 @@ setup. Never fall back to the chat.
 With the user's approval, for each account in turn:
 
 ```bash
+export SII_HOME=/workspace/.sii
 sii auth login --rut 11111111-1 --clave-stdin < /workspace/.sii-secrets/11111111-1
 sii whoami
 ```
@@ -120,7 +119,8 @@ sii whoami
   - Do **not** try again.
   - Tell the user to repeat step 4 with the right Clave.
   - Then, still in the takeover terminal, they lift the latch themselves with
-    `sii auth unblock --rut 11111111-1`. You never run that command.
+    `SII_HOME=/workspace/.sii sii auth unblock --rut 11111111-1` (without `SII_HOME` it lifts
+    nothing). You never run that command.
   - Then verify again: one login.
 - **`login_queued`:** SII's waiting room. Try this account again later, never in a loop.
 - **Any other error:** stop and report `error` and `type` verbatim.
