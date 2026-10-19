@@ -72,7 +72,7 @@ the CLI dropped it.
   | `validation` | Invalid input: a RUT, an operate target, a flag combination | 1 |
   | `credential_not_found` | No Clave in the keyring for that RUT | 1 |
   | `browser_required` | The surface needs Chromium and none is installed | 1 |
-  | `unexpected_response` | An endpoint answered something that is neither JSON nor the login wall | 1 |
+  | `unexpected_response` | An endpoint answered something the surface does not recognise and that is not the login wall: a non-JSON body from a JSON endpoint, or a changed page (e.g. Mi SII without `DatosCntrNow`, #139) | 1 |
   | `sii_error` | SII refused a domain read or write, or a scraper broke (`RcvError`, `F29Error`, …) | 1 |
   | `unexpected` | Not a domain error (a bug) | 1 |
 
