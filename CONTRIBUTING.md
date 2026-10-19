@@ -156,6 +156,9 @@ Claude Code. Every group cites the ADRs it enforces.
 - [ ] `ARCHITECTURE.md` updated if the module map changed; `STACK.md` if a
       dependency was pinned or a TBD resolved.
 - [ ] `ROADMAP.md` reflects what shipped — **in its own commit** (see below).
+- [ ] A changed CLI command, flag or error kind → the `skill-*.md` files under
+      [`docs/integrations/`](docs/integrations/README.md) updated in the same PR (agents read
+      them at the release tag).
 
 ## Workflow rules
 

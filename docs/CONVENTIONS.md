@@ -408,3 +408,7 @@ Python `sii-cli`, adapted to TypeScript.
   no `🤖`, in any artifact that lands in git or on GitHub. Authorship is the
   human owner.
 - `docs/` updates ship in the SAME commit as the code that motivated them.
+- **Agent knowledge bases follow the CLI.** `docs/integrations/*/skill-*.md` describe CLI
+  commands, flags and error kinds to third-party agents, which read them at the release tag of
+  the binary they run. A PR that changes any of those updates the affected skill file in the
+  same PR, so a tag's skill always matches that tag's binary.

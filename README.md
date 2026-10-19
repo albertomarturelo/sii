@@ -223,6 +223,10 @@ sii auth login --rut 11111111-1 --clave-env SII_CLAVE   # regla 2: con sesión v
 sii f29 overview 2026                                   # JSON en STDOUT
 ```
 
+Un agente listo para usar: el [contador bot](docs/integrations/contador-bot/README.md) (para Grok
+Bot, o cualquier agente con terminal, rutinas y memoria). Avisa antes de cada vencimiento del
+F29, prepara el borrador del mes y guía la entrega de la Clave sin que pase por el chat.
+
 El ciclo del agente, en cada ejecución:
 
 1. `sii auth status`. Si `loginBlocked` incluye su RUT, **se detiene y avisa a una
