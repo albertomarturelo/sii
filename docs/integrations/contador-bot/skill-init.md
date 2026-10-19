@@ -7,7 +7,7 @@ conversation**. Then it verifies each account with exactly one login.
 
 **Inputs:** the conversation with the user, and the Grok Bot computer (terminal + `/workspace`).
 **Output:** `sii.accounts` and `sii.version` in memory, one verified session per account, and
-the routines of [`prompt.md`](prompt.md) created.
+the routines of your standing instructions ([`prompt.md`](prompt.md)) created.
 **Needs approval:** installing the CLI, and every login (step 5).
 
 ## The one rule this skill exists for
@@ -55,7 +55,11 @@ Ask the user to approve, then:
 node --version                     # needs v20 or later
 v=$(npm view @albertomarturelo/sii-cli version) && npm i -g "@albertomarturelo/sii-cli@$v" && sii --version
 mkdir -p -m 700 /workspace/.sii /workspace/.sii-secrets /workspace/sii-setup
-[ -L ~/.sii ] || ln -s /workspace/.sii ~/.sii
+# The same check as the "sii" skill's preflight: never link INTO an existing real directory.
+if [ -L ~/.sii ]; then :
+elif [ -e ~/.sii ]; then echo "STOP: ~/.sii is a real directory, not the symlink"; exit 1
+else ln -s /workspace/.sii ~/.sii
+fi
 ```
 
 Record the installed version in memory as `sii.version`. Then write this helper. It contains no
@@ -95,7 +99,7 @@ Then check that the file exists, **without reading it**:
 test -s /workspace/.sii-secrets/11111111-1 && stat -c '%a' /workspace/.sii-secrets/11111111-1
 ```
 
-It must print `600`. If the file is missing or empty, ask the user to repeat the step. If the
+It must print `600`. On a BSD system, use `stat -f '%Lp'` instead of `stat -c '%a'`. If the file is missing or empty, ask the user to repeat the step. If the
 takeover view has no terminal, **stop**: tell the user the handoff is not possible on this
 setup. Never fall back to the chat.
 
@@ -131,7 +135,7 @@ Save in memory:
 
 Never save a Clave, a cookie or a file's content.
 
-Create the routines listed in [`prompt.md`](prompt.md) § Routines, and show the user each one's
+Create the routines listed in your standing instructions (`prompt.md` § Routines), and show the user each one's
 next run time.
 
 ## Step 7. What the user must set themselves
@@ -142,8 +146,13 @@ Auto-review), so the platform stops these actions for approval even if you were 
 - any command containing `sii f29 submit` together with `--confirm`;
 - any command containing `npm i -g` or `npm install -g`;
 - any command containing `sii auth unblock`;
-- any command that reads a file under `/workspace/.sii-secrets/` other than the login's stdin
-  redirect.
+- any command that mentions `.sii-secrets` **together with** a reader or mover: `cat`,
+  `less`, `head`, `tail`, `grep`, `cp`, `mv`, `base64`, `xxd`, `curl`, `scp`.
+
+  Do **not** write a rule that catches every command mentioning that folder. The routine's own
+  login (`sii auth login … < /workspace/.sii-secrets/<rut>`) mentions it too, and approvals for
+  unattended work expire after about 10 minutes, so the daily routine would stall on every
+  login.
 
 Also tell them plainly about the residual risk:
 - The Grok Bot computer is shared by **all** of their Bots, so another Bot on the account

@@ -100,8 +100,9 @@ other:
    - "Vigente": send me one confirmation with folio and total, download the receipt with
      `sii f29 pdf`, and skip the account until next month.
    - "Guardada": a draft saved in SII is not a filing. Say so.
-3. If SII's propuesta exists and no borrador is in memory for the período, or the RCV
-   changed since the last one, build the borrador (skill "sii" § 6.1) and send it to me.
+3. Build the borrador (skill "sii" § 6.1) and send it to me on the first day SII's
+   propuesta exists. Rebuild it only on reminder days and on the due date. Other days, step 2
+   is the only SII call: never hammer SII.
 4. On each reminder day of the account (`recordatorios`, days before the due date), and on the
    due date itself, remind me: due date, total per the propuesta, open issues.
 5. After the due date, if it is still not filed: remind me daily for 5 days, then weekly,

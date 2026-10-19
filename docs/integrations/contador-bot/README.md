@@ -46,8 +46,9 @@ markdown, so any agent with a shell, a scheduler and memory can use them.
    `600`). The Bot then verifies each account with **one** login and shows you `sii whoami` to
    confirm.
 4. **Add the Auto-review rules** the Bot lists at the end (Settings → General → Auto-review →
-   "Ask first"): `sii f29 submit … --confirm`, `npm i -g`, `sii auth unblock`, and reads of
-   `/workspace/.sii-secrets/`. These make the platform stop those actions for your approval,
+   "Ask first"): `sii f29 submit … --confirm`, `npm i -g`, `sii auth unblock`, and commands
+   that pair `.sii-secrets` with a reader such as `cat` or `cp`. Not the login itself, which
+   mentions that folder too: an unattended approval expires, and the routine would stall. These make the platform stop those actions for your approval,
    independently of the Bot's own rules.
 
 ## Security model, and what it does not cover

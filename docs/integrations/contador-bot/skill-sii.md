@@ -1,6 +1,6 @@
 # Skill: operating SII through the `sii` CLI
 
-Knowledge base for the contador bot (see [`prompt.md`](prompt.md)). It describes the
+Knowledge base for the contador bot, whose standing instructions are [`prompt.md`](prompt.md). It describes the
 `@albertomarturelo/sii-cli` release this file was published with. **Precedence when they
 disagree:** the installed binary (`sii --version`, `sii <command> --help`) first, then this
 file, then your memory. Never use a command this file or `--help` does not show.
@@ -45,11 +45,18 @@ if [ -L ~/.sii ]; then :
 elif [ -e ~/.sii ]; then echo "STOP: ~/.sii is a real directory, not the symlink"; exit 1
 else mkdir -p -m 700 /workspace/.sii && ln -s /workspace/.sii ~/.sii
 fi
-sii --version || npm i -g @albertomarturelo/sii-cli@<sii.version>
+sii --version
 ```
 
-Only install the exact version recorded in memory as `sii.version`; upgrading is the update
-routine's job, with the user's approval (see [`prompt.md`](prompt.md)). If `~/.sii` exists as a
+If `sii` is missing (the computer was recycled):
+- **inside a routine**, stop and tell the user ("La CLI `sii` no está instalada; ¿apruebas
+  reinstalar la versión <sii.version>?"). An install raises an approval card, and an unattended
+  one expires.
+- **in a live conversation**, once the user agrees, run
+  `npm i -g @albertomarturelo/sii-cli@<sii.version>`.
+
+Only install the exact version recorded in memory as `sii.version`. Upgrading is the update
+routine's job, with the user's approval (your standing instructions, `prompt.md`). If `~/.sii` exists as a
 real directory, stop and tell the user rather than overwriting it.
 
 ### The loop
@@ -180,7 +187,7 @@ rail, and the user did not hand you that job.
 
 ### 6.2 Submit
 
-**Today (`sii` ≤ 0.12.x) the CLI cannot file an F29.** `f29 submit` is planned (spike #138),
+**As of the release this file ships with, the CLI cannot file an F29.** `f29 submit` is planned (spike #138),
 not shipped. Until `sii f29 --help` lists a `submit` command, the last step is the user's:
 
 1. Send the borrador and the due date.
@@ -197,7 +204,8 @@ Never try to file it any other way: no browser automation, no direct calls, no o
 - `--confirm <total>` sends it.
 - The result gives `folio`, `estado` and `pagoUrl`. The CLI never pays.
 
-The approval protocol in [`prompt.md`](prompt.md) § "Approval to file" is mandatory around it.
+The approval protocol in your standing instructions (`prompt.md` § "Approval to file") is
+mandatory around it.
 The CLI's `--confirm` echo guards against a typo, **not** against you: only the user's explicit
 approval authorizes a filing. You never pay: you hand the user `pagoUrl` (or the folio) and
 they pay in their own browser.
