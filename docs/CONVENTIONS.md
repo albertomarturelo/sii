@@ -102,6 +102,14 @@ Python `sii-cli`, adapted to TypeScript.
   `zeusr.sii.cl`** (observed 2026-10-17). Success there means the session cookies were
   set AND the body's navigation leaves `LOGIN_HOST`, and the Mi SII identity read that
   follows is the proof. (ADR-027)
+  **A dead jar can bounce by JavaScript, not only by redirect.** Mi SII answers it `200`
+  with a page that only runs `location.replace(<zeusr login URL>)` (observed 2026-10-18,
+  GH-139). The HTTP driver treats that page as a landing on `LOGIN_HOST`, so URL-based
+  detection holds on every primitive. Keep the match narrow: the page holds nothing else,
+  and the target is `LOGIN_HOST`. **"Alive" needs positive proof.** A probe that decides
+  whether to skip a login confirms the session by reading the principal's identity, never
+  by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
+  "dead" costs one login.
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The

@@ -184,6 +184,33 @@ Observed on the spike:
 The headed browser login (`interactiveLogin`) and `--www2` stay on the Playwright engine, now
 MCP-only (ADR-027): the CLI never needs a human at a browser window.
 
+### A dead session over HTTP (observed 2026-10-18, GH-139)
+
+A classic session about an hour after its login, read with the HTTP driver (read-only GETs,
+owner's own account):
+
+| Request | Answer |
+| --- | --- |
+| `GET misiir.sii.cl/cgi_misii/siihome.cgi` (Mi SII) | **`200 text/html`, 344 bytes, NO HTTP redirect**: an XHTML shell whose only content is `location.replace('https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?<origin URL>')`. No `DatosCntrNow`. |
+| `GET loa.sii.cl/cgi_IMT/TMBCOC_InformeMensualBhe.cgi` | HTTP redirect to `zeusr.sii.cl` |
+| `GET www1.sii.cl/cgi-bin/Portal001/mipeSelEmpresa.cgi` | HTTP redirect to `zeusr.sii.cl` |
+| `GET www3.sii.cl/sispadinternet/` | HTTP redirect to `zeusr.sii.cl` |
+| `GET www4.sii.cl/propuestaf29ui/`, `…/consdcvinternetui/` | HTTP redirect to `zeusr.sii.cl` |
+
+A browser runs the script and lands on the login page. A client that does not run JS stays on
+`misiir.sii.cl`, so the URL check read the dead session as LIVE. Two consequences, both fixed:
+- Every credential login's live probe answered `already_authenticated` and never minted.
+- `whoami` / `status --refresh` failed as `LoginFailedError` ("DatosCntrNow ausente").
+
+How the driver handles it now:
+- `fetchWithJar` recognises the page (`loginStubTarget` in `adapters/node/response.ts`) and
+  reports the login URL as the landing, as a browser would. Every primitive then raises
+  `SessionExpiredError` through the usual URL check.
+- The match is narrow: a small 2xx HTML page whose markup holds NOTHING but one navigation,
+  to `LOGIN_HOST`.
+- The login probe also needs positive proof: a session is live only when Mi SII serves the
+  principal's `DatosCntrNow`.
+
 ### Client-side error rendering
 
 Client validation errors render via `bootstrap_alert.warning(msg)` into

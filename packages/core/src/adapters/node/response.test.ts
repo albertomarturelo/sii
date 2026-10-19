@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
+import {
+  charsetOf,
+  formLoginWallError,
+  loginStubTarget,
+  nonJsonResponseError,
+} from './response.js';
 import { SessionExpiredError, UnexpectedResponseError } from '../../errors/index.js';
+import { MI_SII_LOGIN_STUB } from './__fixtures__/login-stub.js';
 
 describe('nonJsonResponseError (SDI non-JSON classification)', () => {
   it('a response bounced to the login host → SessionExpiredError (actionable)', () => {
@@ -125,5 +131,47 @@ describe('charsetOf (public-response charset for decoding)', () => {
 
   it('falls back to utf-8 for a label TextDecoder cannot accept', () => {
     expect(charsetOf('text/html; charset=not-a-real-charset')).toBe('utf-8');
+  });
+});
+
+describe('loginStubTarget (the JS-only login wall, GH-139)', () => {
+  it('returns the login URL from the observed Mi SII stub', () => {
+    expect(loginStubTarget(MI_SII_LOGIN_STUB)).toBe(
+      'https://zeusr.sii.cl//AUT2000/InicioAutenticacion/IngresoRutClave.html?https://misiir.sii.cl/cgi_misii/siihome.cgi',
+    );
+  });
+
+  it('accepts the other plain navigation spellings, still only to the login host', () => {
+    for (const nav of [
+      'window.location.href = "https://zeusr.sii.cl/AUT2000/x.html"',
+      "location = 'https://zeusr.sii.cl/AUT2000/x.html';",
+      "location.assign('https://zeusr.sii.cl/AUT2000/x.html')",
+    ]) {
+      expect(loginStubTarget(`<html><head><script>${nav}</script></head></html>`)).toBe(
+        'https://zeusr.sii.cl/AUT2000/x.html',
+      );
+    }
+  });
+
+  it('ignores a navigation that leaves for any other host (the login success page does)', () => {
+    expect(
+      loginStubTarget(
+        "<script>location.replace('https://misiir.sii.cl/cgi_misii/siihome.cgi')</script>",
+      ),
+    ).toBeNull();
+  });
+
+  it('never matches a page with content besides the navigation (a live page linking to zeusr)', () => {
+    const live =
+      "<html><head><script>function salir(){ location.replace('https://zeusr.sii.cl/cgi_AUT2000/autTermino.cgi'); }</script>" +
+      '</head><body><h1>Mi SII</h1></body></html>';
+    expect(loginStubTarget(live)).toBeNull();
+    expect(
+      loginStubTarget(
+        "<script>var DatosCntrNow = {};\nlocation.replace('https://zeusr.sii.cl/AUT2000/x.html');</script>",
+      ),
+    ).toBeNull();
+    expect(loginStubTarget('')).toBeNull();
+    expect(loginStubTarget("<script>location.replace('not a url')</script>")).toBeNull();
   });
 });
