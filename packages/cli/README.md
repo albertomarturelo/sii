@@ -66,7 +66,9 @@ that RUT means nothing is sent; and after SII rejects a Clave, unattended logins
 reports both the session and the latch (`loginBlocked`), so check it first.
 
 The agent's loop: `auth status` → stop and tell a human if `loginBlocked` names its RUT →
-run the command → on exit `2`, log in and retry once → on exit `3` or `4`, stop. Persist
+run the command → on `type` `session_expired` / `not_authenticated` (exit `2`), log in and
+retry once → on any other error, stop. Errors go to STDERR as `{ error, type, exitCode, reason?,
+codigo? }`: branch on `type`, never on the Spanish text (the kinds are listed in ADR-012). Persist
 `~/.sii/` across runs. Forbid `sii auth unblock` in the agent's instructions: its TTY check
 stops a cron or a plain-pipe agent, but many harnesses run commands in a pseudo-terminal. Provision `SII_CLAVE` through the platform's masked secret field,
 never `echo` it, never type it into the agent's chat, and use this only for your own

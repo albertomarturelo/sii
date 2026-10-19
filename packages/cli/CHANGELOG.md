@@ -9,6 +9,27 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.12.0 — 2026-10-18
+
+### Changed
+
+- **JSON errors carry a stable `type` (#134).** STDERR now holds
+  `{ "error", "type", "exitCode", "reason"?, "codigo"? }`. Before, it held only `{ "error" }`.
+  - `error` is the same verbatim message.
+  - `type` is the kind an agent branches on (`session_expired`, `login_rejected`,
+    `login_blocked`, …). The full table is in ADR-012.
+  - The exit code is derived from `type`, with the same values as before.
+  - `--human` output is unchanged.
+
+### Fixed
+
+- **`sii auth login` re-authenticates when SII has closed the session (#139).** Over the
+  browser-free driver a dead session read as live, so every login answered
+  `already_authenticated` and nothing recovered it.
+- **`sii whoami` and `sii auth status --refresh` on a dead session** now answer
+  `session_expired` (exit 2). Before, they failed with "DatosCntrNow ausente" and exit 3, which
+  read like a login failure.
+
 ## 0.11.0 — 2026-10-18
 
 ### Added

@@ -15,6 +15,44 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.12.0 — 2026-10-18 — Errores que un agente entiende
+
+0.11.0 let an agent log in and operate without a browser or a keyboard. This release lets it
+**recover on its own**.
+
+**Every error now says what kind it is** (#134, ADR-012 amendment). The CLI's JSON error on
+STDERR is `{ "error", "type", "exitCode", "reason"?, "codigo"? }`, and the MCP's tool error is
+the same object without `exitCode`. `error` is still SII's message, verbatim. `type` is a
+stable name an agent branches on instead of parsing Spanish:
+- `session_expired` / `not_authenticated`: log in again and retry once.
+- `login_rejected`: SII rejected the Clave, and the latch is now set.
+- `login_blocked`: the latch refused without contacting SII.
+- `login_queued`: SII's waiting room.
+- `rate_limited` and the rest: stop and alert a person.
+
+Kinds are never renamed. The table lives in ADR-012, and the README's « Uso autónomo » turns it
+into the agent's loop.
+
+**A dead session is detected as dead** (#139). Without a browser, a session SII had already
+closed looked alive: Mi SII answers it `200` with a page that only redirects to the login in
+JavaScript. Every login then answered "already authenticated" and nothing recovered it. The
+driver now recognises that page as the login wall, and a session counts as live only when Mi SII
+returns your identity.
+
+**Breaking changes:**
+
+- **MCP:** a failed tool call's text is a JSON object instead of the bare message. The message
+  is still in `error`.
+- **CLI:** the JSON error gains fields (`type`, `exitCode`, and `reason` / `codigo` on login
+  failures). Exit codes are unchanged, except `whoami` / `auth status --refresh` on a dead
+  session, which now exit `2` (`session_expired`) instead of `3`.
+
+**For library consumers:**
+- `classifyError(error)` is exported from `@albertomarturelo/sii-core` and returns the same
+  `{ type, reason?, codigo? }`.
+- `whoami` / `statusRefresh` raise `SessionExpiredError` on a login landing.
+- A Mi SII page without identity raises `UnexpectedResponseError` instead of `LoginFailedError`.
+
 ## 0.11.0 — 2026-10-18 — Sin navegador y sin teclado
 
 **The CLI no longer needs a browser** (ADR-027). `sii auth login` is now a plain HTTP POST to
