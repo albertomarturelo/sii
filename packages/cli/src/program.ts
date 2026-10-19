@@ -37,6 +37,11 @@ const www2Line = (w: AuthWww2Status): string =>
     ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
     : 'Sesión www2: no iniciada (la Carpeta Tributaria se usa desde el MCP; ADR-027).';
 
+/** The www2 layer a logout could not close: SII does not revoke it, it expires on its own (#146). */
+const www2StillValid = (until: string | null): string =>
+  `La sesión www2 sigue válida en el SII${until ? ` hasta ${until}` : ''}: el SII no la ` +
+  'revoca al cerrar sesión. Sus cookies ya se borraron de este equipo.';
+
 /** One human line per latched RUT (ADR-028), or nothing: the common case has no block. */
 const blockedLines = (blocked: readonly LoginBlockEntry[]): string[] =>
   blocked.map(
@@ -276,6 +281,7 @@ export function buildProgram(runtime: Runtime, prompters: Prompters = nodePrompt
         }
         out(result.serverClosed ? 'Sesión cerrada (servidor y local).' : 'Sesión cerrada (local).');
         if (result.www2Closed) out('Sesión www2 cerrada.');
+        if (result.www2ValidUntil !== undefined) out(www2StillValid(result.www2ValidUntil));
       });
     });
 

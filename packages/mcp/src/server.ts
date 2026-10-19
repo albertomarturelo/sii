@@ -30,6 +30,11 @@ const www2Line = (w: AuthWww2Status): string =>
     ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
     : 'Sesión www2: no iniciada (auth_login con www2=true para la Carpeta Tributaria).';
 
+/** The www2 layer a logout could not close: SII does not revoke it, it expires on its own (#146). */
+const www2StillValid = (until: string | null): string =>
+  `La sesión www2 sigue válida en el SII${until ? ` hasta ${until}` : ''}: el SII no la ` +
+  'revoca al cerrar sesión. Sus cookies ya se borraron de este equipo.';
+
 // Domain read surfaces — each module owns a tools/<mod>.ts register fn (append-only).
 import { registerWhoamiTools } from './tools/whoami.js';
 import { registerRcvTools } from './tools/rcv.js';
@@ -178,7 +183,10 @@ export function buildServer(runtime: Runtime): McpServer {
         const head = r.serverClosed
           ? 'Sesión cerrada (servidor y local).'
           : 'Sesión cerrada (local).';
-        return r.www2Closed ? `${head} Sesión www2 cerrada.` : head;
+        if (r.www2Closed) return `${head} Sesión www2 cerrada.`;
+        return r.www2ValidUntil !== undefined
+          ? `${head} ${www2StillValid(r.www2ValidUntil)}`
+          : head;
       }),
   );
 

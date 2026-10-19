@@ -119,8 +119,14 @@ export interface AuthLoginResult {
 export interface AuthLogoutResult {
   readonly loggedOut: boolean;
   readonly serverClosed: boolean;
-  /** Best-effort close of the www2 app session, when one was stored (ADR-026). */
+  /** The www2 app session (ADR-026) is proven no longer valid on the server: its own liveness
+   *  read refuses the pre-logout cookies (a layer that expired on its own reads `true` too).
+   *  `false` when there was no layer or the close is unproven. */
   readonly www2Closed: boolean;
+  /** Set when a www2 layer was stored, its close is NOT proven, and its stored expiry is still
+   *  ahead: SII keeps it valid until then (observed 2026-10-19, #146), so this is when it stops
+   *  working (`null` if the stored layer had no expiry). Absent otherwise. */
+  readonly www2ValidUntil?: string | null;
 }
 
 const NO_WWW2: AuthWww2Status = { authenticated: false, expiresAt: null };
@@ -590,6 +596,37 @@ async function closedOnServer(runtime: Runtime, cookies: unknown): Promise<boole
   }
 }
 
+/** True when the pre-logout cookies no longer carry the www2 app session: in a fresh session,
+ *  the layer's own liveness read (`/app/session/status`, ADR-026) refuses them. Never throws;
+ *  anything but that refusal (a network error included) is `false`, "not confirmed". */
+async function www2ClosedOnServer(runtime: Runtime, cookies: unknown): Promise<boolean> {
+  let probe: PortalSession | null = null;
+  try {
+    probe = await runtime.portal.restore(cookies);
+    await readWww2Session(probe, WWW2_APP_CARPETA);
+    return false;
+  } catch (e) {
+    return e instanceof NotAuthenticatedError;
+  } finally {
+    await probe?.close();
+  }
+}
+
+/** One best-effort close GET, in its OWN session restored from the pre-logout cookies. True
+ *  when the GET ran (whatever it answered), false when it threw. */
+async function sendClose(runtime: Runtime, cookies: unknown, url: string): Promise<boolean> {
+  let s: PortalSession | null = null;
+  try {
+    s = await runtime.portal.restore(cookies);
+    await s.goto(url);
+    return true;
+  } catch {
+    return false;
+  } finally {
+    await s?.close();
+  }
+}
+
 /** Server-side close (best-effort) + wipe local session + operate context. */
 export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   const session = await readSession(runtime.store);
@@ -598,36 +635,32 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
     return { loggedOut: false, serverClosed: false, www2Closed: false };
   }
 
-  let serverClosed = false;
-  let www2Closed = false;
-  let closeAttempted = false;
-  let s: PortalSession | null = null;
-  try {
-    s = await runtime.portal.restore(session.cookies);
-    if (session.www2) {
-      // The www2 layer first (ADR-026): its close is the SPA's own `$logout` URL; "closed" =
-      // we came back off that path. Best-effort like the classic one.
-      try {
-        const url = `${WWW2_SESSION_CLOSE_URL}?originalUrl=${encodeURIComponent(WWW2_APP_CARPETA)}`;
-        const landed = await s.goto(url);
-        www2Closed = new URL(landed).pathname !== new URL(WWW2_SESSION_CLOSE_URL).pathname;
-      } catch {
-        // best-effort
-      }
-    }
-    await s.goto(LOGOUT_URL);
-    closeAttempted = true;
-  } catch {
-    // best-effort server close; the local wipe still runs
-  } finally {
-    await s?.close();
-  }
+  // Each close runs in its own session restored from the ORIGINAL cookies. The www2 close (the
+  // SPA's `$logout`) answers 307 with Set-Cookie deletions for the CLASSIC cookies too (TOKEN,
+  // CSESSIONID, NETSCAPE_LIVEWIRE.*; observed at www2.sii.cl/app/session/close on 2026-10-19,
+  // #146), and the jar applies them (the same jar then got a 401). So on a shared jar,
+  // `autTermino.cgi` would go out without the session it has to end.
+  const www2CloseSent = session.www2
+    ? await sendClose(
+        runtime,
+        session.cookies,
+        `${WWW2_SESSION_CLOSE_URL}?originalUrl=${encodeURIComponent(WWW2_APP_CARPETA)}`,
+      )
+    : false;
+  const closeSent = await sendClose(runtime, session.cookies, LOGOUT_URL);
+
   // Decided by PROOF, not by where the close GET landed (#135): over the HTTP driver
   // `autTermino.cgi` answers 200 on its own path and navigates by JS (observed at
   // zeusr.sii.cl/cgi_AUT2000/autTermino.cgi on 2026-10-19), so the old "left the logout
   // path" test always read false. Probe with the ORIGINAL cookies in a fresh session: if SII
   // only cleared our jar, a probe on the same jar would bounce and wrongly read "closed".
-  if (closeAttempted) serverClosed = await closedOnServer(runtime, session.cookies);
+  const serverClosed = closeSent && (await closedOnServer(runtime, session.cookies));
+  // The same proof for www2, run after BOTH closes. The landing-URL test it replaces read a
+  // false "closed": the 307 leaves the close path while the session stays valid server-side —
+  // the pre-close cookies still passed /app/session/status after the www2 close AND after
+  // autTermino.cgi (observed 2026-10-19, #146). The SPA's `$logout` sends nothing else
+  // (chunk-vendors.659f67b1.js), so SII offers no revocation; the layer expires on its own.
+  const www2Closed = www2CloseSent && (await www2ClosedOnServer(runtime, session.cookies));
 
   await deleteSession(runtime.store);
   await clearOperateState(runtime.store);
@@ -639,7 +672,19 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
     serverClosed,
     ...(session.www2 ? { www2Closed } : {}),
   });
-  return { loggedOut: true, serverClosed, www2Closed };
+  // "Still valid until" only while that is in the future: an unproven close of a layer whose
+  // stored expiry has passed must not claim it still works.
+  const until = session.www2?.expiresAt ?? null;
+  const stillValid =
+    session.www2 !== undefined &&
+    !www2Closed &&
+    (until === null || Date.parse(until) > runtime.clock.now().getTime());
+  return {
+    loggedOut: true,
+    serverClosed,
+    www2Closed,
+    ...(stillValid ? { www2ValidUntil: until } : {}),
+  };
 }
 
 /** Curated identity readback from the portal. Requires a live session (no implicit

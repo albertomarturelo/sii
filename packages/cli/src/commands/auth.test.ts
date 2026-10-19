@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { LoginFailedError, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { fakePrompters, makeRuntime, run, runJson, runWith } from '../test-helpers.js';
+import { HOSTS, LoginFailedError, testing, type Runtime } from '@albertomarturelo/sii-core';
+import { datos, fakePrompters, makeRuntime, run, runJson, runWith } from '../test-helpers.js';
 
 // Since ADR-027 the CLI login is the HTTP console flow (no browser): it prompts RUT + hidden
 // Clave, so these drive it with injected prompters. `--www2` and the headed browser login left
@@ -106,6 +106,35 @@ describe('sii auth commands (fake runtime, no SII)', () => {
     const out = await run(rt, 'auth', 'logout');
     expect(out).toMatch(/Sesión cerrada/);
     expect(await run(rt, 'auth', 'status')).toContain('No autenticado.');
+  });
+
+  it('logout says when a www2 layer SII did not revoke stops working (#146)', async () => {
+    // The www2 status read keeps answering a session after the close, as observed live.
+    const portal = new testing.FakePortalDriver({
+      restoreSession: {
+        landingUrl: HOSTS.miSii,
+        datos,
+        requestText: (url) =>
+          url.includes('/app/session/status')
+            ? JSON.stringify({ userId: '11111111-1', userAuthType: 'CT' })
+            : undefined,
+      },
+    });
+    const until = '2026-06-27T13:40:00.000Z';
+    const www2 = { savedAt: '2026-06-27T12:00:00.000Z', expiresAt: until };
+
+    const human = { ...makeRuntime(), portal };
+    await testing.seedSession(human, { www2 });
+    expect(await run(human, 'auth', 'logout')).toContain(
+      `La sesión www2 sigue válida en el SII hasta ${until}`,
+    );
+
+    const json = { ...makeRuntime(), portal };
+    await testing.seedSession(json, { www2 });
+    expect(await runJson(json, 'auth', 'logout')).toMatchObject({
+      www2Closed: false,
+      www2ValidUntil: until,
+    });
   });
 });
 
