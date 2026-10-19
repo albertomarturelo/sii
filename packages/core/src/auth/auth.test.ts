@@ -427,12 +427,6 @@ describe('auth — real-SII flow (replicated, synthetic data)', () => {
     await expect(statusRefresh(rt)).rejects.toBeInstanceOf(SessionExpiredError);
   });
 
-  it('whoami on an expired session (lands back on the login host) raises SessionExpired', async () => {
-    const rt = makeRuntime(liveDriver(realPersonaDatos, 'https://zeusr.sii.cl/AUT2000/x'));
-    await login(rt);
-    await expect(whoami(rt)).rejects.toBeInstanceOf(SessionExpiredError);
-  });
-
   it('an empresa account (razonSocial present) is typed empresa with razonSocial as nombre', async () => {
     const rt = makeRuntime(liveDriver(realEmpresaDatos));
     const res = await login(rt);
@@ -509,10 +503,11 @@ describe('whoami — authenticated principal identity + email (own PII)', () => 
     await expect(statusRefresh(rt)).rejects.toBeInstanceOf(UnexpectedResponseError);
   });
 
-  it('a dead session bounced to the login host is NotAuthenticated on whoami', async () => {
+  it('a dead session bounced to the login host is SessionExpired on whoami', async () => {
     const rt = makeRuntime(credDriver(realPersonaDatos, 'https://zeusr.sii.cl/AUT2000/x'));
     await consoleLogin(rt, CRED);
-    await expect(whoami(rt)).rejects.toBeInstanceOf(NotAuthenticatedError);
+    // The subclass, not the parent: it is what the error kind `session_expired` keys on.
+    await expect(whoami(rt)).rejects.toBeInstanceOf(SessionExpiredError);
   });
 
   it('normalizes a blank email to null (portal serves "   ")', async () => {
