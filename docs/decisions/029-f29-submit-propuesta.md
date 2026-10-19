@@ -101,6 +101,12 @@ there is no interpreter to get wrong. It is not the default because:
 
 It becomes the transport only if the interpreter cannot match the oracle below.
 
+This departs from ADR-013, which judged GWT too brittle to replay by hand and planned F29's
+Fase 2 on a real browser. Two things changed since: ADR-020 showed the redeploy brittleness is
+absorbed by layouts derived from the permutation plus a self-healing policy hash (SISPAD,
+live since 2026-07-03), and the capture showed the form app replays cold when entered through
+the propuesta handoff. ADR-013's Fase 2 read path is not re-decided here.
+
 ### The safety rule: SII's validation is not proof of completeness
 
 Validating the layout **as `findVersionBorradorById` returns it**, with no formula evaluation,
@@ -115,7 +121,8 @@ what the propuesta implies:
 - every código of the propuesta is present, with its value;
 - no código is present that neither the propuesta nor a formula produced (a stale value);
 - the derived códigos the formulas must produce are present (e.g. 77 and 537 when 504 > 0);
-- SII's total equals the confirmed total (§ Decision 2).
+- at submit only, SII's total equals the confirmed total (§ Decision 2); the preview has no
+  confirmed total yet, it shows SII's.
 
 Any disagreement **refuses the submit without contacting either submit op**. The error names
 the códigos in conflict, never their amounts. "No presenta errores" is never a reason to proceed.
@@ -125,12 +132,13 @@ the códigos in conflict, never their amounts. "No presenta errores" is never a 
 `guardarPropuesta` + `enviarDatosFlujo` leave a borrador **"Guardada"** at SII, and each run
 gets a new `idBorrador`. It is not a filing and has no legal effect, but it is a write. So:
 - § Decision 2's "`f29SubmitPreview` is non-mutating" now reads **"non-filing"**. The preview runs
-  steps 1–4 and the safety rule, and stops before step 5.
+  the chain through `getBorradorRfiValidado` and the safety rule, and stops before
+  `guardarBorradorRfiValidado`.
 - The CLI help and the MCP description say that the preview leaves a borrador saved at SII.
 - **`f29_submit_preview` drops `readOnlyHint`** (it writes) **and gets no `destructiveHint`**
   (the borrador is reversible and legally inert). That is ADR-023's line for MIPYME borradores.
-- `f29Submit` re-runs steps 1–4 and the safety rule from fresh SII responses before step 5. It
-  never reuses the preview's borrador.
+- `f29Submit` re-runs the chain through `getBorradorRfiValidado` and the safety rule from fresh
+  SII responses before `guardarBorradorRfiValidado`. It never reuses the preview's borrador.
 
 ### An ambiguous outcome is resolved by reading, never by resending
 
@@ -146,7 +154,8 @@ The task surfaces SII's own message the same way.
 
 2026-09 had nothing to pay. § Decision 4 stands, but no payment URL is wired before it is
 observed (ADR-004). #162 files período 2026-10 by the CLI and records the link if that month
-has a balance. Until then `pagoUrl` is `null`, and a positive total tells the user to pay at SII.
+has a balance. Until then `pagoUrl` is `null`; when the total is positive, the CLI and MCP tell
+the user to pay at SII.
 
 ### Test data: a synthetic SII oracle
 
