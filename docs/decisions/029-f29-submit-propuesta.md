@@ -1,5 +1,10 @@
 # ADR-029: F29 submit — send the propuesta as-is, declare only, return the payment link
 
+> **Amended 2026-10-19 (#158), after the live capture (spike #138):** the transport is a cold GWT
+> replay plus an in-house interpreter of SII's form metadata, with the headless browser as the
+> fallback; SII's validation is not proof of completeness; the preview is non-filing, not
+> non-mutating. See [Amendment](#amendment-2026-10-19-158).
+
 ## Status
 
 Accepted — 2026-10-18. The posture is decided here. The transport is decided after a live capture
@@ -53,6 +58,105 @@ because it moves money through the banks and TGR.
 6. **Audit every attempt** with `{ rut, periodo, durationMs, folio?, result }` and never the
    amounts or códigos. A SII rejection is surfaced verbatim; **never retry** a submit.
 7. **Live-validate** against a período the user really has to file — never a throwaway.
+
+## Amendment (2026-10-19, #158)
+
+Spike #138 captured the flow end to end on the empresa account, período 2026-09 (2026-10-18/19).
+The owner then filed that período from the guarded capture browser. The wire detail is in
+`sii-contract/f29.md` § Submit. The Decision above stands except where this says otherwise.
+
+### Transport (§ Decision 5): preference 2, a cold GWT replay
+
+No SDI JSON op files a declaración, so preference 1 is out. The whole flow runs on the
+cookies-only session, entered through the propuesta handoff. "Enviar Declaración" asks for **no**
+Clave re-entry (`SdiFacade.isAutenticationAvailable` is only a read). The chain:
+
+1. **SDI JSON on `propuestaf29ui`** (`requestJson`): read the propuesta, `guardarPropuesta`,
+   `enviarDatosFlujo`, then a `GET rfiInternet/?origen=PROPUESTA&accionPpta=PPTA-F29-COMPLETA`.
+2. **GWT reads on `rfiInternet`** (`requestText`, ADR-020): `consultarHijoToken` (gives the
+   per-flow `idBorrador`), `getContribuyente`, `findAllFormulario`, `findPeriodoHabilitado`,
+   `findVersionBorradorById` (gives the form layout).
+3. **The in-house interpreter** loads the propuesta into the layout. It clears stale campo
+   values, applies the propuesta's códigos, and evaluates SII's own formula metadata
+   (`CampoMetadata` / `Expresion` / `Regla`). That metadata ships with the layout, so this is an
+   interpreter over SII's data, not hand-written tax logic (#160).
+4. **`getBorradorRfiValidado`** validates the filled form and returns the `BorradorRfi`.
+5. **The submit is TWO GWT calls.** `guardarBorradorRfiValidado` saves the validated borrador
+   and does NOT file. **`inyectarBorradorRfi`** files, with the `Borrador` the first call
+   returned, unchanged. Both are the submit: neither runs in the preview.
+6. The folio and estado are read back with the existing `getDeclaracionConEstados`
+   (`f29 status`).
+
+`portal/gwt.ts` gains a **serializer** (#159). Its write layouts come from the compiled
+permutation's serializers, the same way ADR-020 derived the read layouts from the deserializers.
+They are keyed by class name. The rfiInternet policy hash rotates on redeploy and gets ADR-020's
+self-heal. A scratch codec built during the spike re-encoded every captured request byte for
+byte, including the ~356 KB validation and the ~92 KB submit.
+
+**The fallback is the headless browser engine** (ADR-027 `engine: 'browser'`) clicking SII's own
+UI on the same cookies-only session. It has one real advantage: SII's JS computes the form, so
+there is no interpreter to get wrong. It is not the default because:
+- it drives the GWT SPA through dialogs and navigation, the fragility ADR-013 documented;
+- it puts Chromium on the agent's machine, which every other HTTP surface avoids (ADR-027).
+
+It becomes the transport only if the interpreter cannot match the oracle below.
+
+### The safety rule: SII's validation is not proof of completeness
+
+Validating the layout **as `findVersionBorradorById` returns it**, with no formula evaluation,
+answered `//OK` and "El Formulario 29 no presenta errores lógicos ni matemáticos". Yet the
+borrador was missing **77** (remanente para el período siguiente) and **537** (total créditos),
+and still carried **543 / 547 / 573 / 598 / 755 / 774** from an earlier draft. Filing it would
+have dropped the remanente that feeds next month's 504. SII's validation neither recomputes nor
+flags an omission.
+
+So, before `guardarBorradorRfiValidado`, the task checks the borrador SII validated against
+what the propuesta implies:
+- every código of the propuesta is present, with its value;
+- no código is present that neither the propuesta nor a formula produced (a stale value);
+- the derived códigos the formulas must produce are present (e.g. 77 and 537 when 504 > 0);
+- SII's total equals the confirmed total (§ Decision 2).
+
+Any disagreement **refuses the submit without contacting either submit op**. The error names
+the códigos in conflict, never their amounts. "No presenta errores" is never a reason to proceed.
+
+### The preview is non-filing, not non-mutating
+
+`guardarPropuesta` + `enviarDatosFlujo` leave a borrador **"Guardada"** at SII, and each run
+gets a new `idBorrador`. It is not a filing and has no legal effect, but it is a write. So:
+- § Decision 2's "`f29SubmitPreview` is non-mutating" now reads **"non-filing"**. The preview runs
+  steps 1–4 and the safety rule, and stops before step 5.
+- The CLI help and the MCP description say that the preview leaves a borrador saved at SII.
+- **`f29_submit_preview` drops `readOnlyHint`** (it writes) **and gets no `destructiveHint`**
+  (the borrador is reversible and legally inert). That is ADR-023's line for MIPYME borradores.
+- `f29Submit` re-runs steps 1–4 and the safety rule from fresh SII responses before step 5. It
+  never reuses the preview's borrador.
+
+### An ambiguous outcome is resolved by reading, never by resending
+
+A second `inyectarBorradorRfi` for a período with a declaración vigente is a rectificatoria.
+If the filing call fails or times out after it was sent, the task does not resend it. It reads
+`f29 status` and reports what SII shows. If `guardarBorradorRfiValidado` succeeded and
+`inyectarBorradorRfi` failed, nothing was filed; SII's message is surfaced verbatim (ADR-004).
+When a step fails, SII's client shows a code: `[mod-gdrpro-rfi3]` (`guardarPropuesta`),
+`[mod-envdf-rfi3]` (`enviarDatosFlujo`), an empty `[]` for the rfiInternet validation/submit.
+The task surfaces SII's own message the same way.
+
+### The payment link is still unobserved
+
+2026-09 had nothing to pay. § Decision 4 stands, but no payment URL is wired before it is
+observed (ADR-004). #162 files período 2026-10 by the CLI and records the link if that month
+has a balance. Until then `pagoUrl` is `null`, and a positive total tells the user to pay at SII.
+
+### Test data: a synthetic SII oracle
+
+The interpreter cannot be tested against real filings: they are taxpayer data. Instead:
+- **The oracle** (#160) is a guarded browser capture. It types SYNTHETIC values into SII's own
+  F29 form, lets SII's JS compute, and saves `{inputs → outputs}` (campo values + computed
+  cells). Both submit ops are blocked. Its fixtures are committable: no real amounts and no
+  header PII (nombre, RUT, dirección).
+- **A private check against the real filing** (run6, outside the repo) is gated by an env var
+  and skipped when it is unset, like any live test.
 
 ## Alternatives Considered
 

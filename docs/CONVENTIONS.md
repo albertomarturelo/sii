@@ -222,6 +222,12 @@ Python `sii-cli`, adapted to TypeScript.
   the generic entry point plus the folio. Never inject our cookies into the user's browser
   (ADR-006). The confirm echo guards against a mistake, not against an unattended agent; say so
   in the ADR of every write surface an agent can reach. `f29 submit` is the template.
+- **SII's validation is never proof that a write is complete (ADR-029 amendment).** SII's
+  validator answered "no presenta errores" on an F29 missing the remanente (77). Before an
+  irreversible call, check what SII validated against the source it came from (the propuesta,
+  the formulas), and refuse on any disagreement without contacting the irreversible endpoint.
+  **An ambiguous outcome is resolved by reading state, never by resending:** a second F29 send
+  is a rectificatoria.
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
