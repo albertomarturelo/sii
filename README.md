@@ -274,8 +274,14 @@ try {
 }
 ```
 
-- **Persiste `~/.sii/`** entre ejecuciones: ahí viven la sesión, el puntero `operate` y
-  el bloqueo. Un contenedor efímero haría un login nuevo cada vez.
+- **Persiste el directorio de estado** entre ejecuciones: ahí viven la sesión, el puntero
+  `operate`, el bloqueo, el registro de auditoría y los documentos descargados. Por defecto
+  es `~/.sii/`. Si la plataforma solo conserva una ruta (Grok Bot guarda `/workspace`),
+  apúntalo ahí: `export SII_HOME=/workspace/.sii`. Tiene que ser una ruta absoluta: una
+  relativa o con `~` se rechaza con `validation`, porque un cron cambia de directorio de
+  trabajo. Si el estado se pierde, el agente hace un login nuevo en cada ejecución y, peor,
+  olvida el bloqueo: podría reintentar una Clave que el SII ya rechazó. Quien levante el
+  bloqueo usa el mismo `SII_HOME` (`SII_HOME=/workspace/.sii sii auth unblock`).
 - **Prohíbele `sii auth unblock` en sus instrucciones.** El comando se niega sin terminal,
   lo que frena a un cron o a un agente que corre comandos por tuberías. Pero muchos
   agentes corren sus comandos en una pseudo-terminal, y ahí la verificación no los frena.

@@ -29,7 +29,7 @@ import {
   type FormaPago,
   type Runtime,
 } from '@albertomarturelo/sii-core';
-import { DOCUMENTOS_DIR } from '@albertomarturelo/sii-core/node';
+import { documentosDir } from '@albertomarturelo/sii-core/node';
 import { emit, out } from '../io.js';
 
 /** The document payload, as a JSON file or `-` for STDIN. Keys are the Spanish snake_case the
@@ -388,7 +388,11 @@ export function registerDte(program: Command, runtime: Runtime): void {
     )
     .argument('<folio>', 'Folio del documento emitido.')
     .requiredOption('--empresa <rut>', 'RUT de la empresa emisora.')
-    .option('--out <dir>', 'Carpeta destino.', join(DOCUMENTOS_DIR, 'dte'))
+    .option(
+      '--out <dir>',
+      'Carpeta destino (por defecto, documentos/dte bajo $SII_HOME, o ~/.sii sin ella).',
+      join(documentosDir(), 'dte'),
+    )
     .action(async (folio: string, opts: { empresa: string; out: string }) => {
       const n = Number(folio);
       if (!Number.isInteger(n) || n <= 0) {
@@ -418,7 +422,11 @@ export function registerDte(program: Command, runtime: Runtime): void {
     .option('--ciudad <ciudad>', 'Ciudad del emisor (el SII la exige y no la precarga).')
     .option('--fecha <YYYY-MM-DD>', 'Fecha de emisión (por defecto: hoy).')
     .option('--borrador <id>', 'Previsualiza a partir de este borrador.')
-    .option('--out <dir>', 'Carpeta destino.', join(DOCUMENTOS_DIR, 'dte'))
+    .option(
+      '--out <dir>',
+      'Carpeta destino (por defecto, documentos/dte bajo $SII_HOME, o ~/.sii sin ella).',
+      join(documentosDir(), 'dte'),
+    )
     .action(
       async (
         json: string,
