@@ -88,6 +88,8 @@ Token cost so far ~2–4k. **Still no full source-file reads.**
 - `ROADMAP.md` reflects what shipped, in its OWN commit (status bookkeeping is never
   bundled with feature code). `STACK.md` updated if deps changed; `ARCHITECTURE.md`
   updated if the module map changed; a new SII surface adds a `sii-contract/*.md`.
+  A changed CLI command / flag / error kind updates the `docs/integrations/*/skill-*.md`
+  that describe it, in the same PR.
   (`CURRENT_STATUS.md` is NOT versioned — untracked since #79; never flag it here.)
 
 ## 4. Output a structured report
