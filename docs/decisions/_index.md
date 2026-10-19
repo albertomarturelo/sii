@@ -33,3 +33,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 026 | [The www2 app session — a second cookies-only login, minted only by the user at SII's OAuth page](026-www2-app-session-login.md) | Accepted | 2026-09-12 |
 | 027 | [HTTP `PortalDriver` as the default; the CLI never needs a human at a browser](027-http-portal-driver.md) | Accepted | 2026-10-18 |
 | 028 | [Non-interactive login — `--clave-env` / `--clave-stdin`, `--if-needed`, a rejection latch](028-non-interactive-login.md) | Accepted (amended: no `--if-needed`) | 2026-10-18 |
+| 029 | [F29 submit — send the propuesta as-is, declare only, return the payment link](029-f29-submit-propuesta.md) | Accepted (amended: transport) | 2026-10-18 |
