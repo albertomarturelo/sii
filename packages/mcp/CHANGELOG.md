@@ -9,6 +9,13 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.12.1 — 2026-10-18
+
+### Fixed
+
+- **`auth_logout` answers « Sesión cerrada (servidor y local). » when SII really closed the
+  session (#135).** Over the browser-free driver it always said « (local) ».
+
 ## 0.12.0 — 2026-10-18
 
 ### Changed

@@ -9,6 +9,14 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.12.1 — 2026-10-18
+
+### Fixed
+
+- **`sii auth logout` reports `serverClosed: true` when SII really closed the session (#135).**
+  Over the browser-free driver it always said `false` (« Sesión cerrada (local). »). The
+  close is now proven by checking that the old cookies no longer get into Mi SII.
+
 ## 0.12.0 — 2026-10-18
 
 ### Changed

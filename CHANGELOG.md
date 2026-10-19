@@ -15,6 +15,20 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.12.1 — 2026-10-18
+
+A patch for the logout over the browser-free driver (#135).
+
+**`sii auth logout` (and the MCP's `auth_logout`) now say when SII really closed the
+session.** Over HTTP, SII's `autTermino.cgi` answers `200` on its own path and navigates by
+JavaScript, so the old check ("did we leave the logout page?") always reported
+`serverClosed: false`, although SII does close the session. The close is now proven: the old
+cookies, restored into a fresh session, no longer get into Mi SII. The audit receipt reads
+`result: "ok"` only for a proven close, and `"local_only"` otherwise.
+
+No breaking changes. For library consumers: the `logout` receipt's new `"local_only"` value,
+and an optional `gotoLanding(url)` on `testing.FakePortalDriver` session scripts.
+
 ## 0.12.0 — 2026-10-18 — Errores que un agente entiende
 
 0.11.0 let an agent log in and operate without a browser or a keyboard. This release lets it
