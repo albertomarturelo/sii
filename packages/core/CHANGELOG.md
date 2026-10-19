@@ -4,6 +4,30 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.12.2 — 2026-10-19
+
+### Fixed
+
+- **`logout` reported a false `www2Closed: true` (#146).** `/app/session/close` answers `307` to
+  Clave Única's logout, so the old landing-URL test read "closed". Yet the pre-close cookies
+  still pass `/app/session/status`, after that close AND after `autTermino.cgi` (observed
+  2026-10-19): SII does not revoke the www2 app session. `www2Closed` is now proven like
+  `serverClosed` (#135): the pre-close cookies, restored into a fresh session, must be refused
+  by the layer's own liveness read.
+- **With a www2 layer, `logout` could not close the classic session (#146).** The www2 close
+  deletes the classic cookies (`TOKEN`, `CSESSIONID`, `NETSCAPE_LIVEWIRE.*`), and the classic
+  close ran on the same jar after it. Each close now runs in its own session restored from the
+  pre-logout cookies.
+- **`Www2SessionError` and the www2 OAuth-timeout message named `sii auth login --www2`**, which
+  0.11.0 removed, and called the login "pendiente" (#151). They now name the MCP's `auth_login`
+  with `www2: true`. The kind stays `www2_session_required`.
+
+### Added
+
+- **`AuthLogoutResult.www2ValidUntil`** (optional). It is set when a www2 layer was stored, its
+  close is not proven, and its stored expiry is still ahead: the time the layer stops working.
+- **`testing.seedSession(runtime, { www2 })`** also stores a www2 layer, for surface tests.
+
 ## 0.12.1 — 2026-10-18
 
 ### Fixed

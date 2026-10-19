@@ -15,6 +15,41 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.12.2 — 2026-10-19 — Un contador para tu agente
+
+The logout tells the truth about the www2 session, and the first agent integration ships.
+
+**`sii auth logout` (and the MCP's `auth_logout`) no longer claim the www2 session was closed
+(#146).** Observed live: SII does not revoke the www2 app session. Neither its own close nor
+`autTermino.cgi` ends it, so it stays valid until it expires (~100 min). The old check read the
+close's redirect as "closed". `www2Closed` is now proven like `serverClosed`, and is `false`
+today. The result gains `www2ValidUntil`, and both surfaces say until when the session stays
+valid at SII; its cookies are deleted from the machine. The same capture found a worse bug:
+the www2 close deleted the classic cookies from the shared jar, so with a www2 layer the
+classic close went out without them. Each close now runs in its own session.
+
+**www2 errors name the right login (#151).** They pointed at `sii auth login --www2`, which
+0.11.0 removed, and said the login was "pendiente". They now name the MCP's `auth_login` with
+`www2: true`. The error `type` is unchanged.
+
+**A contador bot for your agent** ([`docs/integrations/contador-bot/`](docs/integrations/contador-bot/README.md),
+#155). It is written for Grok Bot and works with any agent that has a shell, a scheduler and
+memory.
+- A prompt to paste, plus two skills (initialization, and the CLI knowledge base).
+- It reminds you before each F29 is due and prepares the month's borrador from SII's propuesta
+  and the RCV.
+- It gets each Clave onto the agent's computer without it passing through the chat.
+- Filing stays manual until `sii f29 submit` exists. The approval protocol for it is already
+  written.
+
+The release workflow now waits until npm serves all three packages before it creates the
+GitHub release (#123).
+
+No breaking changes. For library consumers:
+- `AuthLogoutResult.www2ValidUntil` is new and optional;
+- `www2Closed` now reads `false` where it read a false `true`;
+- `testing.seedSession` takes an optional `www2` layer.
+
 ## 0.12.1 — 2026-10-18
 
 A patch for the logout over the browser-free driver (#135).

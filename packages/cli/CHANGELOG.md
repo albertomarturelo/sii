@@ -9,6 +9,15 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.12.2 — 2026-10-19
+
+### Fixed
+
+- **`sii auth logout` no longer reports a www2 session as closed when SII kept it valid
+  (#146).** SII does not revoke it. The human output now says « La sesión www2 sigue válida en
+  el SII hasta <hora> », and the JSON carries `www2ValidUntil`. With a www2 layer stored, the
+  classic session is now really closed at SII too.
+
 ## 0.12.1 — 2026-10-18
 
 ### Fixed
