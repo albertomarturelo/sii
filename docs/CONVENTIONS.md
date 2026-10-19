@@ -115,7 +115,11 @@ Python `sii-cli`, adapted to TypeScript.
   and the target is `LOGIN_HOST`. **"Alive" needs positive proof.** A probe that decides
   whether to skip a login confirms the session by reading the principal's identity, never
   by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
-  "dead" costs one login.
+  "dead" costs one login. **"Closed" needs proof too (#135).** Over HTTP, SII's
+  `autTermino.cgi` answers `200` on its own path and navigates by JS, so "we left the logout
+  page" proves nothing. Prove a server-side close by restoring the PRE-close cookies into a
+  fresh session and seeing Mi SII bounce to the login. Never decide it on the same jar, which
+  SII may simply have cleared. An unproven close is reported as local only.
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The
