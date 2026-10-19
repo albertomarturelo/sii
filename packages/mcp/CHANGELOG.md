@@ -9,6 +9,15 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.12.2 — 2026-10-19
+
+### Fixed
+
+- **`auth_logout` no longer reports a www2 session as closed when SII kept it valid (#146).** It
+  says until when it stays valid at SII instead.
+- **A missing www2 session (`carpeta_instituciones`) names the right fix (#151):** `auth_login`
+  with `www2: true`, instead of the removed `sii auth login --www2` and a stale « pendiente ».
+
 ## 0.12.1 — 2026-10-18
 
 ### Fixed
