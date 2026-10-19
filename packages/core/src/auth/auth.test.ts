@@ -14,6 +14,7 @@ import {
   LoginFailedError,
   LoginQueuedError,
   NotAuthenticatedError,
+  SessionExpiredError,
   UnexpectedResponseError,
   ValidationError,
 } from '../errors/index.js';
@@ -418,10 +419,18 @@ describe('auth — real-SII flow (replicated, synthetic data)', () => {
     expect(id.www2.expiresAt).toBe(new Date(WWW2_EXPIRES * 1000).toISOString());
   });
 
-  it('statusRefresh on an expired session (lands back on the login host) raises NotAuthenticated', async () => {
+  it('statusRefresh on an expired session (lands back on the login host) raises SessionExpired', async () => {
     const rt = makeRuntime(liveDriver(realPersonaDatos, 'https://zeusr.sii.cl/AUT2000/x'));
     await login(rt);
-    await expect(statusRefresh(rt)).rejects.toBeInstanceOf(NotAuthenticatedError);
+    // SessionExpired, not the parent NotAuthenticated: the error kind an unattended caller
+    // branches on must say "log in again", not "no session" (GH-139).
+    await expect(statusRefresh(rt)).rejects.toBeInstanceOf(SessionExpiredError);
+  });
+
+  it('whoami on an expired session (lands back on the login host) raises SessionExpired', async () => {
+    const rt = makeRuntime(liveDriver(realPersonaDatos, 'https://zeusr.sii.cl/AUT2000/x'));
+    await login(rt);
+    await expect(whoami(rt)).rejects.toBeInstanceOf(SessionExpiredError);
   });
 
   it('an empresa account (razonSocial present) is typed empresa with razonSocial as nombre', async () => {
