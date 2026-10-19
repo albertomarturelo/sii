@@ -575,7 +575,6 @@ export async function unblockLogin(
   return lifted;
 }
 
-/** Server-side close (best-effort) + wipe local session + operate context. */
 /** True when the pre-logout cookies no longer authenticate: a fresh session restored from them
  *  lands on the login wall at Mi SII (a redirect or the JS-only page, GH-139). Never throws;
  *  an inconclusive probe is `false`, the honest answer for "not confirmed". */
@@ -591,6 +590,7 @@ async function closedOnServer(runtime: Runtime, cookies: unknown): Promise<boole
   }
 }
 
+/** Server-side close (best-effort) + wipe local session + operate context. */
 export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
   const session = await readSession(runtime.store);
   if (!session) {
@@ -623,7 +623,8 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
     await s?.close();
   }
   // Decided by PROOF, not by where the close GET landed (#135): over the HTTP driver
-  // `autTermino.cgi` answers on its own path and navigates by JS, so the old "left the logout
+  // `autTermino.cgi` answers 200 on its own path and navigates by JS (observed at
+  // zeusr.sii.cl/cgi_AUT2000/autTermino.cgi on 2026-10-19), so the old "left the logout
   // path" test always read false. Probe with the ORIGINAL cookies in a fresh session: if SII
   // only cleared our jar, a probe on the same jar would bounce and wrongly read "closed".
   if (closeAttempted) serverClosed = await closedOnServer(runtime, session.cookies);
