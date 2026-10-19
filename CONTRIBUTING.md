@@ -290,6 +290,25 @@ Node `>=20` and the pinned pnpm from `package.json` `packageManager` are require
 Run `pnpm build`, `pnpm test`, `pnpm lint` and `pnpm format` before opening a PR —
 and walk [the PR checklist](#the-pr-checklist) while you are at it.
 
+## Releasing (maintainers)
+
+The three packages (`sii-core`, `sii-cli`, `sii-mcp`) release together on one version
+([ADR-021](docs/decisions/021-publish-cli-mcp-surfaces-npm.md)). Bump all three
+`package.json`s to the same version, add its `## <version> — <date> — <headline>` section
+to `CHANGELOG.md`, merge, then push a matching tag (`v0.12.1` ⇒ version `0.12.1`).
+[`publish-core.yml`](.github/workflows/publish-core.yml) checks the tag against the
+versions, publishes, and creates the GitHub release from the changelog section.
+
+**A green publish step does not mean "installable".** npm processes a publish
+asynchronously: `+ @albertomarturelo/sii-core@X.Y.Z` in the log can come minutes before
+the registry serves it, and in that window `sii-cli` / `sii-mcp` are live but depend on
+a core version npm cannot resolve yet (`ETARGET`). The step **"Wait until the registry
+serves all three packages"** polls `registry.npmjs.org` until each one lists the version,
+and only then does the `release` job announce it. If that step times out (`TIMEOUT_SECONDS`, 10 min), the
+release was not created: check the package on npm, then re-run the workflow. A re-run
+is safe — published versions are skipped, the wait passes at once, and an existing
+release is left alone.
+
 ## Security
 
 Never commit secrets or real PII (RUT, Clave, cookies, names, amounts). To report a

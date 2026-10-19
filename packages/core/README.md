@@ -97,12 +97,6 @@ See [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) and
 
 ## Releasing (maintainers)
 
-Bump `version` in `package.json`, then push a matching `v*` tag — the
-`publish-core` GitHub Action builds and publishes to GitHub Packages on tag
-(ADR-015):
-
-```bash
-# after bumping version to e.g. 0.2.0 and merging to main
-git tag v0.2.0
-git push origin v0.2.0
-```
+The core releases in lockstep with the CLI and MCP surfaces, from a `v*` tag, to public
+npm. The procedure is in the repo's
+[`CONTRIBUTING.md` § Releasing](https://github.com/albertomarturelo/sii/blob/main/CONTRIBUTING.md#releasing-maintainers).
