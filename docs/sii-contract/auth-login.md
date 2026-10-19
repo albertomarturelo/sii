@@ -293,7 +293,7 @@ The **locked-account** código is NOT yet observed (triggering it risks a real l
 it stays `unknown` until captured — the safe direction: a consumer treats `unknown` as
 "blocked", never as "retry".
 
-## The www2 app-session layer (`--www2`, ADR-026)
+## The www2 app-session layer (the `www2` login, ADR-026; MCP-only since ADR-027)
 
 Observed 2026-09-11/12 (#110). `www2.sii.cl/app/*` (the "nueva plataforma" apps and their
 `/app/<name>-api/*` JSON facades — first the Carpeta Tributaria) do NOT ride the classic

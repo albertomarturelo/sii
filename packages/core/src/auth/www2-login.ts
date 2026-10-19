@@ -1,4 +1,5 @@
-// The www2 APP-SESSION step of `sii auth login --www2` (ADR-026): mint the second cookies-only
+// The www2 APP-SESSION step of the headed login with `www2` (ADR-026; the MCP's `auth_login`,
+// since ADR-027 took `--www2` out of the CLI): mint the second cookies-only
 // layer `www2.sii.cl/app/*` needs, the ADR-006 way — the user types the Clave into SII's real
 // OAuth page in the SAME headed browser the classic login used; we keep cookies only.
 //
@@ -106,7 +107,8 @@ export async function waitForWww2Session(
     if (runtime.clock.now().getTime() - start >= timeoutMs) {
       throw new LoginFailedError(
         'Login www2 no completado (tiempo agotado en la página OAuth del SII). La sesión de ' +
-          'Mi SII sí quedó guardada; reintenta `sii auth login --www2` para la capa www2.',
+          'Mi SII sí quedó guardada; reintenta `auth_login` con `www2: true` (MCP) para la capa ' +
+          'www2.',
       );
     }
     await runtime.clock.sleep(WWW2_POLL_MS);

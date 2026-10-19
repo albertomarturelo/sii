@@ -21,7 +21,7 @@ export function requireBrowser(runtime: Runtime): PortalDriver {
 const SESSION_KEY = 'session';
 
 /** The www2 APP-SESSION layer riding in the same cookies-only jar (ADR-026). Present only after
- *  `sii auth login --www2`; `expiresAt` is the `X-SII-STATE-CT` cookie's own expiry (observed
+ *  a `www2` login (the MCP's `auth_login`); `expiresAt` is the `X-SII-STATE-CT` cookie's own expiry (observed
  *  ~100 min), null when the cookie carried none. Metadata only — the cookies themselves live in
  *  `cookies` like the classic ones. */
 export interface StoredWww2Layer {

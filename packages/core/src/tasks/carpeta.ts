@@ -5,7 +5,8 @@
 // read `ctx.sessionRut`, take NO `--rut`, and reject a representing operate pointer up front
 // (same posture as F29). The www2 `cte-api` also needs the www2 APP SESSION (ADR-026): the
 // facade reads it first (`portal/www2-session.ts`) and raises `Www2SessionError` (a
-// NotAuthenticated) when it is missing — minting it is `sii auth login --www2`, pending.
+// NotAuthenticated) when it is missing — minting it is the MCP's `auth_login` with `www2`
+// (ADR-026; MCP-only since ADR-027).
 //
 // #110 ships `carpetaInstituciones` (the live `enfinCodigo` catalog); #109 adds `carpetaRegular`
 // (the PDF, ADR-022 descriptor) on top of the same facade.
