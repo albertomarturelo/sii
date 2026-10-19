@@ -7,7 +7,7 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { HOSTS } from '../config/index.js';
+import { HOSTS, LOGIN_URL, LOGOUT_URL } from '../config/index.js';
 import {
   CredentialNotFoundError,
   LoginBlockedError,
@@ -242,20 +242,66 @@ describe('auth', () => {
     });
   });
 
-  it('logout wipes local session + operate, best-effort server close', async () => {
-    const rt = makeRuntime(
-      new FakePortalDriver({
-        loginSession: {
-          landingUrl: HOSTS.miSii,
-          evaluate: (e) => (e.includes('DatosCntrNow') ? personaDatos() : null),
-          storageState: {},
+  /** A fake SII whose `autTermino.cgi` answers on its own path (no redirect, as over the HTTP
+   *  driver) and, when `serverCloses`, kills the session: from then on Mi SII bounces ANY
+   *  session restored from the old cookies to the login (#135). `failClose` makes the close
+   *  GET itself throw, like a network error. */
+  function logoutDriver(opts: { serverCloses?: boolean; failClose?: boolean }): FakePortalDriver {
+    let closed = false;
+    return new FakePortalDriver({
+      loginSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: (e) => (e.includes('DatosCntrNow') ? personaDatos() : null),
+        storageState: {},
+      },
+      restoreSession: {
+        landingUrl: HOSTS.miSii,
+        gotoLanding: (url) => {
+          if (url === LOGOUT_URL) {
+            if (opts.failClose) throw new Error('network down');
+            if (opts.serverCloses) closed = true;
+            return LOGOUT_URL;
+          }
+          return url === HOSTS.miSii && closed ? LOGIN_URL : undefined;
         },
-        restoreSession: { landingUrl: 'https://www.sii.cl//' },
-      }),
-    );
+      },
+    });
+  }
+
+  it('logout proves the server close with the pre-logout cookies (#135)', async () => {
+    const driver = logoutDriver({ serverCloses: true });
+    const rt = makeRuntime(driver);
+    await login(rt);
+    const before = driver.restoreCalls;
+    const res = await logout(rt);
+    // The close GET landed on autTermino.cgi itself; the old URL test read that as "not
+    // closed". The probe with the original cookies bounces to the login, which is the proof.
+    expect(res).toMatchObject({ loggedOut: true, serverClosed: true });
+    expect(driver.restoreCalls - before).toBe(2); // the close, then the probe
+    const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout');
+    expect(e).toMatchObject({ result: 'ok', serverClosed: true });
+    expect(await readSession(rt.store)).toBeNull();
+    expect(await readOperateState(rt.store)).toBeNull();
+  });
+
+  it('logout whose server close does not take reports it, and the receipt says local_only', async () => {
+    const rt = makeRuntime(logoutDriver({ serverCloses: false }));
     await login(rt);
     const res = await logout(rt);
-    expect(res).toMatchObject({ loggedOut: true, serverClosed: true });
+    expect(res).toMatchObject({ loggedOut: true, serverClosed: false });
+    const e = (rt.audit as RecordingAuditSink).entries.find((x) => x.action === 'logout');
+    expect(e).toMatchObject({ result: 'local_only', serverClosed: false });
+    expect(await readSession(rt.store)).toBeNull(); // the local wipe always runs
+  });
+
+  it('a failed close GET skips the probe and still wipes the local session', async () => {
+    const driver = logoutDriver({ failClose: true });
+    const rt = makeRuntime(driver);
+    await login(rt);
+    const before = driver.restoreCalls;
+    const res = await logout(rt);
+    expect(res).toMatchObject({ loggedOut: true, serverClosed: false });
+    expect(driver.restoreCalls - before).toBe(1); // no probe after a close that never ran
     expect(await readSession(rt.store)).toBeNull();
     expect(await readOperateState(rt.store)).toBeNull();
   });
