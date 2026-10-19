@@ -9,6 +9,20 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.12.0 — 2026-10-18
+
+### Changed
+
+- **A failed tool call's text is a JSON object (#134):** `{ "error", "type", "reason"?,
+  "codigo"? }`, still with `isError: true`. Before, it was the bare message. It is the CLI's
+  JSON error without `exitCode`, with the same stable `type`. The verbatim SII message is still
+  in `error`. A client that parsed the bare text must read `error` instead.
+
+### Fixed
+
+- **A session SII has closed is reported as expired (#139):** `whoami` and `auth_status` with
+  `refresh` answer `session_expired`. Before, they failed with "DatosCntrNow ausente".
+
 ## 0.11.0 — 2026-10-18
 
 ### Changed

@@ -4,6 +4,43 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.12.0 — 2026-10-18
+
+### Added
+
+- **`classifyError(error)` (ADR-012 amendment, #134)** returns an `ErrorInfo`:
+  `{ type: ErrorKind, reason?, codigo? }`. The `type` is a stable kind name, never a class name:
+  `login_rejected`, `login_blocked`, `login_queued`, `login_failed`, `not_authenticated`,
+  `session_expired`, `www2_session_required`, `rate_limited`, `validation`,
+  `credential_not_found`, `browser_required`, `unexpected_response`, `sii_error`,
+  `unexpected`. `reason` / `codigo` ride on every `login_*` kind and no other.
+  `login_rejected` uses the latch's own rule, so it always means "the latch is now set". Both
+  surfaces build their error output from it, and a library consumer can branch on the same
+  kinds.
+
+### Fixed
+
+- **A dead session read as live over the HTTP driver (#139).** Mi SII answers a dead jar with
+  `200` and a page whose only content is a JavaScript `location.replace()` to the login, so the
+  URL check never saw `LOGIN_HOST`. Every credential login's probe answered
+  `already_authenticated` without minting, and an unattended caller could never recover.
+  - `fetchWithJar` now recognises that page (`loginStubTarget`: a small 2xx HTML page holding
+    nothing but one navigation, to `LOGIN_HOST`) and reports the login URL as the landing, so
+    every primitive raises `SessionExpiredError`.
+  - The login probe needs positive proof: a session is live only when Mi SII serves the
+    principal's `DatosCntrNow`.
+
+### Changed
+
+- **`whoami` and `statusRefresh` raise different errors.**
+  - A login landing raises `SessionExpiredError`, a subclass of `NotAuthenticatedError` (it was
+    the parent class).
+  - A Mi SII page without `DatosCntrNow` and without a bounce raises `UnexpectedResponseError`.
+    It was `LoginFailedError`, which wrongly read as a failed login. `LoginFailedError` stays on
+    the login path.
+  - A consumer that caught `LoginFailedError` around `whoami` / `statusRefresh` must now catch
+    the new class.
+
 ## 0.11.0 — 2026-10-18
 
 ### Added

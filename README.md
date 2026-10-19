@@ -70,7 +70,7 @@ legal, y ese paso irreversible queda contigo en la UI del SII
 de entorno o stdin, con un bloqueo que protege la cuenta tras un rechazo de Clave). Qué se
 decidió y por qué: [Decisiones de 0.11.0](#decisiones-de-0110).
 
-**Después de 0.11.0** (en `main`, aún sin publicar en npm):
+**Novedades en 0.12.0:** un agente ya puede recuperarse solo.
 - **Errores con un tipo estable.** Cada error trae un `type` (`session_expired`,
   `login_blocked`, `rate_limited`…) junto al mensaje del SII tal cual. Un agente, un script o
   un sistema que embebe el núcleo decide por `type` y no por el texto. Funciona igual en la
@@ -217,7 +217,7 @@ Un agente (o un cron) puede iniciar sesión y operar la cuenta sin nadie al tecl
 usando la **CLI**. El MCP no sirve para esto a propósito: ningún tool recibe la Clave.
 
 ```bash
-npm i -g @albertomarturelo/sii-cli                      # ≥ 0.11.0
+npm i -g @albertomarturelo/sii-cli                      # ≥ 0.12.0 (errores con `type`)
 # Provisiona SII_CLAVE desde el campo de secretos de la plataforma (enmascarado).
 sii auth login --rut 11111111-1 --clave-env SII_CLAVE   # regla 2: con sesión viva no envía nada
 sii f29 overview 2026                                   # JSON en STDOUT
