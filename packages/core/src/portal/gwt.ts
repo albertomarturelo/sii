@@ -323,6 +323,12 @@ export class Gwt7Codec {
     const index = new Map<string, number>();
     const out: string[] = [];
     const seen = new Map<Gwt7Node, number>();
+    // In the client, a JS string IS its value, so GWT's identity map treats two String objects
+    // with the same text as one object and writes the second as a back-reference (observed:
+    // the browser's validation request shares them; without this the layout re-encodes ~11 KB
+    // larger). Other objects keep reference identity.
+    const seenStrings = new Map<string, number>();
+    let count = 0;
     const ref = (s: string | null): string => {
       if (s === null) return '0';
       let i = index.get(s);
@@ -352,12 +358,14 @@ export class Gwt7Codec {
         return;
       }
       if (typeof v !== 'object' || Array.isArray(v)) throw this.err(`${at} debe ser objeto`);
-      const back = seen.get(v);
+      const text = v.cls === STRING_CLASS && typeof v.values[0] === 'string' ? v.values[0] : null;
+      const back = text !== null ? seenStrings.get(text) : seen.get(v);
       if (back !== undefined) {
         out.push(String(-(back + 1)));
         return;
       }
-      seen.set(v, seen.size);
+      if (text !== null) seenStrings.set(text, count);
+      seen.set(v, count++);
       out.push(ref(this.sig(v.cls)));
       if (v.cls.startsWith('[')) {
         out.push(String(v.values.length));

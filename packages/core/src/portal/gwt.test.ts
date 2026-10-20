@@ -156,6 +156,29 @@ describe('gwt protocol 7 codec', () => {
     expect(ref.values[1]).toBe(ref); // and the cycle closes
   });
 
+  it('writes a String object with an already-written text as a back-reference, as the client does', () => {
+    // In the client a JS string is its value, so GWT's identity map shares equal String objects.
+    const body = codec.encodeRequest({
+      ...demoCall(),
+      params: [
+        {
+          type: 'test.Ref',
+          value: node('test.Ref', 'x', node('test.Ref', 'y', null)),
+        },
+        {
+          type: 'java.util.ArrayList',
+          value: node('java.util.ArrayList', [
+            node('java.lang.String', 'k'),
+            node('java.lang.String', 'k'),
+          ]),
+        },
+      ],
+    });
+    const back = codec.decodeRequest(body).params[1]!.value as Gwt7Node;
+    const items = back.values[0] as Gwt7Value[];
+    expect(items[0]).toBe(items[1]);
+  });
+
   it('round-trips bytes: encode(decode(bytes)) === bytes', () => {
     const bytes = codec.encodeRequest(demoCall());
     expect(bytes).toContain('pipe \\! and back\\\\slash, nul \\0, combining \\u0301');
