@@ -51,23 +51,41 @@ export function parseSiiNumber(text: string): SiiNumber {
 
 const pow10 = (n: number): bigint => 10n ** BigInt(n);
 const rescale = (x: SiiNumber, scale: number): bigint => x.units * pow10(scale - x.scale);
-const signed = (x: SiiNumber): bigint => (x.neg ? -x.units : x.units);
 const fromSigned = (v: bigint, scale: number): SiiNumber => ({
   neg: v < 0n,
   units: v < 0n ? -v : v,
   scale,
 });
 
-function add(a: SiiNumber, b: SiiNumber): SiiNumber {
-  const scale = Math.max(a.scale, b.scale);
-  return fromSigned(
-    signed({ ...a, units: rescale(a, scale), scale }) +
-      signed({ ...b, units: rescale(b, scale), scale }),
-    scale,
-  );
+const abs = (x: SiiNumber): SiiNumber => ({ ...x, neg: false });
+/** `new sK(…, -1)`: SII forces the sign negative, even on a zero. */
+const forceNeg = (x: SiiNumber): SiiNumber => ({ ...x, neg: true });
+/** |r| - |s| with SII's sign `neg`; the callers guarantee |r| ≥ |s|. */
+function magnitudeDiff(r: SiiNumber, s: SiiNumber, neg: boolean): SiiNumber {
+  const scale = Math.max(r.scale, s.scale);
+  return { neg, units: rescale(r, scale) - rescale(s, scale), scale };
 }
+
+/** `_J`: mixed signs become a subtraction; otherwise the magnitudes add, and the result is
+ *  negative only when both operands are (so a zero result keeps that sign, as in SII). */
+function add(a: SiiNumber, b: SiiNumber): SiiNumber {
+  if (a.neg !== b.neg) return a.neg ? add(b, a) : subtract(a, abs(b));
+  const scale = Math.max(a.scale, b.scale);
+  return { neg: a.neg && b.neg, units: rescale(a, scale) + rescale(b, scale), scale };
+}
+/** `oK`, branch by branch, so the sign of a zero result matches SII's (`-5 - -5` is `-0.0`). */
 function subtract(a: SiiNumber, b: SiiNumber): SiiNumber {
-  return add(a, { ...b, neg: !b.neg });
+  if (b.neg && !a.neg) return add(a, abs(b));
+  if (a.neg && !b.neg) return forceNeg(add(b, abs(a)));
+  if (a.neg && b.neg) {
+    // SII's digit subtraction assumes |r| ≥ |s|, which two negatives of different magnitude
+    // never satisfy in `oK`, so its result wraps around. Return the mathematically correct
+    // value instead; equal magnitudes give SII's `-0.0`.
+    const scale = Math.max(a.scale, b.scale);
+    const d = rescale(b, scale) - rescale(a, scale);
+    return d === 0n ? { neg: true, units: 0n, scale } : fromSigned(d, scale);
+  }
+  return compare(a, b) < 0 ? magnitudeDiff(b, a, true) : magnitudeDiff(a, b, false);
 }
 function multiply(a: SiiNumber, b: SiiNumber): SiiNumber {
   const v = a.units * b.units;
@@ -112,9 +130,10 @@ export function formatSiiNumber(x: SiiNumber): string {
 }
 
 // ── Layout access (positions read from the deserializers, 2026-10-19) ──────────
-// CampoMetadata: f=4 código, n=9 formula, p=11 key, r=13 max length, v=17 decimals, x=19 type,
+// CampoMetadata: c=1 a long TC resets, f=4 código, n=9 formula, p=11 key, r=13 max length, v=17 decimals, x=19 type,
 // B=23 ("0" keeps a computed zero visible).
 const MD = {
+  c: 1,
   codigo: 4,
   formula: 9,
   key: 11,
@@ -361,7 +380,8 @@ class F29Form {
       }
       case '==':
       case '!=': {
-        const eq = this.equal(sub(left), sub(right), this.eval(left), this.eval(right));
+        // NG answers FALSE when the right operand is missing.
+        const eq = isNode(right) && this.equal(sub(left), right, this.eval(left), this.eval(right));
         return op === '==' ? (eq ? TRUE : FALSE) : eq ? FALSE : TRUE;
       }
       case '<':
@@ -412,7 +432,11 @@ class F29Form {
         const q = trim(this.eval(left));
         const k = q.indexOf('.');
         if (k === -1) return q;
-        const whole = BigInt(q.slice(0, k) === '-' || q.slice(0, k) === '' ? '0' : q.slice(0, k));
+        const head = q.slice(0, k);
+        if (!/^[+-]?\d*$/.test(head) || !/^\.\d*$/.test(q.slice(k))) {
+          throw roto(`ROUND de un valor no numérico "${q.slice(0, 20)}"`);
+        }
+        const whole = BigInt(/\d/.test(head) ? head : '0');
         return (whole + BigInt(Math.round(Number('0' + q.slice(k))))).toString();
       }
       case 'MINL':
@@ -541,7 +565,11 @@ export function fillF29Form(layout: Gwt7Node, hoy: Date): F29FormFill {
     ['773', 'celdaCod773_1'],
     ['778', 'celdaCod778_1'],
   ] as const) {
-    if (cellIds.has(cell)) form.set(form.campo(`cod${codigo}`), FALSE);
+    if (!cellIds.has(cell)) continue;
+    const c = form.campo(`cod${codigo}`);
+    form.set(c, FALSE);
+    // TC also resets the metadata's long `c` to 0 (base64 "A" on the wire).
+    form.meta(c).values[MD.c] = 'A';
   }
 
   // The serializer sends a campo's STORED value. The client stores a formula's result only
@@ -576,6 +604,8 @@ export function fillF29Form(layout: Gwt7Node, hoy: Date): F29FormFill {
     .map((c) => ({ codigo: form.code(c), antes: before.get(c) ?? '', despues: after(c) }));
 
   // GC with no group: rules with no group or the DEFAULT group, kind ≠ 1, fail unless TRUE.
+  // Assumed to be the call the validation makes (consistent with run6: no rule fails there);
+  // #161 confirms it against the client's "Enviar" handler.
   const meta = node(
     form.formulario.values[FORM.meta]!,
     'cl.sii.sdi.difm.rcs.web.client.formulario.metadata.FormularioMetadata',

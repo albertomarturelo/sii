@@ -126,8 +126,20 @@ describe("SII's decimal (rK)", () => {
     expect(evalIn([], op(o, int(a), int(b)))).toBe(out);
   });
 
-  it('a negative zero survives a product, as in SII', () => {
-    expect(evalIn([], op('*', int('-5'), int('0')))).toBe('-0.0');
+  it.each([
+    ['*', '-5', '0', '-0.0'], // a product multiplies the signs, even on zero
+    ['-', '-5', '-5', '-0.0'], // oK: two equal negatives keep the negative sign
+    ['-', '5', '5', '0.0'],
+    ['-', '3', '5', '-2.0'],
+    ['-', '-3', '5', '-8.0'],
+    ['-', '3', '-5', '8.0'],
+    ['-', '-2', '-5', '3.0'], // SII's digits wrap here; the correct value is returned
+    ['-', '-5', '-2', '-3.0'],
+    ['+', '5', '-5', '0.0'],
+    ['+', '-5', '5', '0.0'],
+    ['+', '-5', '-5', '-10.0'],
+  ])('signs as SII keeps them: %s %s, %s → %s', (o, a, b, out) => {
+    expect(evalIn([], op(o, int(a), int(b)))).toBe(out);
   });
 
   it('an empty operand counts as zero; two empty operands give empty', () => {
@@ -196,6 +208,40 @@ describe('the evaluator (PG), operator by operator', () => {
     expect(evalIn([], ex('FECHA_MES_ACTUAL', 16))).toBe('202610');
   });
 
+  it('compares dates by text, and empty dates only to empty ones', () => {
+    const d = [
+      { codigo: '1', value: '202609', tipo: 'DATE_MES' },
+      { codigo: '2', value: '', tipo: 'DATE_MES' },
+    ];
+    expect(evalIn(d, op('<', ref('1', 96), ex('202610', 32)))).toBe('TRUE');
+    expect(evalIn(d, op('==', ref('2', 96), ex('', 32)))).toBe('TRUE');
+    expect(evalIn(d, op('==', ref('2', 96), ref('1', 96)))).toBe('FALSE');
+    expect(evalIn(d, op('<', ref('2', 96), ref('1', 96)))).toBe('FALSE');
+  });
+
+  it('== without a right operand is FALSE, as in NG', () => {
+    expect(evalIn([], op('==', int('1')))).toBe('FALSE');
+  });
+
+  it.each<[string, Gwt7Node, RegExp]>([
+    ['a rule reference in a formula', ex('$R1', 128), /referencia a regla/],
+    ['+ without a second operand', op('+', int('1')), /\+ sin segundo operando/],
+    ['MINL over a list', op('MINL', int('1'), op(':', int('1'), int('2'))), /MINL con lista/],
+    ['ROUND of text', op('ROUND', text('a.5')), /ROUND de un valor no numérico/],
+  ])('%s is scraper roto', (_name, expr, msg) => {
+    expect(() => evalIn([], expr)).toThrow(msg);
+  });
+
+  it('needs exactly one Formulario in the layout', () => {
+    expect(() => evaluateF29Expresion(n('test.Empty', []), int('1'), HOY)).toThrow(
+      /se esperaba un Formulario, hay 0/,
+    );
+    const one = layout([]).root;
+    expect(() =>
+      evaluateF29Expresion(n('test.Two', [one.values[0]!, one.values[0]!]), int('1'), HOY),
+    ).not.toThrow(); // the same object twice is one Formulario
+  });
+
   it('an unknown operator, a missing campo or a circular formula is scraper roto', () => {
     expect(() => evalIn([], op('XOR', bool('TRUE'), bool('TRUE')))).toThrow(
       /operador desconocido "XOR"/,
@@ -246,6 +292,7 @@ describe('fillF29Form', () => {
     expect(value(get('544'))).toBe('0');
     expect(value(get('815'))).toBe('7');
     expect(value(get('773'))).toBe('FALSE');
+    expect((get('773').values[0] as Gwt7Node).values[1]).toBe('A'); // TC resets the metadata long
     expect(value(get('778'))).toBe('FALSE');
     expect(cambios.map((c) => c.codigo).sort()).toEqual(['537', '543', '544', '77', '773', '778']);
     expect(reglasFallidas).toEqual([]);
