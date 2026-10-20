@@ -299,7 +299,7 @@ The three packages (`sii-core`, `sii-cli`, `sii-mcp`) release together on one ve
 ([ADR-021](docs/decisions/021-publish-cli-mcp-surfaces-npm.md)). Bump all three
 `package.json`s to the same version, add its `## <version> — <date> — <headline>` section
 to `CHANGELOG.md`, merge, then push a matching tag (`v0.12.1` ⇒ version `0.12.1`).
-[`publish-core.yml`](.github/workflows/publish-core.yml) checks the tag against the
+[`release.yml`](.github/workflows/release.yml) checks the tag against the
 versions, publishes, and creates the GitHub release from the changelog section.
 
 **A green publish step does not mean "installable".** npm processes a publish
