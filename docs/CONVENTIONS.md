@@ -197,6 +197,14 @@ Python `sii-cli`, adapted to TypeScript.
   written as a constant. A class or field missing from the layouts throws "scraper roto"; nothing
   is guessed. Verify a new codec against real captures **locally** (an env-gated test), and commit
   only synthetic fixtures.
+- **When SII computes something client-side, port SII's own compiled code, never write the rule
+  ourselves (#160).** The F29 form's formulas, its decimal arithmetic and its storage rules live
+  in the rfiInternet permutation (`PG`, `rK`/`sK`, `rC`/`jC`, `jL`…). Read the function, cite it
+  by its observed name and the permutation's strong-name, and keep SII's quirks as observed
+  (`ROUND(-12.5) = -11`, `-0.0`). Deviate only where SII's code is plainly broken (two
+  negatives wrap in its subtraction), and say so in a comment. The proof is a byte-for-byte
+  equality against the browser's real request, checked locally from a capture: matching values
+  alone missed three rules (store-through-widget, zero as `''`, String identity).
 - **Document downloads go through `PortalSession.requestBinary` + the `FileSink` seam, and a
   task returns a DESCRIPTOR, never bytes (ADR-022).** A surface that produces a file (first:
   `f29 pdf`) takes the response body UNDECODED (`requestBinary` — running a PDF through
