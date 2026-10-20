@@ -190,6 +190,13 @@ Python `sii-cli`, adapted to TypeScript.
   different types). Key the schema by **class name** (the per-type CRC rotates on recompile; the
   layout does not). Body-RUT (validate `--rut` vs the operable set, like RCV). PII-dense (own +
   functionary + third-party) ⇒ NO `raw`, tight allowlist. (ADR-020)
+  **GWT writes (protocol 7, rfiInternet — the F29 submit) follow the same rules in reverse
+  (#159).** The encoder is `Gwt7Codec` in `portal/gwt.ts`; write layouts come from the
+  permutation's SERIALIZERS (`rfi-schema.ts`). A node carries its class name only; the CRC of every
+  signature, like the service's policy, is read from the live permutation at call time and never
+  written as a constant. A class or field missing from the layouts throws "scraper roto"; nothing
+  is guessed. Verify a new codec against real captures **locally** (an env-gated test), and commit
+  only synthetic fixtures.
 - **Document downloads go through `PortalSession.requestBinary` + the `FileSink` seam, and a
   task returns a DESCRIPTOR, never bytes (ADR-022).** A surface that produces a file (first:
   `f29 pdf`) takes the response body UNDECODED (`requestBinary` — running a PDF through
