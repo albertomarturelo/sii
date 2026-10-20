@@ -31,7 +31,7 @@ lockstep with the core on the existing `v*`-tag CD:
   the surfaces' first publish AND a core republish (npm's `core@0.4.0` predates the `peticiones`
   code merged after 0.4.0, so a consumer on `^0.4.0` would lack `peticionesList`). A single
   `v*` tag drives the whole trio.
-- **CD:** the `publish-core.yml` workflow publishes the workspace with **`pnpm -r publish`**
+- **CD:** the `release.yml` workflow (renamed from `publish-core.yml`) publishes the workspace with **`pnpm -r publish`**
   (idempotent — already-published versions are skipped) instead of core-only; the tag==version
   guard checks all three (kept in lockstep).
 - **Playwright is a direct dependency of each surface** (ADR-016) — auto-installed on
