@@ -434,7 +434,11 @@ export class Gwt7Codec {
     const leaf = (op: string): Gwt7Value => {
       if (op === 's') return str();
       if (op === 'l') return next();
-      if (op === 'd') return Number(next());
+      if (op === 'd') {
+        const d = Number(next());
+        if (!Number.isFinite(d)) throw this.err('se esperaba un double');
+        return d;
+      }
       return int();
     };
     const object = (): Gwt7Value => {
@@ -855,5 +859,13 @@ export async function postGwt7(
   };
   const text = await send(await loadGwtPermutation(session, ref, fail));
   if (opts.heal === false || !isGwt7PolicyError(text)) return text;
-  return send(await loadGwtPermutation(session, ref, fail, true));
+  const healed = await send(await loadGwtPermutation(session, ref, fail, true));
+  // Still refused with a fresh permutation: our layouts or the extraction are stale, not SII's
+  // deploy — a broken scraper, never a business message to pass on.
+  if (isGwt7PolicyError(healed)) {
+    throw fail(
+      `No se pudo usar la política de serialización de ${ref.entryPoint} tras releer la permutación de SII (scraper roto).`,
+    );
+  }
+  return healed;
 }

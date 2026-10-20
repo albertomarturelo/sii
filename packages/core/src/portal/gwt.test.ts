@@ -223,6 +223,59 @@ describe('gwt protocol 7 codec', () => {
     expect(() => codec.decodeResponse('//OK[1,2,["test.Ref/1"],0,7]')).toThrow(/scraper roto/);
   });
 
+  const longCodec = new Gwt7Codec(
+    { write: { 'test.L': 'l' }, read: { 'test.L': 'l' } },
+    { 'test.L': 'test.L/1' },
+    (m) => new F29Error(m),
+  );
+  const bad = (value: Gwt7Value, type = 'java.util.ArrayList'): Gwt7Call => ({
+    ...demoCall(),
+    params: [{ type, value }],
+  });
+  it.each<[string, () => unknown, RegExp]>([
+    [
+      'a protocol-5 request',
+      () => codec.decodeRequest('5|0|1|x|1|1|1|1|0|'),
+      /protocolo 5, se esperaba 7/,
+    ],
+    [
+      'a request missing its header strings',
+      () => codec.decodeRequest('7|0|0|0|0|0|0|0|'),
+      /cabecera incompleta/,
+    ],
+    [
+      "a response whose long field's token is a number",
+      () => longCodec.decodeResponse('//OK[5,1,["test.L/1"],0,7]'),
+      /se esperaba un long/,
+    ],
+    [
+      "a node whose 'L' field is not an array",
+      () => codec.encodeRequest(bad(node('java.util.ArrayList', 'not a list'))),
+      /debe ser una lista/,
+    ],
+    [
+      'a map entry that is not a pair',
+      () =>
+        codec.encodeRequest(
+          bad(node('java.util.HashMap', [[node('java.lang.String', 'k')]]), 'java.util.HashMap'),
+        ),
+      /debe ser \[clave, valor\]/,
+    ],
+    [
+      'a request whose double token is not a number',
+      () =>
+        codec.decodeRequest(
+          '7|0|6|https://example.invalid/mod/|H|test.Facade|m|java.lang.Double/1003|x|' +
+            '1|2|3|4|1|5|5|abc|',
+        ),
+      /se esperaba un double/,
+    ],
+  ])('fails loud on %s', (_name, run, detail) => {
+    expect(run).toThrow(F29Error);
+    expect(run).toThrow(/scraper roto/);
+    expect(run).toThrow(detail);
+  });
+
   it('parses JS literals with \\x / \\u escapes', () => {
     expect(parseJsLiteral(`["a\\x41\\u00f1", -1.5e2, []]`)).toEqual(['aAñ', -150, []]);
     expect(() => parseJsLiteral('[1,2')).toThrow();
@@ -294,6 +347,25 @@ describe('gwt protocol 7 permutation + self-heal', () => {
     deployed = H1; // heal:false hands the refusal back untouched, without re-reading
     expect(await postGwt7(session, ref, build, fail, { heal: false })).toBe(policyEx);
     expect(gets).toHaveLength(4);
+  });
+
+  it('fails loud when SII still refuses the policy after the re-read', async () => {
+    const policyEx =
+      '//EX[2,1,["com.google.gwt.user.client.rpc.IncompatibleRemoteServiceException/3936916533",' +
+      '"This application is out of date"],0,7]';
+    let posts = 0;
+    // The served permutation (H1) never matches what SII accepts: the re-read cannot help.
+    const session = new FakePortalSession({
+      requestText: (url, opts) => {
+        if (opts?.method === 'GET') return url.endsWith('nocache.js') ? `x='${PERM}'` : js(H1);
+        posts++;
+        return policyEx;
+      },
+    });
+    await expect(postGwt7(session, ref, () => 'body', fail)).rejects.toThrow(
+      /política de serialización de formularioFacade tras releer.*scraper roto/,
+    );
+    expect(posts).toBe(2); // the original send + exactly one resend, never more
   });
 
   it('fails loud when no permutation declares the entry point', async () => {
