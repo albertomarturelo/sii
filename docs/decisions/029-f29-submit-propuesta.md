@@ -4,6 +4,10 @@
 > replay plus an in-house interpreter of SII's form metadata, with the headless browser as the
 > fallback; SII's validation is not proof of completeness; the preview is non-filing, not
 > non-mutating. See [Amendment](#amendment-2026-10-19-158).
+>
+> **Amended 2026-10-20 (#179):** the synthetic oracle injects a synthetic layout into the
+> browser instead of having the operator type values. See
+> [Amendment](#amendment-2026-10-20-179-the-oracle-injects-the-layout-nobody-types).
 
 ## Status
 
@@ -166,6 +170,38 @@ The interpreter cannot be tested against real filings: they are taxpayer data. I
   header PII (nombre, RUT, dirección).
 - **A private check against the real filing** (run6, outside the repo) is gated by an env var
   and skipped when it is unset, like any live test.
+
+## Amendment (2026-10-20, #179): the oracle injects the layout, nobody types
+
+The oracle above assumed the operator types synthetic values into SII's form. Two findings rule
+that out:
+- **The propuesta carries no values.** `guardarPropuesta` sends only the RUT, the período and the
+  propuesta type (run5, observed 2026-10-18). SII builds the propuesta server-side from its own
+  data, so no synthetic value can enter through it.
+- **The propuesta view is read-only.** In mode PPTA-F29-COMPLETA, the one `f29 submit` uses, the
+  client builds each TEXTBOX as a hidden-value field (`wM`, #160). Typing would need another
+  mode of the form, and the oracle would then test a path production never takes.
+
+So the oracle **replaces the layout in the browser**:
+1. The guarded harness lets `findVersionBorradorById` reach SII, decodes its `//OK` response, and
+   builds a synthetic layout from it. The header is blanked, every input campo takes the case's
+   synthetic value, and the formula metadata stays SII's own.
+2. It answers the client with that layout (`route.fulfill`). SII's own JS fills it in the same
+   mode production runs.
+3. When the operator clicks to send, the harness records the `getBorradorRfiValidado` request
+   (the client's computed output) and **aborts it**. `guardarBorradorRfiValidado` and
+   `inyectarBorradorRfi` are aborted too, unconditionally. No synthetic value reaches SII.
+4. The fixture is `{synthetic layout → the client's request}`. The test is
+   `fillF29Form(layout)` re-encoding to the recorded request.
+
+Costs, accepted:
+- the harness needs a protocol-7 response ENCODER. It lives with the harness, outside the
+  repo, and is trusted only after it round-trips a captured response;
+- reaching the form still runs `guardarPropuesta` + `enviarDatosFlujo`, which leave a borrador
+  "Guardada" at SII. That is non-filing (§ The preview is non-filing).
+
+Rejected: typing in another mode of the form (it tests a path production never takes, and is
+error-prone); rewriting `guardarPropuesta` (it has no values to rewrite).
 
 ## Alternatives Considered
 
