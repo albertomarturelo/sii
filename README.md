@@ -23,7 +23,7 @@ conocimiento del SII y los guardrails se **portan**; el código se escribe nuevo
 
 Superficies de **lectura** operativas y validadas en vivo: autenticación
 (`auth`), representación (`operate`), **RCV**, **F22** (status / formulario /
-observaciones / historial), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
+observaciones / historial / terceros), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
 (consulta pública), **whoami** y **peticiones administrativas** (SISPAD).
 
 El login de la CLI **no usa navegador**
@@ -78,6 +78,19 @@ decidió y por qué: [Decisiones de 0.11.0](#decisiones-de-0110).
 - **Una sesión muerta se detecta como muerta.** Sin navegador, el SII podía cerrar la sesión
   sin que se notara, y `login` respondía «ya autenticado» sin volver a entrar. Ahora una
   sesión solo cuenta como viva si Mi SII devuelve tu identidad.
+
+**Novedades en 0.14.0:** **lo que otros informaron de ti** (`f22 terceros`).
+- **Qué es:** lo que tus empleadores, bancos, AFP, AGF y corredoras declararon al SII sobre ti,
+  DJ por DJ. Es la información con que el SII arma tu propuesta de Renta y contra la que revisa
+  una observación como la B102. Antes solo se veía en el portal.
+- **Cómo se pide:**
+  - sin `--dj`, el resumen por DJ con sus totales, en **una** consulta al SII;
+  - con `--dj <código>`, las filas de esa DJ: folio, declarante, fecha, el `estado` que el SII
+    marca en cada fila y las columnas propias de esa DJ.
+- **Tus datos y los de terceros:** tu propio RUT y tu nombre se omiten de las filas. Los datos
+  del declarante, que puede ser una persona natural, sí aparecen.
+- **También en 0.14.0:** `operate --list` muestra el nombre de tu cuenta, no tu RUT (tras un
+  nuevo login).
 
 Checklist completo en [`docs/ROADMAP.md`](docs/ROADMAP.md); el historial de
 versiones, en [`CHANGELOG.md`](CHANGELOG.md).
@@ -362,6 +375,7 @@ en la conversación — lo abres tú desde la ruta que indica.
 - «Dame **todos** los documentos del RCV de compras de 2026-05 en una sola tabla.» → `rcv_all`
 - «¿Cómo quedó mi declaración de renta (F22) del año tributario 2025?» → `f22_status` / `f22_formulario`
 - «¿Tengo observaciones en el F22 de 2025?» → `f22_observaciones`
+- «Tengo la observación B102: ¿qué informaron las corredoras y fondos sobre mí en la Renta 2026?» → `f22_terceros` (resumen, luego `dj`)
 - «¿Cuál es mi posición de IVA mes a mes en el F29 durante 2026?» → `f29_overview`
 - «Dame la propuesta del F29 de mayo 2026, agrupada por línea.» → `f29_formulario`
 - «Descárgame el PDF del F29 de mayo 2026 con su comprobante de pago.» → `f29_pdf`
@@ -398,6 +412,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii f22 formulario <año>` | Formulario F22 completo, agrupado (ingresos/deducciones/retenciones/resultado) |
 | `sii f22 observaciones <año> [--folio]` | Observaciones/inconsistencias del F22 |
 | `sii f22 historial <año> [--folio]` | Línea de tiempo de eventos del F22 (devoluciones, giros, rectificatorias) |
+| `sii f22 terceros <año> [--dj <código>] [--pagina <n>]` | Lo que informaron sobre ti tus agentes retenedores e informantes (DJ): sin `--dj`, el resumen por DJ (una consulta); con `--dj`, sus filas |
 | `sii f29 formulario <periodo>` | Propuesta de IVA (F29) etiquetada + agrupada |
 | `sii f29 overview <desde> <hasta> \| <año>` | Posición de IVA mes a mes en un rango |
 | `sii f29 status <periodo>` | Estado del F29 de un mes |
