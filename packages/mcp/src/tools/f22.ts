@@ -8,6 +8,8 @@ import {
   f22Observaciones,
   f22Overview,
   f22Status,
+  f22Terceros,
+  f22TercerosDetalle,
   ValidationError,
   type Runtime,
 } from '@albertomarturelo/sii-core';
@@ -111,6 +113,45 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
     ({ anio, folio }) =>
       toolText(async () => {
         const r = await f22Historial(runtime, { anio, ...(folio ? { folio } : {}) });
+        return JSON.stringify(r, null, 2);
+      }),
+  );
+
+  server.registerTool(
+    'f22_terceros',
+    {
+      title: 'F22 información de terceros (DJ de agentes retenedores e informantes)',
+      description:
+        'Lo que informaron al SII sobre el contribuyente sus agentes retenedores e informantes ' +
+        '(empleadores, bancos, AFP, AGF, corredoras) en sus declaraciones juradas, para un año ' +
+        'tributario (2026 = ingresos de 2025). Sirve para explicar una observación de la F22 ' +
+        '(p. ej. B102) y cuadrar antes de una rectificatoria. Sin `dj`: el resumen por DJ con sus ' +
+        'totales, UNA consulta al SII; empieza por ahí. Con `dj`: las filas de esa DJ (todas las ' +
+        'páginas de 10, hasta 30; `pagina` lee solo una), cada una con folio, declarante, fecha, ' +
+        'estado ("No Observada"…) y `campos` [{columna, valor}] según las columnas de esa DJ. ' +
+        'EXPONE DATOS DE TERCEROS: el RUT y el nombre de cada declarante, que puede ser una ' +
+        'persona natural (p. ej. un empleador). De las filas se omiten tu RUT y las columnas del ' +
+        'partícipe o aportante (tu propia identidad); tu nombre también cuando se reconoce, ' +
+        'aunque un informante puede escribirlo a su manera. Session-keyed: lee tu propia ' +
+        'información; para una empresa, inicia sesión como ella.',
+      inputSchema: {
+        anio: z.string(),
+        dj: z.string().optional(),
+        pagina: z.number().int().positive().optional(),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    ({ anio, dj, pagina }) =>
+      toolText(async () => {
+        if (dj === undefined) {
+          if (pagina !== undefined) throw new ValidationError('`pagina` requiere `dj`.');
+          return JSON.stringify(await f22Terceros(runtime, { anio }), null, 2);
+        }
+        const r = await f22TercerosDetalle(runtime, {
+          anio,
+          dj,
+          ...(pagina !== undefined ? { pagina } : {}),
+        });
         return JSON.stringify(r, null, 2);
       }),
   );

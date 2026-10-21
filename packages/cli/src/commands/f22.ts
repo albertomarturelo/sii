@@ -8,8 +8,11 @@ import {
   f22Observaciones,
   f22Overview,
   f22Status,
+  f22Terceros,
+  f22TercerosDetalle,
   formatMoney as money,
   formatRut as fmtRut,
+  type CampoTercero,
   type CodigoF22,
   type F22Grupos,
   type Runtime,
@@ -38,6 +41,21 @@ const printGrupos = (g: F22Grupos): void => {
     out('Otros:');
     printCodigos(g.otros);
   }
+};
+
+// A declarante's RUT is as SII printed it; one that fails Mod-11 still prints, unformatted.
+const rutTercero = (rut: string): string => {
+  try {
+    return fmtRut(rut);
+  } catch {
+    return rut;
+  }
+};
+const valorTercero = (v: CampoTercero['valor']): string =>
+  v === null ? '—' : typeof v === 'number' ? v.toLocaleString('es-CL') : v;
+const printCampos = (campos: readonly CampoTercero[], indent: string): void => {
+  for (const c of campos)
+    if (c.valor !== null) out(`${indent}${c.columna}: ${valorTercero(c.valor)}`);
 };
 
 export function registerF22(program: Command, runtime: Runtime): void {
@@ -169,6 +187,60 @@ export function registerF22(program: Command, runtime: Runtime): void {
           out(
             `  ⚠ folio ${fe.folio}: el SII no entregó su historial (error interno del SII: ${fe.error})`,
           );
+        }
+      });
+    });
+
+  f22
+    .command('terceros')
+    .description(
+      'Session-keyed (tu propia información; para una empresa, inicia sesión como ella). ' +
+        'Información de terceros del año: lo que informaron sobre ti tus agentes retenedores e ' +
+        'informantes (empresas, bancos, AFP, corredoras) en sus declaraciones juradas. Sin ' +
+        '--dj: el resumen por DJ (una consulta al SII). Con --dj: las filas de esa DJ, con el ' +
+        'RUT y nombre de cada declarante (datos de terceros).',
+    )
+    .argument('<año>', 'Año tributario (YYYY); 2026 = ingresos de 2025.')
+    .option('--dj <código>', 'Código de la DJ cuyas filas leer (p. ej. 1887).')
+    .option('--pagina <n>', 'Solo esa página de 10 filas (requiere --dj; por defecto: todas).')
+    .action(async (anioArg: string, opts: { dj?: string; pagina?: string }) => {
+      if (opts.dj === undefined) {
+        // The resumen is one call with no pages; a page number without a DJ selects nothing.
+        if (opts.pagina !== undefined) throw new ValidationError('El --pagina requiere --dj.');
+        const r = await f22Terceros(runtime, { anio: anioArg });
+        emit(r, () => {
+          out(`F22 ${r.anio} — ${fmtRut(r.rut)} (información de terceros)`);
+          for (const d of r.declaraciones) {
+            out(`  ${d.dj}  ${d.titulo ?? ''}`);
+            for (const fila of d.filas) printCampos(fila, '      ');
+          }
+          out(`${r.declaraciones.length} declaración(es). Filas de una: --dj <código>.`);
+        });
+        return;
+      }
+      const r = await f22TercerosDetalle(runtime, {
+        anio: anioArg,
+        dj: opts.dj,
+        ...(opts.pagina !== undefined ? { pagina: opts.pagina } : {}),
+      });
+      emit(r, () => {
+        out(`F22 ${r.anio} — ${fmtRut(r.rut)} (DJ ${r.dj}, información de terceros)`);
+        for (const f of r.filas) {
+          const quien = f.declaranteRut ? ` (${rutTercero(f.declaranteRut)})` : '';
+          out(
+            `  ${f.fechaPresentacion ?? '—'}  ${f.declaranteNombre ?? '—'}${quien}  ` +
+              `folio ${f.folio ?? '—'}  ${f.estado ?? ''}`,
+          );
+          printCampos(f.campos, '      ');
+        }
+        out(
+          `${r.filas.length} de ${r.registros} fila(s); página(s) ${r.paginasLeidas.join(', ')} ` +
+            `de ${r.paginas}.`,
+        );
+        // SII failed a page: surface it verbatim, never hide it (ADR-004).
+        for (const pe of r.paginasConError) out(`  ⚠ página ${pe.pagina}: ${pe.error}`);
+        if (r.incompleto && r.paginasConError.length === 0) {
+          out(`  ⚠ incompleto: lee el resto con --pagina <n> (hasta ${r.paginas}).`);
         }
       });
     });

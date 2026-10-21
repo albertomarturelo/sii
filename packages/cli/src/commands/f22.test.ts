@@ -243,4 +243,134 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(json.grupos.ingresos.map((c) => c.codigo)).toContain('110');
     expect(json.grupos.resultado.map((c) => c.codigo)).toContain('305');
   });
+
+  // Información de terceros (#183): synthetic grids in the observed shape. The session RUT is
+  // 11.111.111-1 (seedSession); the declarante 77.777.777-7.
+  const tc = (value: string | null, colspan = 1) => ({
+    colspan,
+    rowspan: 1,
+    value,
+    esParteDeSpan: false,
+  });
+  const tpart = () => ({ ...tc(null), esParteDeSpan: true });
+  const trow = (tipoCelda: string, cells: unknown[]) => ({
+    fila: Object.fromEntries(cells.map((x, i) => [String(i), x])),
+    tipoCelda,
+  });
+  const tabla = (rows: unknown[]) =>
+    Object.fromEntries(rows.map((r, i) => [String(i).padStart(2, '0'), r]));
+  const RESUMEN = {
+    metaData: { errors: null },
+    data: [
+      {
+        listAgenteRetenedor: {
+          '1887': {
+            resumen: {
+              tabla: tabla([
+                trow('cabecera', [tc('Cantidad de Informantes'), tc('Renta Total')]),
+                trow('dato', [tc('1'), tc('9.999.999')]),
+              ]),
+              cantRegistros: 0,
+            },
+          },
+        },
+        title: 'Sobre Rentas Del Art 42',
+        formKey: 0,
+      },
+    ],
+  };
+  const DETALLE = {
+    metaData: { errors: null },
+    data: {
+      listDetalle: {
+        DETALLE: {
+          detalle: {
+            tabla: tabla([
+              trow('cabecera', [
+                tc('Folio'),
+                tc('Rut Declarante', 3),
+                tpart(),
+                tpart(),
+                tc('Nombre o Razón Social Declarante'),
+                tc('Rut Partícipe', 3),
+                tpart(),
+                tpart(),
+                tc('Monto'),
+                tc('Estado'),
+              ]),
+              trow('dato', [
+                tc('555'),
+                tc('77.777.777'),
+                tc('-'),
+                tc('7'),
+                tc('EMPLEADOR SINTETICO SPA'),
+                tc('11.111.111'), // own RUT: must not surface
+                tc('-'),
+                tc('1'),
+                tc('1.500.000'),
+                tc('No Observada'),
+              ]),
+            ]),
+            cantRegistros: 1,
+          },
+        },
+      },
+    },
+  };
+
+  function tercerosRuntime(): Runtime {
+    return {
+      ...makeF22Runtime(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('getAgenteRetenedor')
+              ? RESUMEN
+              : url.includes('getDjDetalle')
+                ? DETALLE
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+  }
+
+  it('f22 terceros <año> (human) lists the per-DJ resumen with its aggregates', async () => {
+    const rt = tercerosRuntime();
+    await seed(rt);
+    const out = await run(rt, 'f22', 'terceros', '2026');
+    expect(out).toContain('(información de terceros)');
+    expect(out).toContain('1887  Sobre Rentas Del Art 42');
+    expect(out).toContain('Renta Total: 9.999.999');
+    expect(out).toContain('1 declaración(es).');
+  });
+
+  it('JSON default: `f22 terceros <año> --dj 1887` emits the rows, own RUT dropped', async () => {
+    const rt = tercerosRuntime();
+    await seed(rt);
+    const json = (await runJson(rt, 'f22', 'terceros', '2026', '--dj', '1887')) as {
+      dj: string;
+      registros: number;
+      filas: { folio: string; declaranteRut: string; estado: string; campos: unknown[] }[];
+    };
+    expect(json).toMatchObject({ dj: '1887', registros: 1 });
+    expect(json.filas[0]).toMatchObject({
+      folio: '555',
+      declaranteRut: '77777777-7',
+      estado: 'No Observada',
+      campos: [{ columna: 'Monto', valor: 1500000 }],
+    });
+    expect(JSON.stringify(json.filas)).not.toContain('11111111'); // the root `rut` is the principal
+  });
+
+  it('f22 terceros --pagina without --dj is a validation error (no SII call)', async () => {
+    const rt = tercerosRuntime();
+    await seed(rt);
+    await expect(run(rt, 'f22', 'terceros', '2026', '--pagina', '2')).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+  });
 });

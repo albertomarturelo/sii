@@ -234,4 +234,133 @@ describe('@albertomarturelo/sii-mcp f22 tools (in-memory client, fake runtime, n
     expect(parsed).toMatchObject({ anio: '2025', folios: ['999'] });
     expect(parsed.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
   });
+
+  // Información de terceros (#183): synthetic grids in the observed shape. The session RUT is
+  // 11.111.111-1 (seedSession); the declarante 77.777.777-7.
+  const tc = (value: string | null, colspan = 1) => ({
+    colspan,
+    rowspan: 1,
+    value,
+    esParteDeSpan: false,
+  });
+  const tpart = () => ({ ...tc(null), esParteDeSpan: true });
+  const trow = (tipoCelda: string, cells: unknown[]) => ({
+    fila: Object.fromEntries(cells.map((x, i) => [String(i), x])),
+    tipoCelda,
+  });
+  const tabla = (rows: unknown[]) =>
+    Object.fromEntries(rows.map((r, i) => [String(i).padStart(2, '0'), r]));
+  const RESUMEN = {
+    metaData: { errors: null },
+    data: [
+      {
+        listAgenteRetenedor: {
+          '1887': {
+            resumen: {
+              tabla: tabla([
+                trow('cabecera', [tc('Cantidad de Informantes'), tc('Renta Total')]),
+                trow('dato', [tc('1'), tc('9.999.999')]),
+              ]),
+              cantRegistros: 0,
+            },
+          },
+        },
+        title: 'Sobre Rentas Del Art 42',
+        formKey: 0,
+      },
+    ],
+  };
+  const DETALLE = {
+    metaData: { errors: null },
+    data: {
+      listDetalle: {
+        DETALLE: {
+          detalle: {
+            tabla: tabla([
+              trow('cabecera', [
+                tc('Folio'),
+                tc('Rut Declarante', 3),
+                tpart(),
+                tpart(),
+                tc('Nombre o Razón Social Declarante'),
+                tc('Rut Partícipe', 3),
+                tpart(),
+                tpart(),
+                tc('Monto'),
+                tc('Estado'),
+              ]),
+              trow('dato', [
+                tc('555'),
+                tc('77.777.777'),
+                tc('-'),
+                tc('7'),
+                tc('EMPLEADOR SINTETICO SPA'),
+                tc('11.111.111'), // own RUT: must not surface
+                tc('-'),
+                tc('1'),
+                tc('1.500.000'),
+                tc('No Observada'),
+              ]),
+            ]),
+            cantRegistros: 1,
+          },
+        },
+      },
+    },
+  };
+
+  function tercerosRuntime(): Runtime {
+    return {
+      clock: new testing.FixedClock(new Date('2026-06-27T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('getAgenteRetenedor')
+              ? RESUMEN
+              : url.includes('getDjDetalle')
+                ? DETALLE
+                : { metaData: {}, data: null },
+        },
+      }),
+    };
+  }
+
+  it('f22_terceros without dj returns the resumen; with dj the rows (own RUT never surfaces)', async () => {
+    const runtime = tercerosRuntime();
+    const client = await connect(runtime);
+    await testing.seedSession(runtime);
+
+    const res = await client.callTool({ name: 'f22_terceros', arguments: { anio: '2026' } });
+    expect(JSON.parse(toolText(res))).toMatchObject({
+      anio: '2026',
+      declaraciones: [{ dj: '1887', titulo: 'Sobre Rentas Del Art 42' }],
+    });
+
+    const det = await client.callTool({
+      name: 'f22_terceros',
+      arguments: { anio: '2026', dj: '1887' },
+    });
+    expect(JSON.parse(toolText(det))).toMatchObject({
+      dj: '1887',
+      filas: [{ declaranteRut: '77777777-7', estado: 'No Observada' }],
+    });
+    const filas = (JSON.parse(toolText(det)) as { filas: unknown[] }).filas;
+    expect(JSON.stringify(filas)).not.toContain('11111111'); // the root `rut` is the principal
+  });
+
+  it('f22_terceros: pagina without dj is rejected', async () => {
+    const client = await connect(makeRuntime());
+    const res = await client.callTool({
+      name: 'f22_terceros',
+      arguments: { anio: '2026', pagina: 2 },
+    });
+    expect(isError(res)).toBe(true);
+    expect(toolText(res)).toContain('`pagina` requiere `dj`');
+  });
 });
