@@ -255,11 +255,13 @@ async function resolveOperable(
     const { empresas } = await fetchEmpresasAutorizadas(session, identity.rut);
     const entries: OperableEntry[] = empresas
       .filter((e): e is EmpresaAutorizada & { rut: string } => e.rut !== null)
-      .map((e) => ({
-        rut: e.rut,
-        razonSocial: e.razonSocial ?? e.rut,
-        isSelf: e.rut === identity.rut,
-      }));
+      .map((e) => {
+        const isSelf = e.rut === identity.rut;
+        // The DCV answer lists the account itself with no razón social (observed 2026-10-21),
+        // so the self row keeps the nombre DatosCntrNow already gave (#186).
+        const nombre = e.razonSocial ?? (isSelf ? identity.nombre : null);
+        return { rut: e.rut, razonSocial: nombre ?? e.rut, isSelf };
+      });
     // The endpoint includes self, but be defensive: guarantee exactly one self row.
     const operable = entries.some((e) => e.isSelf) ? entries : [self, ...entries];
     recordAudit(runtime, {

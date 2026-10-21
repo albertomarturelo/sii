@@ -812,6 +812,53 @@ describe('auth — operable fetch on login (ADR-005, synthetic data)', () => {
     expect(op?.operable.find((e) => e.rut === '20000042-0')?.isSelf).toBe(true);
   });
 
+  it("the self row keeps DatosCntrNow's nombre when the DCV answer carries none (#186)", async () => {
+    // EMPRESAS_OK's self row has no razonSocONombreEmp, as SII sends it (observed 2026-10-21):
+    // the nombre read from DatosCntrNow must survive, not be replaced by the RUT.
+    const rt = makeRuntime(
+      new FakePortalDriver({
+        loginSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datosEval(realPersonaDatos),
+          storageState: { cookies: ['c'] },
+          requestJson: () => EMPRESAS_OK,
+          cookies: { TOKEN: 'tok' },
+        },
+        restoreSession: { landingUrl: HOSTS.miSii, evaluate: datosEval(realPersonaDatos) },
+      }),
+    );
+    await login(rt);
+    const op = await readOperateState(rt.store);
+    expect(op?.operable.find((e) => e.isSelf)?.razonSocial).toBe('Juan Sintético Pérez Soto');
+    // A represented empresa keeps its own razón social from the DCV row.
+    expect(op?.operable.find((e) => !e.isSelf)?.razonSocial).toBe('Empresa Sintética SpA');
+  });
+
+  it('an empresa row without razón social still falls back to its RUT (only self borrows the nombre)', async () => {
+    const rt = makeRuntime(
+      new FakePortalDriver({
+        loginSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datosEval(realPersonaDatos),
+          storageState: { cookies: ['c'] },
+          requestJson: () => ({
+            respEstado: { codRespuesta: 0 },
+            data: [
+              { usrEmpRut: '96500000', usrEmpDv: '3' },
+              { usrEmpRut: '20000042', usrEmpDv: '0' },
+            ],
+          }),
+          cookies: { TOKEN: 'tok' },
+        },
+        restoreSession: { landingUrl: HOSTS.miSii, evaluate: datosEval(realPersonaDatos) },
+      }),
+    );
+    await login(rt);
+    const op = await readOperateState(rt.store);
+    expect(op?.operable.find((e) => e.rut === '96500000-3')?.razonSocial).toBe('96500000-3');
+    expect(op?.operable.find((e) => e.isSelf)?.razonSocial).toBe('Juan Sintético Pérez Soto');
+  });
+
   it('falls back to [self] when the operable fetch fails (login still succeeds)', async () => {
     const rt = makeRuntime(
       new FakePortalDriver({
