@@ -9,6 +9,21 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.14.0 — 2026-10-21
+
+### Added
+
+- **`sii f22 terceros <año> [--dj <código>] [--pagina <n>]` (#183).** What third parties reported
+  about you in their declaraciones juradas.
+  - Without `--dj`: the per-DJ resumen with its totals, in one SII call.
+  - With `--dj`: that DJ's rows, and `--pagina` reads one page of 10.
+  - `--pagina` without `--dj` is a `validation` error.
+  - Session-keyed: refused while `operate` points at an empresa.
+
+### Fixed
+
+- **`sii operate --list` shows the account's own name (#186)**, not its RUT, after the next login.
+
 ## 0.13.0 — 2026-10-19
 
 ### Added
