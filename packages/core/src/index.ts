@@ -32,14 +32,27 @@ export type {
   RcvDetalleAllDoc,
   RcvSide,
 } from './tasks/rcv.js';
-export { f22Status, f22Overview, f22Observaciones, f22Historial } from './tasks/f22.js';
+export {
+  f22Status,
+  f22Overview,
+  f22Observaciones,
+  f22Historial,
+  f22Terceros,
+  f22TercerosDetalle,
+} from './tasks/f22.js';
 export type {
   F22Estado,
   F22Declaraciones,
   F22Overview,
   F22Observaciones,
   F22Historial,
+  F22Terceros,
+  F22TercerosDetalle,
   F22Grupos,
+  CampoTercero,
+  DeclaracionTercero,
+  FilaTercero,
+  ValorTercero,
   DeclaracionF22,
   CodigoF22,
   EventoF22,

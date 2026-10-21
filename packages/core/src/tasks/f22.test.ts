@@ -6,10 +6,17 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
+import { F22Error, NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
-import { f22Status, f22Overview, f22Observaciones, f22Historial } from './f22.js';
+import {
+  f22Status,
+  f22Overview,
+  f22Observaciones,
+  f22Historial,
+  f22Terceros,
+  f22TercerosDetalle,
+} from './f22.js';
 import type { JsonRequest } from '../seams/index.js';
 
 // Synthetic data (no SII, no real PII): persona 20.000.042-0, empresa 77.777.777-7.
@@ -485,5 +492,224 @@ describe('f22 tasks (fakes, no SII)', () => {
     await expect(f22Historial(rt, { anio: '2025', folio: 'abc' })).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+
+  // --- Información de terceros (#183) -------------------------------------------------
+  // A minimal grid in the observed shape: Folio | Rut Declarante ×3 | Monto.
+  const tc = (value: string | null, colspan = 1) => ({
+    colspan,
+    rowspan: 1,
+    value,
+    esParteDeSpan: false,
+  });
+  const tpart = () => ({ ...tc(null), esParteDeSpan: true });
+  const trow = (tipoCelda: string, cells: unknown[]) => ({
+    fila: Object.fromEntries(cells.map((x, i) => [String(i), x])),
+    tipoCelda,
+  });
+  const detallePage = (registros: number, folios: readonly string[]) => ({
+    metaData: { errors: null },
+    data: {
+      listDetalle: {
+        DETALLE: {
+          detalle: {
+            tabla: Object.fromEntries(
+              [
+                trow('cabecera', [
+                  tc('Folio'),
+                  tc('Rut Declarante', 3),
+                  tpart(),
+                  tpart(),
+                  tc('Monto'),
+                ]),
+                ...folios.map((f) =>
+                  trow('dato', [tc(f), tc('77.777.777'), tc('-'), tc('7'), tc('1.000')]),
+                ),
+              ].map((r, i) => [String(i).padStart(2, '0'), r]),
+            ),
+            cantRegistros: registros,
+          },
+        },
+      },
+    },
+  });
+  /** A runtime whose getDjDetalle answers `pages(page)`; `posts` records each POST's data. */
+  function tercerosRuntime(pages: (page: number) => unknown): { rt: Runtime; posts: unknown[] } {
+    const posts: unknown[] = [];
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: (url, options?: JsonRequest) => {
+            const data = (options?.body as { data?: Record<string, unknown> } | undefined)?.data;
+            posts.push(data);
+            if (url.includes('getDjDetalle')) return pages(Number(data?.['page']));
+            if (url.includes('getAgenteRetenedor')) {
+              return {
+                metaData: { errors: null },
+                data: [
+                  {
+                    listAgenteRetenedor: {
+                      '1887': {
+                        resumen: {
+                          tabla: {
+                            '00': trow('cabecera', [tc('Cantidad de Informantes'), tc('Nombre')]),
+                            '01': trow('dato', [tc('1'), tc('PÉREZ JUAN')]), // own name: dropped
+                          },
+                          cantRegistros: 0,
+                        },
+                      },
+                    },
+                    title: 'Sobre Rentas Del Art 42',
+                    formKey: 0,
+                  },
+                ],
+              };
+            }
+            return { metaData: {}, data: null };
+          },
+        },
+      }),
+    };
+    return { rt, posts };
+  }
+  const folios = (from: number, n: number) => Array.from({ length: n }, (_, i) => String(from + i));
+
+  it('f22Terceros: ONE getAgenteRetenedor call, own name dropped by value, audited with the count', async () => {
+    const { rt, posts } = tercerosRuntime(() => ({}));
+    await seed(rt);
+
+    const res = await f22Terceros(rt, { anio: '2026' });
+    expect(posts).toEqual([{ periodo: '202600' }]); // one call, no RUT in the body
+    expect(res).toEqual({
+      rut: SELF,
+      anio: '2026',
+      declaraciones: [
+        {
+          dj: '1887',
+          titulo: 'Sobre Rentas Del Art 42',
+          filas: [[{ columna: 'Cantidad de Informantes', valor: 1 }]],
+        },
+      ],
+    });
+    expect(slept(rt)).toEqual([]);
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'f22_terceros',
+      result: 'ok',
+      rut: SELF,
+      period: '2026',
+      count: 1,
+    });
+  });
+
+  it('f22Terceros refuses a representing pointer up front (session-keyed), no POST', async () => {
+    const { rt, posts } = tercerosRuntime(() => ({}));
+    await seed(rt);
+    await setOperatingRut(rt.store, EMPRESA);
+    const err = await f22Terceros(rt, { anio: '2026' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(F22Error);
+    expect((err as Error).message).toContain('session-keyed');
+    expect(posts).toEqual([]);
+  });
+
+  it('f22TercerosDetalle reads every page (⌈registros/10⌉), paced, in order', async () => {
+    const { rt, posts } = tercerosRuntime((page) =>
+      detallePage(23, page === 3 ? folios(21, 3) : folios(page * 10 - 9, 10)),
+    );
+    await seed(rt);
+
+    const res = await f22TercerosDetalle(rt, { anio: '2026', dj: '1891' });
+    expect(res).toMatchObject({
+      rut: SELF,
+      anio: '2026',
+      dj: '1891',
+      registros: 23,
+      paginas: 3,
+      paginasLeidas: [1, 2, 3],
+      paginasConError: [],
+      incompleto: false,
+    });
+    expect(res.filas.map((f) => f.folio)).toEqual(folios(1, 23));
+    expect(res.filas[0]).toMatchObject({
+      declaranteRut: '77777777-7',
+      campos: [{ columna: 'Monto', valor: 1000 }],
+    });
+    expect((posts as { page: number; seccion: string }[]).map((p) => [p.page, p.seccion])).toEqual([
+      [1, 'detalle'],
+      [2, 'detalle'],
+      [3, 'detalle'],
+    ]);
+    expect(slept(rt)).toEqual([1000, 1000]); // a pace between pages, none before the first
+    expect(entries(rt).at(-1)).toMatchObject({
+      action: 'f22_terceros_detalle',
+      result: 'ok',
+      dj: '1891',
+      count: 23,
+    });
+  });
+
+  it('f22TercerosDetalle: one page failing is recorded verbatim; the other pages are kept', async () => {
+    const { rt } = tercerosRuntime((page) =>
+      page === 2
+        ? { data: null, metaData: { errors: [{ id: '1', descripcion: 'Servicio no disponible' }] } }
+        : detallePage(25, folios(page * 10 - 9, page === 3 ? 5 : 10)),
+    );
+    await seed(rt);
+
+    const res = await f22TercerosDetalle(rt, { anio: '2026', dj: '1894' });
+    expect(res.paginasLeidas).toEqual([1, 3]);
+    expect(res.paginasConError).toEqual([{ pagina: 2, error: 'Servicio no disponible' }]);
+    expect(res.incompleto).toBe(true);
+    expect(res.filas).toHaveLength(15);
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_terceros_detalle', result: 'ok' });
+  });
+
+  it('f22TercerosDetalle: page 1 failing aborts (it carries the total)', async () => {
+    const { rt } = tercerosRuntime(() => ({
+      data: null,
+      metaData: { errors: [{ id: '0', descripcion: 'Acceso no autorizado!' }] },
+    }));
+    await seed(rt);
+    await expect(f22TercerosDetalle(rt, { anio: '2026', dj: '1887' })).rejects.toThrow(
+      'Acceso no autorizado!',
+    );
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_terceros_detalle', result: 'failed' });
+  });
+
+  it('f22TercerosDetalle with `pagina` makes exactly one call', async () => {
+    const { rt, posts } = tercerosRuntime(() => detallePage(23, folios(21, 3)));
+    await seed(rt);
+
+    const res = await f22TercerosDetalle(rt, { anio: '2026', dj: '1891', pagina: '3' });
+    expect(posts).toHaveLength(1);
+    expect(res).toMatchObject({ registros: 23, paginas: 3, paginasLeidas: [3], incompleto: false });
+    expect(res.filas.map((f) => f.folio)).toEqual(['21', '22', '23']);
+  });
+
+  it('f22TercerosDetalle stops at 30 pages and says so (`incompleto`)', async () => {
+    const { rt, posts } = tercerosRuntime((page) => detallePage(400, folios(page * 10 - 9, 10)));
+    await seed(rt);
+
+    const res = await f22TercerosDetalle(rt, { anio: '2026', dj: '1891' });
+    expect(res.paginas).toBe(40);
+    expect(res.paginasLeidas).toHaveLength(30);
+    expect(posts).toHaveLength(30);
+    expect(res.incompleto).toBe(true);
+  });
+
+  it('f22TercerosDetalle validates anio / dj / pagina before any session', async () => {
+    const { rt, posts } = tercerosRuntime(() => ({}));
+    await seed(rt);
+    await expect(f22TercerosDetalle(rt, { anio: '2026', dj: 'abc' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    await expect(
+      f22TercerosDetalle(rt, { anio: '2026', dj: '1887', pagina: 0 }),
+    ).rejects.toBeInstanceOf(ValidationError);
+    await expect(f22TercerosDetalle(rt, { anio: '26', dj: '1887' })).rejects.toBeInstanceOf(
+      ValidationError,
+    );
+    expect(posts).toEqual([]);
   });
 });

@@ -4,7 +4,8 @@
 // `--rut` — a represented empresa's F22 is reached by being in the empresa's session
 // (logout→login), confirmed live (the body RUT returns a clean negative, not the
 // empresa's F22). The año is validated locally BEFORE any session.
-import { withSession } from '../auth/index.js';
+import { assertOperatingSelf, withSession } from '../auth/index.js';
+import { readOperateState } from '../identity/index.js';
 import { recordAudit } from '../audit/index.js';
 import { Anio } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
@@ -16,11 +17,17 @@ import {
   fetchF22Grid,
   fetchF22Historial,
   fetchF22Observaciones,
+  fetchF22TercerosDetalle,
+  fetchF22TercerosResumen,
   groupCodigos,
   pickVigenteFolio,
+  TERCEROS_PAGE_SIZE,
 } from '../portal/f22/index.js';
 import type {
+  DeclaracionTercero,
   EventoF22,
+  FilaTercero,
+  IdentidadPropia,
   F22Declaraciones,
   F22Estado,
   ObservacionF22,
@@ -28,7 +35,11 @@ import type {
 import type { AuditEntry, Runtime } from '../seams/index.js';
 
 export type {
+  CampoTercero,
   DeclaracionF22,
+  DeclaracionTercero,
+  FilaTercero,
+  ValorTercero,
   CodigoF22,
   EventoF22,
   ObservacionF22,
@@ -268,6 +279,171 @@ export async function f22Historial(
     return result;
   } catch (e) {
     audit(runtime, 'f22_historial', 'failed', { period: anio.canonical });
+    throw e;
+  }
+}
+
+// --- Información de terceros (#183; contract: sii-contract/f22.md « Terceros ») ----------
+
+/** At most this many detalle pages per call (300 rows, ~30 s paced). A bigger DJ comes back
+ *  `incompleto` with `paginasLeidas`, and the rest is read with `pagina`: one unattended call
+ *  never turns into hundreds of POSTs (ADR-004: never hammer SII). */
+const MAX_PAGINAS_TERCEROS = 30;
+
+// Session-keyed (ADR-005): the shared guard, with this surface's own error + wording. The other
+// F22 tasks predate it and read the principal silently; this one refuses, so an `operate`
+// pointer at an empresa never answers with the persona's data under the empresa's header.
+const assertSelfOperatingTerceros = (runtime: Runtime): Promise<void> =>
+  assertOperatingSelf(
+    runtime,
+    (empresa) =>
+      new F22Error(
+        `La información de terceros (F22) es session-keyed: el SII autoriza por el titular de la ` +
+          `sesión, no por el RUT operado (${empresa}). Para la de esa empresa, inicia sesión como ` +
+          'ella (`sii auth logout` y luego `sii auth login`).',
+      ),
+  );
+
+/** The principal's own identity, dropped from every row by value. The name is the razón social
+ *  cached at login (local, no SII call); a login that could not read it stored the RUT there. */
+async function identidadPropia(runtime: Runtime, sessionRut: string): Promise<IdentidadPropia> {
+  const rut = Rut.parse(sessionRut);
+  const op = await readOperateState(runtime.store);
+  const nombre = op?.operable.find((o) => o.isSelf)?.razonSocial ?? null;
+  return { rut, nombre: nombre !== null && Rut.tryParse(nombre) === null ? nombre : null };
+}
+
+function parseDj(dj: string | number): string {
+  const s = String(dj).trim();
+  if (!/^\d{1,5}$/.test(s)) {
+    throw new ValidationError(`Código de DJ inválido: "${s}" (debe ser numérico, p. ej. 1887).`);
+  }
+  return String(Number(s));
+}
+
+function parsePagina(pagina: string | number): number {
+  const n = Number(String(pagina).trim());
+  if (!Number.isInteger(n) || n < 1) {
+    throw new ValidationError(`Página inválida: "${String(pagina)}" (debe ser un entero ≥ 1).`);
+  }
+  return n;
+}
+
+/** The per-DJ resumen of the información de terceros for an año tributario: ONE call. Each ítem
+ *  carries its aggregate rows (informantes, montos informados); the rows themselves are
+ *  `f22TercerosDetalle`, one DJ at a time. */
+export interface F22Terceros {
+  readonly rut: string;
+  readonly anio: string;
+  readonly declaraciones: readonly DeclaracionTercero[];
+}
+
+export async function f22Terceros(
+  runtime: Runtime,
+  args: { anio: string | number },
+): Promise<F22Terceros> {
+  const anio = Anio.parse(args.anio); // fail fast on a bad year — no session opened
+  await assertSelfOperatingTerceros(runtime);
+  const start = runtime.clock.now().getTime();
+  try {
+    const result = await withSession(runtime, async (session, ctx) => {
+      const propio = await identidadPropia(runtime, ctx.sessionRut);
+      const declaraciones = await fetchF22TercerosResumen(session, { anio, propio });
+      return { rut: propio.rut.canonical, anio: anio.canonical, declaraciones };
+    });
+    audit(runtime, 'f22_terceros', 'ok', {
+      rut: result.rut,
+      period: anio.canonical,
+      count: result.declaraciones.length,
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return result;
+  } catch (e) {
+    audit(runtime, 'f22_terceros', 'failed', { period: anio.canonical });
+    throw e;
+  }
+}
+
+/** One DJ's rows. Without `pagina` it reads every page (⌈registros/10⌉, paced, capped at
+ *  `MAX_PAGINAS_TERCEROS`); with `pagina`, exactly that page (one call).
+ *
+ *  PER-PAGE RESILIENCE, like `f22Historial`'s folios: a page SII fails is recorded verbatim in
+ *  `paginasConError` and the other pages are kept; `incompleto` says some page was not read.
+ *  Page 1 carries the total, so its failure, like a session-level one, aborts the read. */
+export interface F22TercerosDetalle {
+  readonly rut: string;
+  readonly anio: string;
+  readonly dj: string;
+  readonly registros: number;
+  readonly paginas: number;
+  readonly paginasLeidas: readonly number[];
+  readonly filas: readonly FilaTercero[];
+  readonly paginasConError: readonly { pagina: number; error: string }[];
+  readonly incompleto: boolean;
+}
+
+export async function f22TercerosDetalle(
+  runtime: Runtime,
+  args: { anio: string | number; dj: string | number; pagina?: string | number },
+): Promise<F22TercerosDetalle> {
+  const anio = Anio.parse(args.anio); // all three validated before any session opens
+  const dj = parseDj(args.dj);
+  const pagina = args.pagina !== undefined ? parsePagina(args.pagina) : undefined;
+  await assertSelfOperatingTerceros(runtime);
+  const start = runtime.clock.now().getTime();
+  try {
+    const result = await withSession(runtime, async (session, ctx) => {
+      const propio = await identidadPropia(runtime, ctx.sessionRut);
+      const read = (p: number) =>
+        fetchF22TercerosDetalle(session, { rut: propio.rut, anio, dj, pagina: p, propio });
+      const first = await read(pagina ?? 1);
+      // A page past the end answers `cantRegistros: 0` (observed), so with an out-of-range
+      // `pagina` the totals read 0 too.
+      const paginas = Math.ceil(first.registros / TERCEROS_PAGE_SIZE);
+      const filas: FilaTercero[] = [...first.filas];
+      const paginasLeidas = [pagina ?? 1];
+      const paginasConError: { pagina: number; error: string }[] = [];
+      if (pagina === undefined) {
+        for (let p = 2; p <= Math.min(paginas, MAX_PAGINAS_TERCEROS); p++) {
+          await runtime.clock.sleep(pacingMs()); // pace each page (ADR-004)
+          try {
+            filas.push(...(await read(p)).filas);
+            paginasLeidas.push(p);
+          } catch (e) {
+            // One page's SII error is recorded verbatim and skipped; a session-level failure is
+            // not an F22Error and aborts the read.
+            if (e instanceof F22Error) {
+              paginasConError.push({ pagina: p, error: e.message });
+              continue;
+            }
+            throw e;
+          }
+        }
+      }
+      return {
+        rut: propio.rut.canonical,
+        anio: anio.canonical,
+        dj,
+        registros: first.registros,
+        paginas,
+        paginasLeidas,
+        filas,
+        paginasConError,
+        // With `pagina` the one page was read or the call threw, so only a full read can fall short.
+        incompleto:
+          paginasConError.length > 0 || (pagina === undefined && paginas > MAX_PAGINAS_TERCEROS),
+      };
+    });
+    audit(runtime, 'f22_terceros_detalle', 'ok', {
+      rut: result.rut,
+      period: anio.canonical,
+      dj,
+      count: result.filas.length,
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return result;
+  } catch (e) {
+    audit(runtime, 'f22_terceros_detalle', 'failed', { period: anio.canonical, dj });
     throw e;
   }
 }

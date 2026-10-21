@@ -25,13 +25,26 @@ import type { JsonRequest, PortalSession } from '../../seams/index.js';
 export const F22_BASE = `${HOSTS.portalApi}/consultaestadof22ui/services/data/facadeService`;
 const CONVERSATION_COOKIE = 'TOKEN';
 
-// Per-surface headers — Referer is the F22-status SPA root (differs from RCV/F29).
-const HEADERS: Record<string, string> = {
+/** One of the F22 SPAs on `HOSTS.portalApi`. They share the SDI envelope and the
+ *  `metaData.errors` channel, and differ in Referer and in whether `metaData` carries
+ *  `page: null`. */
+export interface SdiApp {
+  readonly referer: string;
+  readonly metaPage: boolean;
+}
+
+/** The F22-status SPA (`consultaestadof22ui`): its `metaData` omits `page` (observed). */
+export const F22_STATUS_APP: SdiApp = {
+  referer: `${HOSTS.portalApi}/consultaestadof22ui/`,
+  metaPage: false,
+};
+
+const headersFor = (app: SdiApp): Record<string, string> => ({
   'Content-Type': 'application/json',
   Origin: HOSTS.portalApi,
-  Referer: `${HOSTS.portalApi}/consultaestadof22ui/`,
+  Referer: app.referer,
   Accept: 'application/json, text/plain, */*',
-};
+});
 
 // --- Wire envelope (zod-at-the-boundary, ADR-011) --------------------------------
 // F22's error channel is `metaData.errors` (NOT RCV's respEstado). Keep `errors` and
@@ -99,16 +112,15 @@ export async function postSdi(
   url: string,
   namespace: string,
   data: Record<string, unknown>,
+  app: SdiApp = F22_STATUS_APP,
 ): Promise<Envelope> {
   const conversationId = (await session.cookie(`${HOSTS.portalApi}/`, CONVERSATION_COOKIE)) ?? '';
+  // Opaque per-request id via Web Crypto.
+  const metaData = { namespace, conversationId, transactionId: globalThis.crypto.randomUUID() };
   const request: JsonRequest = {
     method: 'POST',
-    headers: HEADERS,
-    // F22 metaData omits `page` (observed); opaque per-request id via Web Crypto.
-    body: {
-      metaData: { namespace, conversationId, transactionId: globalThis.crypto.randomUUID() },
-      data,
-    },
+    headers: headersFor(app),
+    body: { metaData: app.metaPage ? { ...metaData, page: null } : metaData, data },
   };
   let raw: unknown;
   try {

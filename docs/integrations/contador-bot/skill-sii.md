@@ -127,6 +127,7 @@ Read-only unless stated. `<periodo>` is `YYYY-MM` (or `YYYYMM`); `<año>` is `YY
 | `sii rcv list <periodo> --tipo <código> [--venta]` | The documents of one DTE type |
 | `sii rcv all <periodo> [--venta]` | Every document of every type in one session |
 | `sii f22 status [año]` / `formulario <año>` / `observaciones <año>` / `historial <año>` | The annual return: estado, the grouped form, SII's observaciones, the event timeline |
+| `sii f22 terceros <año>` / `sii f22 terceros <año> --dj <código> [--pagina <n>]` | What employers, banks, AFP, AGF and corredoras reported about the user in their declaraciones juradas, which is what an observación (e.g. B102) is checked against. `<año>` is the año tributario (2026 = income of 2025). Without `--dj`: the per-DJ resumen with its totals, in ONE SII call; start there. With `--dj`: that DJ's rows (folio, declarante RUT + name, fecha, `estado`, `campos`), every page of 10 up to 30, or one with `--pagina`. The rows are third-party data. Read one DJ at a time, only the ones the question needs. |
 | `sii bte list <periodo> [--recibidas]` | Boletas de honorarios (needs Chromium on the machine) |
 | `sii peticiones list` | Administrative petitions to SII and their state timeline |
 | `sii dte authorized <rut>` | Public lookup: which DTE types a RUT may issue (no login) |

@@ -11,6 +11,17 @@ export {
 export { fetchF22Grid } from './grid.js';
 export { fetchF22Observaciones, type ObservacionF22 } from './observaciones.js';
 export { eventoDateKey, fetchF22Historial, type EventoF22 } from './historial.js';
+export {
+  TERCEROS_PAGE_SIZE,
+  fetchF22TercerosDetalle,
+  fetchF22TercerosResumen,
+  type CampoTercero,
+  type DeclaracionTercero,
+  type FilaTercero,
+  type IdentidadPropia,
+  type PaginaTerceros,
+  type ValorTercero,
+} from './terceros.js';
 // The código taxonomy (PII denylist + contador grouping) — re-exported so the public
 // surface is unchanged.
 export { groupCodigos, isHeaderCodigo } from '../f22-codigos.js';
