@@ -9,6 +9,18 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.14.0 — 2026-10-21
+
+### Added
+
+- **`f22_terceros` (#183)** (`anio`, optional `dj`, `pagina`; `readOnlyHint`). Without `dj`: the
+  per-DJ resumen, one SII call. With `dj`: that DJ's rows. The description declares the
+  third-party PII the rows carry, and `pagina` without `dj` is rejected.
+
+### Fixed
+
+- **The `operate` tool's `list` shows the account's own name (#186)** after the next login.
+
 ## 0.13.0 — 2026-10-19
 
 ### Added

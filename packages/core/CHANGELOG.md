@@ -4,6 +4,33 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.14.0 — 2026-10-21
+
+### Added
+
+- **`f22Terceros` / `f22TercerosDetalle` (#183).** The declaraciones juradas third parties filed
+  about the taxpayer, from SII's `djconsultarentaui` facade (contract in
+  `docs/sii-contract/f22.md` « Terceros »).
+  - `f22Terceros({ anio })` makes one `getAgenteRetenedor` call and returns
+    `{ rut, anio, declaraciones: [{ dj, titulo, filas }] }`, the per-DJ aggregate rows.
+  - `f22TercerosDetalle({ anio, dj, pagina? })` returns `{ registros, paginas, paginasLeidas,
+    filas, paginasConError, incompleto }`. It reads every page of 10, paced and capped at 30, or
+    the one asked for.
+  - A failed page lands in `paginasConError` and the others are kept.
+  - Rows are mapped from SII's render grid by header path, as
+    `{ folio, declaranteRut, declaranteNombre, fechaPresentacion, estado, origen, campos }`.
+    A changed grid shape throws "Scraper roto" (`F22Error`, kind `sii_error`).
+  - Both refuse a representing `operate` pointer before any call.
+- Types `F22Terceros`, `F22TercerosDetalle`, `DeclaracionTercero`, `FilaTercero`,
+  `CampoTercero`, `ValorTercero`.
+
+### Fixed
+
+- **The self entry of the operable set keeps the nombre from `DatosCntrNow` (#186).** On a
+  persona login, `getDcvEmpresasAutorizadas` lists the account with no razón social, and that row
+  replaced the name with the RUT. A represented empresa's entry is unchanged: SII sends no razón
+  social for it either.
+
 ## 0.13.0 — 2026-10-19
 
 ### Added

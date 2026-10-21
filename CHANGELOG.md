@@ -15,6 +15,35 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## 0.14.0 — 2026-10-21 — Lo que otros informaron de ti
+
+The CLI and the MCP read what third parties reported about you to SII, the data an F22
+observación is checked against.
+
+**`f22 terceros` (#183).** Employers, banks, AFP, AGF and corredoras file declaraciones juradas
+about the taxpayer every year, and the F22 propuesta is built from them. When the F22 gets an
+observación such as B102, the question is who reported what, and until now the answer was in
+the portal only.
+- `sii f22 terceros <año>` returns the per-DJ resumen with its totals, in ONE call to SII.
+- `--dj <código>` returns that DJ's rows (folio, declarante, fecha, SII's per-row `estado`, and
+  the DJ's own columns), every page of 10 up to 30; `--pagina <n>` reads one page.
+- The MCP's `f22_terceros` does the same, and its description declares that the rows carry
+  third-party data: the declarante's RUT and name, possibly a persona natural.
+- The taxpayer's own identity is kept off the rows. SII had the informante's spelling of the
+  name, which differed from Mi SII's, so the partícipe/aportante columns go by label as well as
+  the RUT and name by value.
+- Session-keyed, like the rest of F22. It refuses while `operate` points at an empresa.
+- SII ships no F22 código per column and no link from an observación to a DJ, so neither is
+  invented. The contador bot's skill lists the command.
+
+**The account's own name survives the login (#186).** A persona login stored the RUT as the
+account's own name, because SII's list of operable RUTs carries no name for the account itself.
+`sii operate --list` now shows the name; log in again to pick it up.
+
+**On the way to `f29 submit` (#159, #160).** The core gained the protocol-7 GWT-RPC codec of
+SII's F29 form app and an interpreter of the form's own formula metadata, both checked byte
+for byte against real captures. Nothing user-facing yet; the command is #161.
+
 ## 0.13.0 — 2026-10-19 — El estado donde lo guarde tu agente
 
 The CLI and the MCP keep their state wherever you point them, and `f29 submit` has its decision.
