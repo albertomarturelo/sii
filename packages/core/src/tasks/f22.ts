@@ -1,9 +1,10 @@
 // Public F22 task API the surfaces call (ADR-003). Wraps the portal facade in
 // `withSession` and writes one audit receipt. F22 is SESSION-KEYED (ADR-005): it
-// authorizes by the session principal, IGNORES the operate pointer, and takes NO
-// `--rut` — a represented empresa's F22 is reached by being in the empresa's session
-// (logout→login), confirmed live (the body RUT returns a clean negative, not the
-// empresa's F22). The año is validated locally BEFORE any session.
+// authorizes by the session principal and takes NO `--rut` — a represented empresa's F22
+// is reached by being in the empresa's session (logout→login), confirmed live (the body RUT
+// returns a clean negative, not the empresa's F22). The older verbs IGNORE the operate
+// pointer; `f22Terceros*` refuse it up front (`assertOperatingSelf`, CONVENTIONS). The año is
+// validated locally BEFORE any session.
 import { assertOperatingSelf, withSession } from '../auth/index.js';
 import { readOperateState } from '../identity/index.js';
 import { recordAudit } from '../audit/index.js';

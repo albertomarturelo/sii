@@ -259,7 +259,7 @@ describe('F22 terceros facade (fake session, synthetic grids, no SII)', () => {
           c('Montos Informados', { c: 2 }),
           part(),
         ]),
-        row('cabecera', [c(null), c('Renta Total'), c('Impuesto Retenido')]),
+        row('cabecera', [c(null), c('Renta Total'), c('RUT Informado')]),
         row('dato', [c('2'), c('9.999.999'), c('20.000.042')]), // own RUT body: dropped
       ],
       0,
@@ -369,5 +369,88 @@ describe('F22 terceros facade (fake session, synthetic grids, no SII)', () => {
       { columna: 'columna 3', valor: 1000 },
       { columna: 'columna 4', valor: 900 },
     ]);
+  });
+
+  it('connector words do not make a third party "own": "de la" alone never matches', async () => {
+    const headers = [row('cabecera', [c('Nombre Inversionista'), c('Banco')])];
+    const s = session({
+      listDetalle: {
+        DETALLE: {
+          detalle: grid(
+            [...headers, row('dato', [c('ROJAS MARIA LUZ'), c('BANCO DE LA NACION')])],
+            1,
+          ),
+        },
+      },
+    });
+    const page = await fetchF22TercerosDetalle(s, {
+      rut: RUT,
+      anio: ANIO,
+      dj: '1890',
+      pagina: 1,
+      propio: { rut: RUT, nombre: 'María de la Luz Rojas' },
+    });
+    // The own name (two significant words shared) goes; the bank, sharing only "de la", stays.
+    expect(page.filas[0]?.campos).toEqual([{ columna: 'Banco', valor: 'BANCO DE LA NACION' }]);
+  });
+
+  it('a bare RUT body is own only under a RUT label: a monto with the same digits stays', async () => {
+    const headers = [row('cabecera', [c('Rut Informado'), c('Monto')])];
+    const s = session({
+      listDetalle: {
+        DETALLE: {
+          detalle: grid([...headers, row('dato', [c('20.000.042'), c('20.000.042')])], 1),
+        },
+      },
+    });
+    const page = await fetchF22TercerosDetalle(s, {
+      rut: RUT,
+      anio: ANIO,
+      dj: '1890',
+      pagina: 1,
+      propio: PROPIO,
+    });
+    expect(page.filas[0]?.campos).toEqual([{ columna: 'Monto', valor: 20000042 }]);
+  });
+
+  describe('a changed shape is "scraper roto", never a guess', () => {
+    const detalle = (data: unknown) =>
+      fetchF22TercerosDetalle(session(data), {
+        rut: RUT,
+        anio: ANIO,
+        dj: '1894',
+        pagina: 1,
+        propio: PROPIO,
+      });
+
+    it('positions with a gap', async () => {
+      const gap = { fila: { '0': c('1'), '2': c('2') }, tipoCelda: 'dato' };
+      const headers = [row('cabecera', [c('A'), c('B')])];
+      await expect(
+        detalle({ listDetalle: { DETALLE: { detalle: grid([...headers, gap], 1) } } }),
+      ).rejects.toThrow(/posiciones no contiguas/);
+    });
+
+    it('a header row narrower than the data rows', async () => {
+      const headers = [row('cabecera', [c('A'), c('B')]), row('cabecera', [c('C')])];
+      await expect(
+        detalle({
+          listDetalle: {
+            DETALLE: { detalle: grid([...headers, row('dato', [c('1'), c('2')])], 1) },
+          },
+        }),
+      ).rejects.toThrow(/encabezado de 1 posiciones en una grilla de 2/);
+    });
+
+    it('two grids in one detalle', async () => {
+      const g = grid([row('cabecera', [c('A')]), row('dato', [c('1')])], 1);
+      await expect(detalle({ listDetalle: { DETALLE: { detalle: g, otra: g } } })).rejects.toThrow(
+        /2 grillas/,
+      );
+    });
+
+    it('a detalle without `listDetalle`', async () => {
+      await expect(detalle({ otra: 1 })).rejects.toThrow(/no trae `listDetalle`/);
+    });
   });
 });

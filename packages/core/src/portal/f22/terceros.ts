@@ -145,13 +145,17 @@ function typed(v: unknown): ValorTercero {
 const norm = (s: string): string =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
-/** A name's tokens, order-free: SII prints the same person as "NOMBRE APELLIDO" in one place
- *  and "APELLIDO NOMBRE" in another. */
+// Connector words a name and a razón social share without naming the same party: "Juan DE LA
+// Fuente" and "Banco DE LA Nación" must not match. Words under three letters are dropped too.
+const NAME_CONNECTORS = new Set(['del', 'las', 'los', 'san', 'spa', 'ltda', 'limitada']);
+
+/** A name's significant tokens, order-free: SII prints the same person as "NOMBRE APELLIDO" in
+ *  one place and "APELLIDO NOMBRE" in another. */
 const nameTokens = (s: string): Set<string> =>
   new Set(
     norm(s)
       .split(/[^a-z]+/)
-      .filter((t) => t.length > 1),
+      .filter((t) => t.length >= 3 && !NAME_CONNECTORS.has(t)),
   );
 
 /** The informado (the taxpayer) is the "partícipe o aportante" of the fund DJs: observed
@@ -161,6 +165,8 @@ const nameTokens = (s: string): Set<string> =>
  *  spells the name its own way (2 of 3 words matched the Mi SII name), so a value match alone
  *  would let it through. */
 const OWN_IDENTITY_COLUMN = /\bparticipe\b|\baportante\b/;
+
+const RUT_LABEL = /\b(rut|run)\b/i;
 
 // --- The grid ------------------------------------------------------------------------
 const byNumber = (a: string, b: string): number => Number(a) - Number(b);
@@ -231,7 +237,7 @@ function columnas(headers: readonly Row[], width: number): Columna[] {
     while (end < width && paths[end] === paths[p]) end++;
     const path = paths[p] ?? '';
     const run = end - p;
-    if (run === 3 && /\b(rut|run)\b/i.test(path)) {
+    if (run === 3 && RUT_LABEL.test(path)) {
       out.push({ path, start: p, width: 3, rut: true });
     } else {
       // A run that is not a RUT keeps each position as its own column, under the same label.
@@ -275,12 +281,15 @@ function parseGrid(grid: Grid, propio: IdentidadPropia): CampoTercero[][] {
   const ownRut = propio.rut.canonical;
   const ownBody = String(propio.rut.body);
   const ownName = propio.nombre !== null ? nameTokens(propio.nombre) : null;
-  // By value, besides the label rule: the RUT exactly, the name when two of its words match
-  // (an informante may drop or misspell one).
-  const isOwn = (v: ValorTercero): boolean => {
+  // By value, besides the label rule: the joined RUT exactly, a bare RUT body only under a
+  // RUT/RUN label (a monto may happen to equal those digits), and the name when two of its
+  // significant words match (an informante may drop or misspell one).
+  const isOwn = (campo: CampoTercero): boolean => {
+    const v = campo.valor;
     if (v === null) return false;
     const s = String(v);
-    if (s === ownRut || s.replace(/\./g, '') === ownBody) return true;
+    if (s === ownRut) return true;
+    if (RUT_LABEL.test(campo.columna) && s.replace(/\./g, '') === ownBody) return true;
     if (ownName === null || ownName.size < 2 || typeof v !== 'string') return false;
     let shared = 0;
     for (const t of nameTokens(v)) if (ownName.has(t)) shared++;
@@ -294,7 +303,7 @@ function parseGrid(grid: Grid, propio: IdentidadPropia): CampoTercero[][] {
         columna: c.path,
         valor: c.rut ? joinRut(cells.slice(c.start, c.start + 3)) : typed(cells[c.start]?.value),
       }))
-      .filter((campo) => !isOwn(campo.valor)),
+      .filter((campo) => !isOwn(campo)),
   );
 }
 
