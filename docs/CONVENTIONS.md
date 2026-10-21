@@ -268,6 +268,18 @@ Python `sii-cli`, adapted to TypeScript.
   and the own-identity field set is not provably enumerable — so a per-field denylist
   is unsafe; curate the named tax fields and expose NO `raw`. **Prefer dropping `raw`
   over a denylist whenever the own-PII field set can't be proven complete.** (ADR-004)
+- **When a generic grid must keep the taxpayer's own identity out, match it by label AND by
+  value, and never on a weak value match (#183).** A per-DJ grid has no fixed field set to
+  curate, so own identity is removed three ways:
+  - by the label of the columns that ARE the informado (`partícipe`/`aportante`);
+  - by the joined RUT exactly anywhere, and a bare RUT body only under a RUT/RUN label (a monto
+    can carry the same digits);
+  - by the name when two SIGNIFICANT words match (≥3 letters, no connectors like `del`/`las`).
+
+  The name rule was corrected twice. Live, an exact match missed the informante's own spelling
+  (2 of 3 words). In review, a two-token match on any word would have dropped a third-party
+  "Banco de la Nación" for a taxpayer named "… de la …", a silent loss of the data the user
+  needs. Verify against the real name in-process (`whoami`), printing booleans only.
 - **Curate PII-dense code grids by DENYLISTING the (bounded) PII, not allowlisting
   the tax códigos.** When a grid interleaves tax códigos with identity/bank PII
   (F22), drop ONLY the PII códigos and surface everything else. The PII set is small,
