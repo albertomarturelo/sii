@@ -179,6 +179,35 @@ describe('gwt protocol 7 codec', () => {
     expect(items[0]).toBe(items[1]);
   });
 
+  it("shares equal small boxes as the client's valueOf does, and only those", () => {
+    // Observed (#161): the browser re-sends one Boolean for every equal flag and one Integer
+    // for equal small values, because GWT's JRE caches them; a large Integer is not cached.
+    const body = codec.encodeRequest({
+      ...demoCall(),
+      params: [
+        {
+          type: 'java.util.ArrayList',
+          value: node('java.util.ArrayList', [
+            node('java.lang.Boolean', 1),
+            node('java.lang.Boolean', 1),
+            node('java.lang.Integer', 127),
+            node('java.lang.Integer', 127),
+            node('java.lang.Short', -128),
+            node('java.lang.Short', -128),
+            node('java.lang.Integer', 128),
+            node('java.lang.Integer', 128),
+          ]),
+        },
+      ],
+    });
+    const items = (codec.decodeRequest(body).params[0]!.value as Gwt7Node).values[0] as Gwt7Value[];
+    expect(items[0]).toBe(items[1]);
+    expect(items[2]).toBe(items[3]);
+    expect(items[4]).toBe(items[5]);
+    expect(items[6]).not.toBe(items[7]);
+    expect(items[6]).toEqual(items[7]);
+  });
+
   it('round-trips bytes: encode(decode(bytes)) === bytes', () => {
     const bytes = codec.encodeRequest(demoCall());
     expect(bytes).toContain('pipe \\! and back\\\\slash, nul \\0, combining \\u0301');

@@ -196,7 +196,11 @@ Python `sii-cli`, adapted to TypeScript.
   signature, like the service's policy, is read from the live permutation at call time and never
   written as a constant. A class or field missing from the layouts throws "scraper roto"; nothing
   is guessed. Verify a new codec against real captures **locally** (an env-gated test), and commit
-  only synthetic fixtures.
+  only synthetic fixtures. **The encoder reproduces the client JRE's object identity**: two
+  equal Strings, and two equal boxes that `valueOf` caches (every `Boolean`; `Byte` / `Short` /
+  `Integer` / `Character` in -128..127), are ONE object, written once and then
+  back-referenced. A request rebuilt from decoded responses differs from the browser's bytes
+  without it (Strings: #160; boxes: #161).
 - **When SII computes something client-side, port SII's own compiled code, never write the rule
   ourselves (#160).** The F29 form's formulas, its decimal arithmetic and its storage rules live
   in the rfiInternet permutation (`PG`, `rK`/`sK`, `rC`/`jC`, `jL`…). Read the function, cite it
