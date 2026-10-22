@@ -101,6 +101,11 @@ export class F22Error extends SiiError {}
  *  rejected up front (ADR-005). SII's message verbatim — never translated (ADR-004). */
 export class F29Error extends SiiError {}
 
+/** SII refused an rfiInternet call with its own exception (`//EX`): the call took no effect.
+ *  The F29 submit relies on this to tell "SII said no, nothing was filed" from a failure whose
+ *  outcome is unknown (ADR-029 amendment). Still a `sii_error`. */
+export class F29RechazoError extends F29Error {}
+
 /** SII rejected a BTE/BHE (boletas de honorarios) consulta, or the inline report map was
  *  absent / unparseable (a non-report or cross-RUT page). SII's message verbatim where one
  *  exists — never translated (ADR-004). NOT raised for an empty month (a clean 0-boletas

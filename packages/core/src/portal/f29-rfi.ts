@@ -5,7 +5,7 @@
 // the type signatures come from the live permutation (`loadGwtPermutation`), the field layouts
 // from `rfi-schema.ts`. The chain itself (which calls, in which order) is #161's.
 import { HOSTS } from '../config/index.js';
-import { F29Error } from '../errors/index.js';
+import { F29Error, F29RechazoError } from '../errors/index.js';
 import type { PortalSession } from '../seams/index.js';
 import {
   Gwt7Codec,
@@ -62,7 +62,15 @@ export async function callFormularioFacade(
     f29Error,
     opts.heal === undefined ? {} : { heal: opts.heal },
   );
-  return codec!.decodeResponse(text, opts.returns);
+  try {
+    return codec!.decodeResponse(text, opts.returns);
+  } catch (e) {
+    // Only SII's own exception proves the call had no effect; a body we cannot decode does not.
+    if (e instanceof F29Error && text.trimStart().startsWith('//EX')) {
+      throw new F29RechazoError(e.message);
+    }
+    throw e;
+  }
 }
 
 // ── The submit chain (#161, ADR-029 amendment; sii-contract/f29.md § Submit) ─────────────────
@@ -346,7 +354,8 @@ export async function guardarBorradorF29(call: RfiCaller, borrador: Gwt7Node): P
 }
 
 /** Submit, call 2: `inyectarBorradorRfi` FILES the declaración. Called once, never retried. SII
- *  answered `//OK[1,1,["java.lang.Boolean/…"],0,7]` (true) on the filing of 2026-09. */
+ *  answered `//OK[1,1,["java.lang.Boolean/…"],0,7]` (true) on the filing of 2026-09. An
+ *  `F29RechazoError` means SII refused it; any other failure leaves the outcome unknown. */
 export async function inyectarBorradorF29(call: RfiCaller, guardado: Gwt7Node): Promise<void> {
   const r = await call('inyectarBorradorRfi', [{ type: CLS.borrador, value: guardado }]);
   if (boxed(r ?? undefined) !== 1) {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { FakePortalSession } from '../adapters/fake/index.js';
 import { HOSTS } from '../config/index.js';
-import { F29Error } from '../errors/index.js';
+import { F29Error, F29RechazoError } from '../errors/index.js';
 import { Periodo } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
 import { type Gwt7Node, type Gwt7Param, type Gwt7Value, clearGwtPermutations } from './gwt.js';
@@ -58,10 +58,21 @@ describe('callFormularioFacade', () => {
     const s = session(
       '//EX[2,1,["cl.sii.sdi.dim.rfi.web.shared.exception.RfiException/1","Sin propuesta"],0,7]',
     );
-    await expect(callFormularioFacade(s, 'findAllFormulario', [])).rejects.toThrow(F29Error);
+    await expect(callFormularioFacade(s, 'findAllFormulario', [])).rejects.toThrow(F29RechazoError);
     await expect(callFormularioFacade(s, 'findAllFormulario', [])).rejects.toThrow(
       'SII rechazó la operación: Sin propuesta',
     );
+  });
+});
+
+describe('callFormularioFacade: what proves a call had no effect', () => {
+  afterEach(() => clearGwtPermutations());
+
+  it('a body that is not //EX and does not decode is an F29Error, NOT a rechazo', async () => {
+    const s = session('<html>error</html>');
+    const e = await callFormularioFacade(s, 'inyectarBorradorRfi', []).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(F29Error);
+    expect(e).not.toBeInstanceOf(F29RechazoError);
   });
 });
 

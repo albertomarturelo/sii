@@ -9,13 +9,26 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import { writeSession } from '../auth/index.js';
-import { F29Error, SessionExpiredError, ValidationError } from '../errors/index.js';
+import {
+  F29Error,
+  F29RechazoError,
+  SessionExpiredError,
+  ValidationError,
+} from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import type { F29Estado, F29Propuesta } from '../portal/f29.js';
 import type { F29BorradorValidado } from '../portal/f29-rfi.js';
 import type { Gwt7Node } from '../portal/gwt.js';
 import type { Runtime } from '../seams/index.js';
-import { type F29SubmitChain, f29Submit, f29SubmitPreview } from './f29-submit.js';
+import { type F29SubmitChain, f29SubmitTasks } from './f29-submit.js';
+
+const f29SubmitPreview = (rt: Runtime, args: { periodo: string }, chain: F29SubmitChain) =>
+  f29SubmitTasks(chain).f29SubmitPreview(rt, args);
+const f29Submit = (
+  rt: Runtime,
+  args: { periodo: string; total: number | string },
+  chain: F29SubmitChain,
+) => f29SubmitTasks(chain).f29Submit(rt, args);
 
 const SELF = '20000042-0';
 const EMPRESA = '77777777-7';
@@ -168,6 +181,7 @@ describe('f29SubmitPreview', () => {
       'rectificatoria',
     );
     expect(vigente.steps).toEqual(['estado']);
+    expect(audits(rt).at(-1)).toMatchObject({ action: 'f29_submit_preview', result: 'refused' });
   });
 
   it('refuses while operating as an empresa, before any session', async () => {
@@ -270,12 +284,25 @@ describe('f29Submit', () => {
   it("SII's refusal of the filing is surfaced verbatim when its state shows nothing filed", async () => {
     const rt = await makeRuntime();
     const { chain, steps } = fakeChain({
-      inyectar: () => Promise.reject(new F29Error('SII rechazó la operación: Y')),
+      inyectar: () => Promise.reject(new F29RechazoError('SII rechazó la operación: Y')),
     });
     await expect(f29Submit(rt, { periodo: '2026-10', total: TOTAL }, chain)).rejects.toThrow(
       'SII rechazó la operación: Y',
     );
     expect(steps.filter((s) => s === 'inyectar')).toHaveLength(1); // never retried
+  });
+
+  it('a filing failure that is not SII refusing it is unconfirmed, never "nothing filed"', async () => {
+    // e.g. SII filed but its answer could not be decoded: only a //EX proves no effect.
+    const rt = await makeRuntime();
+    const { chain, steps } = fakeChain({
+      inyectar: () =>
+        Promise.reject(new F29Error('No se pudo interpretar el formulario de SII (scraper roto)')),
+    });
+    const e = await f29Submit(rt, { periodo: '2026-10', total: TOTAL }, chain).catch((x) => x);
+    expect((e as Error).message).toContain('NO lo vuelvas a enviar');
+    expect(steps.filter((x) => x === 'inyectar')).toHaveLength(1);
+    expect(audits(rt).at(-1)).toMatchObject({ action: 'f29_submit', result: 'unconfirmed' });
   });
 
   it('a lost answer after filing is resolved by reading SII, never by resending', async () => {

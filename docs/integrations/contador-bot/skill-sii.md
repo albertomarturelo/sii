@@ -227,8 +227,9 @@ standing instructions (`prompt.md` § "Approval to file"):
    - Then run `sii f29 status <periodo>` and `sii f29 pdf <periodo>`.
 
 Rules around it:
-- **Run `--confirm` exactly once.** Never retry it after any error. A second filing for a
-  `Vigente` período is a rectificatoria.
+- **Run `--confirm` exactly once.** Never retry it after any error, not even
+  `session_expired`: for `--confirm` this overrides § 3. Any new attempt starts over with a new
+  preview and a new approval. A second filing for a `Vigente` período is a rectificatoria.
 - **An error that says "No se pudo confirmar"** means the filing call was sent and its answer
   was lost. Do not resend: run `sii f29 status <periodo>` and report what SII shows.
 - The CLI refuses a período that is already `Vigente` and one without propuesta.
