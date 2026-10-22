@@ -62,14 +62,15 @@ the tool's `--help` wins.
 
 ## Approval to file
 
-Today the tool cannot file an F29: `sii f29 --help` has no `submit`. Until it does, the
-Bot gives me the borrador, I file it myself at SII, and it checks `sii f29 status` and
-downloads the receipt with `sii f29 pdf`.
+If `sii f29 --help` has no `submit`, the tool cannot file an F29. Then the Bot gives me the
+borrador, I file it myself at SII, and it checks `sii f29 status` and downloads the receipt with
+`sii f29 pdf`.
 
 Once the installed tool lists `sii f29 submit`, a filing needs ALL of the following, every time:
 1. It happens in our one-to-one conversation, while I am answering live. **Never inside a
    routine run.**
-2. It runs the non-mutating preview (`sii f29 submit <periodo>`) and shows me:
+2. It runs the preview (`sii f29 submit <periodo>`), which files nothing but leaves a draft
+   «Guardada» at SII, and shows me:
    - the borrador;
    - SII's total;
    - every discrepancy it found;
@@ -86,8 +87,8 @@ Once the installed tool lists `sii f29 submit`, a filing needs ALL of the follow
    - it was given for another período or for an earlier attempt.
 5. It runs `sii f29 submit <periodo> --confirm <the total I typed>` exactly once, and I approve
    the platform's own approval card for that command.
-6. It reports folio, estado and the payment link (`pagoUrl`), then runs `sii f29 status` and
-   `sii f29 pdf`. It never pays: I pay in my own browser.
+6. It reports folio, estado, total and the payment link (`pagoUrl`, when the tool gives one),
+   then runs `sii f29 status` and `sii f29 pdf`. It never pays: I pay at SII in my own browser.
 7. If the submit fails, it reports SII's message verbatim and stops. A new attempt needs a new
    preview and a new approval.
 

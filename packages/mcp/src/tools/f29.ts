@@ -1,5 +1,5 @@
-// F29 MCP tools — Declaración Mensual de IVA. Thin calls into @albertomarturelo/sii-core tasks (ADR-003),
-// read-only. SESSION-KEYED (ADR-005): reads the session principal, NO `rut` — a represented
+// F29 MCP tools — Declaración Mensual de IVA. Thin calls into @albertomarturelo/sii-core tasks (ADR-003).
+// Read-only, except f29_submit_preview (writes a borrador) and f29_submit (files; ADR-029). SESSION-KEYED (ADR-005): reads the session principal, NO `rut` — a represented
 // empresa's F29 needs the empresa's own session (the task rejects a representing operate
 // pointer). zod input (ADR-011). Fase 1 (robusta, sin GWT-RPC): formulario (propuesta) +
 // overview (estado por rango) + status (estado de un mes).
@@ -10,6 +10,8 @@ import {
   f29Overview,
   f29Pdf,
   f29Status,
+  f29Submit,
+  f29SubmitPreview,
   F29_PDF_TIPO_ARGS,
   type Runtime,
 } from '@albertomarturelo/sii-core';
@@ -111,5 +113,52 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
           2,
         ),
       ),
+  );
+
+  // --- submit (FILES a legally-binding declaración, ADR-029) ---
+  server.registerTool(
+    'f29_submit_preview',
+    {
+      title: 'F29 — vista previa de la presentación',
+      description:
+        'Vista previa de presentar el F29 de un período (YYYYMM o YYYY-MM) con la propuesta de SII ' +
+        'tal cual: la propuesta agrupada, lo que calculan las fórmulas de SII, el TOTAL A PAGAR ' +
+        '(código 91) que SII valida y cada desacuerdo entre el borrador validado y la propuesta ' +
+        '(si hay alguno, no se puede presentar). NO presenta nada, pero ESCRIBE en SII: deja un ' +
+        'borrador «Guardada» (sin efecto legal). La propuesta de SII puede estar incompleta (PPM, ' +
+        'retenciones, documentos fuera del RCV): muéstrasela al usuario antes de presentar. ' +
+        'Session-keyed: tu propio F29; para una empresa, inicia sesión como ella.',
+      inputSchema: { periodo: z.string() },
+      // It writes a borrador at SII (no readOnlyHint), but a reversible, legally inert one (no
+      // destructiveHint) — ADR-029 amendment, ADR-023's line for borradores.
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    ({ periodo }) =>
+      toolText(async () => JSON.stringify(await f29SubmitPreview(runtime, { periodo }), null, 2)),
+  );
+
+  server.registerTool(
+    'f29_submit',
+    {
+      title: 'F29 — PRESENTAR la declaración (acto legal)',
+      description:
+        'PRESENTA el F29 del período ante el SII: una DECLARACIÓN CON VALOR LEGAL que crea la ' +
+        'obligación de pagar el total y solo se corrige con una rectificatoria. Presenta la ' +
+        'propuesta de SII tal cual, y esa propuesta puede estar incompleta (PPM, retenciones, ' +
+        'documentos fuera del RCV). Llama primero a f29_submit_preview, muéstrale al usuario la ' +
+        'propuesta y el total, y presenta solo con su aprobación. DEBES pasar confirmar=true y ' +
+        'total = el TOTAL A PAGAR de la vista previa; si SII calcula otro total o el borrador no ' +
+        'coincide con la propuesta, se rechaza sin presentar. Nunca reintentes: si el resultado ' +
+        'queda sin confirmar, revisa f29_status. No paga: devuelve folio, estado y total, y el ' +
+        'pago lo hace el usuario en SII. Session-keyed.',
+      inputSchema: {
+        periodo: z.string(),
+        confirmar: z.literal(true),
+        total: z.number().int().nonnegative(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    ({ periodo, total }) =>
+      toolText(async () => JSON.stringify(await f29Submit(runtime, { periodo, total }), null, 2)),
   );
 }

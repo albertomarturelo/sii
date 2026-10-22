@@ -84,6 +84,13 @@ export type {
   F29PdfTipo,
   F29PdfTipoArg,
 } from './tasks/f29.js';
+export { f29SubmitPreview, f29Submit } from './tasks/f29-submit.js';
+export type {
+  F29SubmitPreview,
+  F29SubmitResult,
+  F29Desacuerdo,
+  F29MotivoDesacuerdo,
+} from './tasks/f29-submit.js';
 export { bteList, bteEmitPreview, bteEmit } from './tasks/bte.js';
 export {
   dteAuthorized,
