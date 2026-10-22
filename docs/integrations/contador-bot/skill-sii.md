@@ -122,6 +122,7 @@ Read-only unless stated. `<periodo>` is `YYYY-MM` (or `YYYYMM`); `<año>` is `YY
 | `sii f29 formulario <periodo>` | SII's IVA **propuesta** for the período, códigos labeled (glosa) and grouped |
 | `sii f29 status <periodo>` | The declaraciones of the período, with `estado` (see § 5) |
 | `sii f29 overview [desde] [hasta]` | Month-by-month position: estado, folio, declared `total` |
+| `sii f29 submit <periodo>` / `… --confirm <total>` | **Writes.** The filing preview (leaves a draft «Guardada» at SII) / FILES the F29. Only as § 6.2 says |
 | `sii f29 pdf <periodo> [--tipo compacto\|solemne\|ambos]` | Downloads the filed F29 PDF to a local folder and returns its path, never the bytes. The compacto is also the payment receipt when the período was paid. |
 | `sii rcv summary <periodo> [--venta]` | Totals per document type: COMPRAS (default) or VENTAS |
 | `sii rcv list <periodo> --tipo <código> [--venta]` | The documents of one DTE type |
@@ -192,8 +193,8 @@ rail, and the user did not hand you that job.
 
 ### 6.2 Submit
 
-**As of the release this file ships with, the CLI cannot file an F29.** `f29 submit` is planned (spike #138),
-not shipped. Until `sii f29 --help` lists a `submit` command, the last step is the user's:
+If `sii f29 --help` lists no `submit`, the installed CLI cannot file. Then the last step is the
+user's:
 
 1. Send the borrador and the due date.
 2. Tell the user to file it at SII themselves (Mi SII → Impuestos mensuales → Declarar IVA,
@@ -201,19 +202,41 @@ not shipped. Until `sii f29 --help` lists a `submit` command, the last step is t
 3. After they say it is done, run `sii f29 status <periodo>`. When it shows `Vigente`, run
    `sii f29 pdf <periodo>` and confirm the folio and the receipt path.
 
-Never try to file it any other way: no browser automation, no direct calls, no other tool.
+When it lists `submit`, filing is two commands, always inside the approval protocol of your
+standing instructions (`prompt.md` § "Approval to file"):
 
-**When the installed CLI has `f29 submit`**, follow its `--help` exactly. The planned shape:
-- `sii f29 submit <periodo>` is a non-mutating **preview**: the propuesta plus the total SII
-  computes.
-- `--confirm <total>` sends it.
-- The result gives `folio`, `estado` and `pagoUrl`. The CLI never pays.
+1. **Preview: `sii f29 submit <periodo>`.** It files nothing, but it writes: SII keeps a draft
+   «Guardada» of the propuesta. It returns:
+   - `propuesta`: SII's propuesta, grouped like `f29 formulario`;
+   - `calculados`: what SII's own formulas compute on it (e.g. 77 remanente, 537 total
+     créditos);
+   - `total`: the TOTAL A PAGAR (código 91) SII validates;
+   - `desacuerdos`: every código where the draft SII validated disagrees with the propuesta
+     (`falta`, `sobra`, `distinto`, `formula_vs_propuesta`);
+   - `listoParaPresentar`: false when there is any desacuerdo.
 
-The approval protocol in your standing instructions (`prompt.md` § "Approval to file") is
-mandatory around it.
-The CLI's `--confirm` echo guards against a typo, **not** against you: only the user's explicit
-approval authorizes a filing. You never pay: you hand the user `pagoUrl` (or the folio) and
-they pay in their own browser.
+   Show the user the borrador, the `total` and the reminder that the propuesta can be
+   incomplete. If `listoParaPresentar` is false, stop: the CLI will refuse to file, and the
+   user must review the propuesta at SII.
+2. **File: `sii f29 submit <periodo> --confirm <total>`**, with the total the user typed in
+   their approval. It runs the whole chain again from fresh SII data and refuses, filing
+   nothing, when SII's total is not that one (`validation`) or when any desacuerdo appears
+   (`sii_error`). It returns `{ periodo, folio, total, estado, pagoUrl }`.
+   - `pagoUrl` is `null` for now: SII's payment link has not been observed yet. When `total` is
+     above zero, tell the user to pay at SII themselves. You never pay.
+   - Then run `sii f29 status <periodo>` and `sii f29 pdf <periodo>`.
+
+Rules around it:
+- **Run `--confirm` exactly once.** Never retry it after any error, not even
+  `session_expired`: for `--confirm` this overrides § 3. Any new attempt starts over with a new
+  preview and a new approval. A second filing for a `Vigente` período is a rectificatoria.
+- **An error that says "No se pudo confirmar"** means the filing call was sent and its answer
+  was lost. Do not resend: run `sii f29 status <periodo>` and report what SII shows.
+- The CLI refuses a período that is already `Vigente` and one without propuesta.
+- The `--confirm` echo guards against a typo, **not** against you: only the user's explicit
+  approval authorizes a filing.
+
+Never file any other way: no browser automation, no direct calls, no other tool.
 
 ## 7. Privacy
 

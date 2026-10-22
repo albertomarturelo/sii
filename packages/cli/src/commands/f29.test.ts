@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, NotAuthenticatedError, testing, type Runtime } from '@albertomarturelo/sii-core';
+import { buildProgram } from '../program.js';
 import { datos, run, runJson, seed } from '../test-helpers.js';
 
 describe('sii f29 command (fake runtime, no SII)', () => {
@@ -139,5 +140,88 @@ describe('sii f29 command (fake runtime, no SII)', () => {
     await seed(rt);
     await expect(run(rt, 'f29', 'pdf', '2026-05', '--tipo', 'xml')).rejects.toThrow(/--tipo/);
     expect((rt.files as testing.InMemoryFileSink).files.size).toBe(0);
+  });
+});
+
+describe('sii f29 submit (fake runtime, no SII)', () => {
+  const PROPUESTA = {
+    metaData: { errors: null },
+    data: { tipopropuesta: 40, listCodPropuestos: [{ codigo: '538', valor: '190000' }] },
+  };
+  function submitRuntime(opts: { vigente?: boolean; flujo?: unknown } = {}) {
+    const urls: string[] = [];
+    const rt: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-11-05T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) => {
+            urls.push(url.split('/').pop()!);
+            if (url.includes('getDeclaracionConEstados'))
+              return {
+                metaData: { errors: null },
+                data: opts.vigente ? [{ estadoDeclaracionId: 1, estado: 'Vigente', folio: 5 }] : [],
+              };
+            if (url.includes('getDeclaracionConCondicionesYTipoPropuesta')) return PROPUESTA;
+            if (url.includes('guardarPropuesta')) return { metaData: { errors: null }, data: 1 };
+            return (
+              opts.flujo ?? {
+                metaData: { errors: [{ descripcion: 'Error en el flujo' }] },
+                data: null,
+              }
+            );
+          },
+        },
+      }),
+    };
+    return { rt, urls };
+  }
+
+  it('defaults to the preview, which runs the handoff and surfaces the step SII failed', async () => {
+    const { rt, urls } = submitRuntime();
+    await seed(rt);
+    await expect(run(rt, 'f29', 'submit', '2026-10')).rejects.toThrow(
+      'Error en el flujo [mod-envdf-rfi3]',
+    );
+    expect(urls).toEqual([
+      'getDeclaracionConEstados',
+      'getDeclaracionConCondicionesYTipoPropuesta',
+      'guardarPropuesta',
+      'enviarDatosFlujo',
+    ]);
+  });
+
+  it('refuses a período already Vigente before touching the handoff', async () => {
+    const { rt, urls } = submitRuntime({ vigente: true });
+    await seed(rt);
+    await expect(run(rt, 'f29', 'submit', '2026-10')).rejects.toThrow(/rectificatoria/);
+    expect(urls).toEqual(['getDeclaracionConEstados']);
+  });
+
+  it('a malformed --confirm is a validation error before any SII call', async () => {
+    const { rt, urls } = submitRuntime();
+    await seed(rt);
+    await expect(run(rt, 'f29', 'submit', '2026-10', '--confirm', 'mil')).rejects.toThrow(
+      /entero no negativo/,
+    );
+    expect(urls).toEqual([]);
+  });
+
+  it("declares its auth mode first and says it files, leaves a borrador, and doesn't pay", () => {
+    const { rt } = submitRuntime();
+    const submit = buildProgram(rt)
+      .commands.find((c) => c.name() === 'f29')!
+      .commands.find((c) => c.name() === 'submit')!;
+    const help = submit.description();
+    expect(help.startsWith('Session-keyed')).toBe(true);
+    expect(help).toContain('PRESENTA');
+    expect(help).toContain('borrador «Guardada»');
+    expect(help).toContain('puede estar incompleta');
+    expect(help).toContain('No paga');
   });
 });

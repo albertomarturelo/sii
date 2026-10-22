@@ -3,7 +3,7 @@ import { FakePortalSession } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
 import { Periodo } from '../periodo/index.js';
 import { F29Error, SessionExpiredError } from '../errors/index.js';
-import { fetchF29Estado, fetchF29Propuesta } from './f29.js';
+import { fetchF29Estado, fetchF29Propuesta, iniciarFlujoPropuestaF29 } from './f29.js';
 
 // Synthetic data only (no real PII, no SII): operating 77.777.777-7, período 2026-05.
 const RUT = Rut.parse('77777777-7');
@@ -192,6 +192,83 @@ describe('F29 facade (fake session, synthetic envelopes, no SII)', () => {
     });
     await expect(fetchF29Estado(broken, { rut: RUT, periodo: PERIODO })).rejects.toBeInstanceOf(
       F29Error,
+    );
+  });
+});
+
+describe('F29 propuesta handoff (the submit, #161; synthetic, no SII)', () => {
+  const RFI = 'https://www4.sii.cl/rfiInternet?origen=PROPUESTA&accionPpta=PPTA-F29-COMPLETA';
+  function handoff(over: Partial<Record<'guardarPropuesta' | 'enviarDatosFlujo', unknown>> = {}) {
+    const sent: { url: string; body: { metaData: { namespace: string }; data: unknown } }[] = [];
+    const s = new FakePortalSession({
+      cookies: { TOKEN: 'conv' },
+      requestJson: (url, options) => {
+        sent.push({ url, body: options?.body as (typeof sent)[number]['body'] });
+        if (url.endsWith('/guardarPropuesta'))
+          return over.guardarPropuesta ?? { metaData: { errors: null }, data: 7 };
+        return over.enviarDatosFlujo ?? { metaData: { errors: null }, data: RFI, tipoFlujo: '1' };
+      },
+    });
+    return { s, sent };
+  }
+
+  it('saves the propuesta, hands the flow over, and returns the form URL SII answered', async () => {
+    const { s, sent } = handoff();
+    await expect(iniciarFlujoPropuestaF29(s, { rut: RUT, periodo: PERIODO })).resolves.toBe(RFI);
+    expect(sent.map((r) => r.url)).toEqual([
+      'https://www4.sii.cl/propuestaf29ui/services/data/facadeService/guardarPropuesta',
+      'https://www4.sii.cl/propuestaf29ui/services/data/facadeService/enviarDatosFlujo',
+    ]);
+    expect(sent[0]!.body.metaData.namespace).toBe(
+      'cl.sii.sdi.lob.iva.propuestaf29.data.api.interfaces.FacadeService/guardarPropuesta',
+    );
+    expect(sent[0]!.body.data).toEqual({
+      rutCntr: '77777777',
+      dvCntr: '7',
+      formCodigo: '29',
+      tipoPropuestaInicial: 40,
+      periodo: { anno: '2026', mes: '05' },
+    });
+    expect(sent[1]!.body.data).toEqual({
+      rut: '77777777',
+      dv: '7',
+      periodo: '202605',
+      form: '29',
+      tipo: 40,
+    });
+  });
+
+  it("surfaces SII's message with the client's code for the step that failed", async () => {
+    const err = { metaData: { errors: [{ descripcion: 'Servicio no disponible' }] }, data: null };
+    const a = handoff({ guardarPropuesta: err });
+    await expect(iniciarFlujoPropuestaF29(a.s, { rut: RUT, periodo: PERIODO })).rejects.toThrow(
+      'Servicio no disponible [mod-gdrpro-rfi3]',
+    );
+    expect(a.sent).toHaveLength(1);
+    const b = handoff({ enviarDatosFlujo: err });
+    await expect(iniciarFlujoPropuestaF29(b.s, { rut: RUT, periodo: PERIODO })).rejects.toThrow(
+      'Servicio no disponible [mod-envdf-rfi3]',
+    );
+  });
+
+  it('follows the handoff only into the form app on SII', async () => {
+    const { s } = handoff({
+      enviarDatosFlujo: { metaData: { errors: null }, data: 'https://example.com/rfiInternet' },
+    });
+    await expect(iniciarFlujoPropuestaF29(s, { rut: RUT, periodo: PERIODO })).rejects.toThrow(
+      F29Error,
+    );
+  });
+
+  it('a dead session is session_expired, not an F29 error', async () => {
+    const s = new FakePortalSession({
+      cookies: { TOKEN: 'conv' },
+      requestJson: () => {
+        throw new SessionExpiredError('Sesión expirada');
+      },
+    });
+    await expect(iniciarFlujoPropuestaF29(s, { rut: RUT, periodo: PERIODO })).rejects.toThrow(
+      SessionExpiredError,
     );
   });
 });

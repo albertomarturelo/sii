@@ -630,6 +630,25 @@ export function fillF29Form(layout: Gwt7Node, hoy: Date): F29FormFill {
   return { cambios, reglasFallidas };
 }
 
+/** One campo of a filled layout: its código, the value the serializer will send, and whether a
+ *  formula computes it. Taxpayer data: never log the values. */
+export interface F29CampoValor {
+  readonly codigo: string;
+  readonly valor: string;
+  readonly formula: boolean;
+}
+
+/** Every campo's stored value after `fillF29Form`. The submit's safety rule (ADR-029 amendment)
+ *  compares SII's validated borrador against these and the propuesta. */
+export function f29CampoValores(layout: Gwt7Node, hoy: Date): F29CampoValor[] {
+  const form = new F29Form(theFormulario(layout), hoy);
+  return [...form.campos.values()].map((c) => ({
+    codigo: form.code(c),
+    valor: form.stored(c),
+    formula: isNode(form.meta(c).values[MD.formula]),
+  }));
+}
+
 /** Evaluate one expression against a filled layout (tests, and the submit's safety checks). */
 export function evaluateF29Expresion(layout: Gwt7Node, expr: Gwt7Node, hoy: Date): string {
   return new F29Form(theFormulario(layout), hoy).eval(expr);

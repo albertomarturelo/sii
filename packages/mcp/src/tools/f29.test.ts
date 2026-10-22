@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { HOSTS, testing, type Runtime } from '@albertomarturelo/sii-core';
-import { connect, datos, toolText } from '../test-helpers.js';
+import { connect, datos, isError, toolText } from '../test-helpers.js';
 
 describe('@albertomarturelo/sii-mcp f29 tools (in-memory client, fake runtime, no SII)', () => {
   it('f29_formulario returns the propuesta grouped + labeled as JSON (session-keyed, no PII)', async () => {
@@ -121,5 +121,80 @@ describe('@albertomarturelo/sii-mcp f29 tools (in-memory client, fake runtime, n
 
     const { tools } = await client.listTools();
     expect(tools.find((t) => t.name === 'f29_pdf')?.annotations?.readOnlyHint).toBe(true);
+  });
+});
+
+describe('@albertomarturelo/sii-mcp f29 submit tools (in-memory client, fake runtime, no SII)', () => {
+  function submitRuntime(vigente = false): { runtime: Runtime; urls: string[] } {
+    const urls: string[] = [];
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-11-05T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          evaluate: datos,
+          cookies: { TOKEN: 't' },
+          requestJson: (url) => {
+            urls.push(url.split('/').pop()!);
+            if (url.includes('getDeclaracionConEstados'))
+              return {
+                metaData: { errors: null },
+                data: vigente ? [{ estadoDeclaracionId: 1, estado: 'Vigente', folio: 5 }] : [],
+              };
+            return {
+              metaData: { errors: null },
+              data: { listCodPropuestos: [{ codigo: '538', valor: '190000' }] },
+            };
+          },
+        },
+      }),
+    };
+    return { runtime, urls };
+  }
+
+  it('declares the write honestly: the preview writes a borrador, the submit is destructive', async () => {
+    const { runtime } = submitRuntime();
+    const client = await connect(runtime);
+    const { tools } = await client.listTools();
+    const preview = tools.find((t) => t.name === 'f29_submit_preview')!;
+    expect(preview.annotations?.readOnlyHint).toBe(false);
+    expect(preview.annotations?.destructiveHint).toBe(false);
+    expect(preview.description).toContain('borrador «Guardada»');
+    const submit = tools.find((t) => t.name === 'f29_submit')!;
+    expect(submit.annotations?.destructiveHint).toBe(true);
+    expect(submit.description).toContain('VALOR LEGAL');
+    expect(submit.description).toContain('puede estar incompleta');
+    expect(submit.inputSchema.required).toEqual(
+      expect.arrayContaining(['periodo', 'confirmar', 'total']),
+    );
+  });
+
+  it('f29_submit without confirmar=true is refused before any SII call', async () => {
+    const { runtime, urls } = submitRuntime();
+    const client = await connect(runtime);
+    await testing.seedSession(runtime);
+    const res = await client.callTool({
+      name: 'f29_submit',
+      arguments: { periodo: '2026-10', total: 0 },
+    });
+    expect(isError(res)).toBe(true);
+    expect(urls).toEqual([]);
+  });
+
+  it('f29_submit refuses a período already Vigente, with a structured sii_error', async () => {
+    const { runtime, urls } = submitRuntime(true);
+    const client = await connect(runtime);
+    await testing.seedSession(runtime);
+    const res = await client.callTool({
+      name: 'f29_submit',
+      arguments: { periodo: '2026-10', confirmar: true, total: 0 },
+    });
+    expect(isError(res)).toBe(true);
+    expect(JSON.parse(toolText(res))).toMatchObject({ type: 'sii_error' });
+    expect(toolText(res)).toContain('rectificatoria');
+    expect(urls).toEqual(['getDeclaracionConEstados']);
   });
 });

@@ -11,9 +11,8 @@
 // F29 is SESSION-KEYED (ADR-005): reads ONLY the session principal and REJECTS a representing
 // operate pointer UP FRONT (before any session), with an actionable "log in as the empresa"
 // message. The período/range is validated locally BEFORE any session.
-import { withSession } from '../auth/index.js';
+import { assertOperatingSelf, withSession } from '../auth/index.js';
 import { recordAudit } from '../audit/index.js';
-import { readOperateState } from '../identity/index.js';
 import { Periodo } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
 import { F29Error, ValidationError } from '../errors/index.js';
@@ -42,18 +41,19 @@ function audit(runtime: Runtime, action: string, result: string, extra: Partial<
   recordAudit(runtime, { action, result, ...extra });
 }
 
-/** Reject a representing operate pointer BEFORE opening a session (ADR-005, session-keyed). The
- *  empresa RUT is already user-visible (`operate --list`), so it is safe to echo; the razón social
- *  is PII and is NOT included. No operate state → defer to `withSession` (raises NotAuthenticated). */
-async function assertSelfOperating(runtime: Runtime): Promise<void> {
-  const op = await readOperateState(runtime.store);
-  if (op && op.operatingRut !== op.selfRut) {
-    throw new F29Error(
-      `El F29 es session-keyed: el SII autoriza por el titular de la sesión, no por el RUT ` +
-        `operado (${Rut.parse(op.operatingRut).formatted}). Para la F29 de esa empresa, inicia ` +
-        'sesión como ella (`sii auth logout` y luego `sii auth login`).',
-    );
-  }
+/** Reject a representing operate pointer BEFORE opening a session (ADR-005, session-keyed), through
+ *  the shared helper. The empresa RUT is already user-visible (`operate --list`), so it is safe to
+ *  echo; the razón social is PII and is NOT included. */
+export function assertSelfOperating(runtime: Runtime): Promise<void> {
+  return assertOperatingSelf(
+    runtime,
+    (empresa) =>
+      new F29Error(
+        `El F29 es session-keyed: el SII autoriza por el titular de la sesión, no por el RUT ` +
+          `operado (${empresa}). Para la F29 de esa empresa, inicia sesión como ella ` +
+          '(`sii auth logout` y luego `sii auth login`).',
+      ),
+  );
 }
 
 // --- f29 formulario (propuesta, labeled + grouped) -------------------------------
@@ -87,7 +87,7 @@ const EMPTY_GRUPOS = (): Record<F29Grupo, LineaF29[]> => ({
 });
 
 /** Label + bucket the propuesta códigos by the form's sections. */
-function agrupar(codigos: readonly CodigoF29[]): Record<F29Grupo, LineaF29[]> {
+export function agrupar(codigos: readonly CodigoF29[]): Record<F29Grupo, LineaF29[]> {
   const grupos = EMPTY_GRUPOS();
   for (const c of codigos) {
     grupos[grupoF29(c.codigo)].push({

@@ -24,11 +24,12 @@ markdown, so any agent with a shell, a scheduler and memory can use them.
 
 ## What it does not do (yet)
 
-- **File the F29.** `sii f29 submit` is planned (spike #138, posture in a pending ADR-029) and
-  not shipped. Until it is, you file at SII yourself, from the borrador. The prompt's approval
-  protocol is written for when it lands. The weekly update routine tells you when `--help`
-  shows it, and only then is it used.
-- **Pay.** Never. When filing exists, you get SII's payment link and pay in your own browser.
+- **File the F29 on its own.** `sii f29 submit` (ADR-029) files SII's propuesta as-is, and the Bot
+  runs it only under the prompt's approval protocol, with your typed approval, in a live
+  conversation. With a CLI whose `--help` has no `submit`, you file at SII yourself, from the
+  borrador. The weekly update routine tells you when `--help` shows it, and only then is it
+  used.
+- **Pay.** Never. After a filing with a balance, you pay at SII in your own browser.
 - **Anything else that writes at SII** (BHE emission, DTE borradores): forbidden by its rules.
 - **Carpeta Tributaria:** its www2 session needs reCAPTCHA in a browser, which an agent cannot
   pass.

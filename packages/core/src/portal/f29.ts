@@ -1,4 +1,5 @@
-// F29 — Declaración Mensual de IVA (read-only). Typed facade over `PortalSession.requestJson`.
+// F29 — Declaración Mensual de IVA. Typed facade over `PortalSession.requestJson`: the read
+// facades, plus the submit's propuesta handoff at the end of this file (two writes, #161).
 // Ported from the proven Python sii-cli (portal/f29.py + docs/sii-contract/f29.md); the wire
 // contract is first-hand-observed there (live capture 2026-06-12, prod), NOT a third-party
 // library (ADR-004). Full contract: docs/sii-contract/f29.md.
@@ -302,4 +303,78 @@ export async function fetchF29Estado(
     tieneDeclaracion: declaraciones.length > 0,
     declaraciones,
   };
+}
+
+// --- The submit's propuesta handoff (ADR-029 amendment, sii-contract/f29.md § Submit) ----------
+// Observed 2026-10-18/19 (spike #138): before the form app opens, the propuesta SPA saves the
+// propuesta and hands the flow over with two SDI writes on `facadeService`. `guardarPropuesta`
+// leaves a borrador "Guardada" at SII; nothing is filed. `enviarDatosFlujo` answers the
+// rfiInternet entry URL the browser then opens.
+const FACADE_BASE = `${HOSTS.portalApi}/propuestaf29ui/services/data/facadeService`;
+const FACADE_NAMESPACE = 'cl.sii.sdi.lob.iva.propuestaf29.data.api.interfaces.FacadeService';
+/** The form número as these two ops send it (`"29"`, not the facades' internal `"2"`). */
+const FORM_NUMERO = '29';
+/** The propuesta type of mode PPTA-F29-COMPLETA, the one `f29 submit` files (observed). */
+export const F29_TIPO_PROPUESTA = 40;
+/** Where the flow must lead: the rfiInternet form app on the portal host. */
+const RFI_ENTRY = `${HOSTS.portalApi}/rfiInternet`;
+
+/** One handoff step. SII's client reports a failure of each step with its own code
+ *  (`[mod-gdrpro-rfi3]`, `[mod-envdf-rfi3]`); the message keeps SII's text and adds the code. */
+async function handoffStep(
+  session: PortalSession,
+  op: 'guardarPropuesta' | 'enviarDatosFlujo',
+  data: Record<string, unknown>,
+  codigoError: string,
+): Promise<Envelope> {
+  try {
+    return await postSdi(session, `${FACADE_BASE}/${op}`, `${FACADE_NAMESPACE}/${op}`, data);
+  } catch (e) {
+    if (e instanceof F29Error) throw new F29Error(`${e.message} [${codigoError}]`);
+    throw e;
+  }
+}
+
+/** Save the propuesta and hand the flow to the form app: `guardarPropuesta` then
+ *  `enviarDatosFlujo`. Returns the rfiInternet entry URL SII answered. This WRITES a borrador
+ *  "Guardada" (non-filing, ADR-029 amendment). */
+export async function iniciarFlujoPropuestaF29(
+  session: PortalSession,
+  params: { rut: Rut; periodo: Periodo },
+): Promise<string> {
+  const { rut, periodo } = params;
+  const { mes, anno } = mesAnno(periodo);
+  await handoffStep(
+    session,
+    'guardarPropuesta',
+    {
+      rutCntr: String(rut.body),
+      dvCntr: rut.dv,
+      formCodigo: FORM_NUMERO,
+      tipoPropuestaInicial: F29_TIPO_PROPUESTA,
+      periodo: { anno, mes },
+    },
+    'mod-gdrpro-rfi3',
+  );
+  const env = await handoffStep(
+    session,
+    'enviarDatosFlujo',
+    {
+      rut: String(rut.body),
+      dv: rut.dv,
+      periodo: `${anno}${mes}`,
+      form: FORM_NUMERO,
+      tipo: F29_TIPO_PROPUESTA,
+    },
+    'mod-envdf-rfi3',
+  );
+  // Observed: `data` is `https://www4.sii.cl/rfiInternet?origen=PROPUESTA&accionPpta=…`. Follow
+  // it only when it leads to the form app on SII's own host.
+  const url = env.data;
+  if (typeof url !== 'string' || !(url === RFI_ENTRY || url.startsWith(`${RFI_ENTRY}?`))) {
+    throw new F29Error(
+      'SII no entregó el acceso al formulario del F29 (scraper roto) [mod-envdf-rfi3].',
+    );
+  }
+  return url;
 }

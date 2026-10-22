@@ -307,6 +307,24 @@ const arrayElementOp = (cls: string): string | undefined =>
       : PRIMITIVE_OP[cls[1]!];
 const GWT7_ROTO = 'No se pudo interpretar el formulario de SII (scraper roto)';
 
+// The boxes GWT's JRE caches in `valueOf`, with the range it caches (GWT 2.x `Boolean`,
+// `Byte`, `Short`, `Integer`, `Character` emulation). `Long` is left out: its value travels as
+// a base64 token and no shared Long has been observed.
+const BOX_CACHE: Readonly<Record<string, (n: number) => boolean>> = {
+  'java.lang.Boolean': () => true,
+  'java.lang.Byte': () => true,
+  'java.lang.Short': (n) => n >= -128 && n <= 127,
+  'java.lang.Integer': (n) => n >= -128 && n <= 127,
+  'java.lang.Character': (n) => n >= 0 && n <= 127,
+};
+/** The identity key of a box the client's `valueOf` would share, or null. */
+function cachedBoxKey(v: Gwt7Node): string | null {
+  const cached = BOX_CACHE[v.cls];
+  const n = v.values[0];
+  if (cached === undefined || v.values.length !== 1 || typeof n !== 'number') return null;
+  return cached(n) ? `${v.cls}:${n}` : null;
+}
+
 /** The protocol-7 codec over one set of layouts and one permutation's signatures. `fail` builds
  *  the error the caller's surface raises (the F29 facade passes `F29Error`). */
 export class Gwt7Codec {
@@ -328,6 +346,14 @@ export class Gwt7Codec {
     // the browser's validation request shares them; without this the layout re-encodes ~11 KB
     // larger). Other objects keep reference identity.
     const seenStrings = new Map<string, number>();
+    // The client's JRE boxes through `valueOf`, which hands out ONE instance per value for
+    // Boolean, and for Byte / Short / Integer / Character inside its cache (-128..127; 0..127
+    // for Character). The deserializers use `valueOf` too, so two equal small boxes the browser
+    // re-sends are one object, written once and then back-referenced. Observed (#161): the
+    // browser's `findVersionBorradorById` shares one Integer between the Formulario and the
+    // contribuyente, and one Boolean across the Formulario's flags; without this the request
+    // has the same values but different bytes.
+    const seenBoxes = new Map<string, number>();
     let count = 0;
     const ref = (s: string | null): string => {
       if (s === null) return '0';
@@ -359,12 +385,15 @@ export class Gwt7Codec {
       }
       if (typeof v !== 'object' || Array.isArray(v)) throw this.err(`${at} debe ser objeto`);
       const text = v.cls === STRING_CLASS && typeof v.values[0] === 'string' ? v.values[0] : null;
-      const back = text !== null ? seenStrings.get(text) : seen.get(v);
+      const box = cachedBoxKey(v);
+      const back =
+        text !== null ? seenStrings.get(text) : box !== null ? seenBoxes.get(box) : seen.get(v);
       if (back !== undefined) {
         out.push(String(-(back + 1)));
         return;
       }
       if (text !== null) seenStrings.set(text, count);
+      if (box !== null) seenBoxes.set(box, count);
       seen.set(v, count++);
       out.push(ref(this.sig(v.cls)));
       if (v.cls.startsWith('[')) {
