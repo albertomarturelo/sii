@@ -15,6 +15,18 @@ Every decision behind a release is recorded as an ADR under
 [`docs/decisions/`](docs/decisions/_index.md); the surface checklist is
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Unreleased
+
+<!-- One line per user-visible PR, written in that PR (CONVENTIONS, ADR-021 amendment). Start
+     a breaking one with **Breaking**. Any Added / Removed / Breaking line makes the next
+     release a MINOR. The release commit turns this list into the version's sections here and
+     in each package's changelog, and leaves only this comment; release.yml refuses a tag
+     while an entry remains. -->
+
+- `sii f29 submit <periodo>` and the MCP's `f29_submit_preview` / `f29_submit` file SII's F29
+  propuesta as-is: a preview first, `--confirm <total>` to file, declare only, and SII's payment
+  link back (ADR-029, #193).
+
 ## 0.14.0 — 2026-10-21 — Lo que otros informaron de ti
 
 The CLI and the MCP read what third parties reported about you to SII, the data an F22

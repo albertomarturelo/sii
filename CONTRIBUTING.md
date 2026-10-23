@@ -160,6 +160,8 @@ Claude Code. Every group cites the ADRs it enforces.
 - [ ] A changed CLI command, flag or error kind → the `skill-*.md` files under
       [`docs/integrations/`](docs/integrations/README.md) updated in the same PR (agents read
       them at the release tag).
+- [ ] A user-visible change → one line under `## Unreleased` in
+      [`CHANGELOG.md`](CHANGELOG.md), starting with **Breaking** if it breaks a caller.
 
 ## Workflow rules
 
@@ -297,11 +299,19 @@ and walk [the PR checklist](#the-pr-checklist) while you are at it.
 ## Releasing (maintainers)
 
 The three packages (`sii-core`, `sii-cli`, `sii-mcp`) release together on one version
-([ADR-021](docs/decisions/021-publish-cli-mcp-surfaces-npm.md)). Bump all three
-`package.json`s to the same version, add its `## <version> — <date> — <headline>` section
-to `CHANGELOG.md`, merge, then push a matching tag (`v0.12.1` ⇒ version `0.12.1`).
-[`release.yml`](.github/workflows/release.yml) checks the tag against the
-versions, publishes, and creates the GitHub release from the changelog section.
+([ADR-021](docs/decisions/021-publish-cli-mcp-surfaces-npm.md)). In one release commit:
+
+1. **Pick the version from `## Unreleased`.** Any Added, Removed or **Breaking** line ⇒ the
+   next MINOR; fixes only ⇒ a PATCH (pre-1.0, ADR-021 amendment).
+2. Bump all three `package.json`s to that version.
+3. Turn the Unreleased lines into the `## <version> — <date> — <headline>` section of
+   `CHANGELOG.md` and into each package's changelog (`### Added` / `### Fixed` / …), leaving
+   only the comment under `## Unreleased`.
+
+Merge, then push a matching tag (`v0.12.1` ⇒ version `0.12.1`).
+[`release.yml`](.github/workflows/release.yml) checks the tag against the versions, refuses it
+while `## Unreleased` holds an entry or when a patch's sections carry Added / Removed /
+Breaking, publishes, and creates the GitHub release from the changelog section.
 
 **A green publish step does not mean "installable".** npm processes a publish
 asynchronously: `+ @albertomarturelo/sii-core@X.Y.Z` in the log can come minutes before

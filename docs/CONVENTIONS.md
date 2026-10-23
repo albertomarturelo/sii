@@ -461,3 +461,15 @@ Python `sii-cli`, adapted to TypeScript.
   commands, flags and error kinds to third-party agents, which read them at the release tag of
   the binary they run. A PR that changes any of those updates the affected skill file in the
   same PR, so a tag's skill always matches that tag's binary.
+- **A user-visible PR writes its line under `## Unreleased` in the root `CHANGELOG.md`
+  (ADR-021 amendment).** One line, in the feature commit (it is the change's own doc, like the
+  ADR, not status bookkeeping). "User-visible" means anything an installed package does
+  differently: a CLI verb, flag or output field, an MCP tool or its result, an error kind, a
+  core export. Repo-only changes (CI, docs, skills) get no line. A change that breaks a caller
+  starts with **Breaking** and says what to do instead. The release commit moves the list into
+  the version's sections.
+- **Pre-1.0, the bump follows the changelog (ADR-021 amendment).** A PATCH carries `Fixed`,
+  `Security` and non-breaking `Changed` only. Anything `Added` (a verb, flag, tool, result field,
+  export), `Removed` or **Breaking** makes it a MINOR. `release.yml` refuses a patch tag whose
+  sections say otherwise, and any tag while `## Unreleased` still holds an entry. 0.12.2 shipped
+  an `Added` field in a patch; the rule applies from 0.15.0.
