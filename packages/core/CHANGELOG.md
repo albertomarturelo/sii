@@ -4,6 +4,24 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.16.0 — 2026-10-23
+
+### Added
+
+- **`NetworkError` and the error kind `network` (#215).** The HTTP driver (`fetchWithJar`,
+  `requestPublic`) and the browser driver's `requestPublic` turn a transport failure of `fetch`
+  (or of reading its body) into a `NetworkError` carrying `host` and `causa`, Node's cause code
+  (`ECONNRESET`, `ENOTFOUND`, `TIMEOUT`…). `classifyError` maps it to `network`. It is not a
+  `SiiError`: SII never answered.
+
+### Changed
+
+- **The facades let a `NetworkError` through (#215).** RCV, F29, F22, representación, Carpeta
+  and DTE-public turned it into their own error (« no es JSON », `DteError`); `alertas` now
+  aborts on it like any non-SII error.
+- **A failed `auth_login` receipt records `rut`, `type` and, for a network failure, `host` and
+  `causa` (#215).** It still never records the message or the Clave.
+
 ## 0.15.0 — 2026-10-23
 
 ### Added
