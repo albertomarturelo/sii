@@ -2,6 +2,8 @@
 
 > **Amended 2026-10-18 (#134):** a JSON error carries a stable `type`, its exit code and, for
 > logins, `reason` / `codigo`; the MCP uses the same shape. [Amendment](#amendment-2026-10-18-134).
+> **Amended 2026-10-23 (#215):** kind `network`: SII never answered (DNS, connection, TLS, a
+> proxy, the timeout); the message names the host and Node's cause. It was `unexpected`.
 
 ## Status
 
@@ -64,6 +66,7 @@ Queue-it). That meant regex-parsing Spanish, though the core held the answer as 
   | `browser_required` | The surface needs Chromium and none is installed | 1 |
   | `unexpected_response` | An endpoint answered something the surface does not recognise and that is not the login wall: a non-JSON body from a JSON endpoint, or a changed page (e.g. Mi SII without `DatosCntrNow`, #139) | 1 |
   | `sii_error` | SII refused a domain read or write, or a scraper broke (`RcvError`, `F29Error`, …) | 1 |
+  | `network` | SII never answered: DNS, connection, TLS, a proxy or the timeout. `error` names the host and Node's cause code (#215; was `unexpected`, hence the same exit) | 1 |
   | `unexpected` | Not a domain error (a bug) | 1 |
 
   `login_rejected` uses the latch's own rule (`siiJudgedClave`, kept in agreement by a test), so

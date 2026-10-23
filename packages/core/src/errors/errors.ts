@@ -83,6 +83,25 @@ export class ValidationError extends SiiError {}
  *  would not fix it. */
 export class UnexpectedResponseError extends SiiError {}
 
+/** The request never got an answer from SII: DNS, the connection, TLS, an egress proxy or the
+ *  timeout failed (#215). Node's `fetch` reports all of them as a bare "fetch failed" and keeps
+ *  the reason in `err.cause`; this carries that cause and the host, so a caller can tell a proxy
+ *  that resets one SII host from SII being down. NOT a SiiError on purpose: SII said nothing,
+ *  so a composite read aborts on it (ADR-030) and a facade never relabels it as SII's answer.
+ *  Never retried. */
+export class NetworkError extends Error {
+  /** The host contacted (never the path or query). */
+  readonly host: string;
+  /** The cause's code as Node reports it (`ECONNRESET`, `ENOTFOUND`, `TIMEOUT`…), or null. */
+  readonly causa: string | null;
+  constructor(message: string, opts: { host: string; causa: string | null }) {
+    super(message);
+    this.name = new.target.name;
+    this.host = opts.host;
+    this.causa = opts.causa;
+  }
+}
+
 /** SII rejected a portal/SDI facade request (error envelope or unparseable
  *  response). Carries SII's message verbatim — never translated (ADR-004). */
 export class RepresentacionError extends SiiError {}

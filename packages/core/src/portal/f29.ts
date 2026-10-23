@@ -28,7 +28,7 @@
 // channel is `metaData.errors` (a list of {id, descripcion}) — like F22, NOT RCV's `respEstado`.
 import { z } from 'zod';
 import { HOSTS } from '../config/index.js';
-import { F29Error, NotAuthenticatedError } from '../errors/index.js';
+import { F29Error, NetworkError, NotAuthenticatedError } from '../errors/index.js';
 import type { Rut } from '../rut/index.js';
 import type { Periodo } from '../periodo/index.js';
 import type { JsonRequest, PortalSession } from '../seams/index.js';
@@ -201,6 +201,8 @@ async function postSdi(
     // An expired/dead session (the seam raises it) is actionable — let it through so the user is
     // told to re-login, not a misleading "no es JSON".
     if (e instanceof NotAuthenticatedError) throw e;
+    // SII never answered: the network's cause, not a «no es JSON» (#215).
+    if (e instanceof NetworkError) throw e;
     throw new F29Error('Respuesta inesperada de SII (no es JSON).');
   }
   const parsed = Envelope.safeParse(raw);

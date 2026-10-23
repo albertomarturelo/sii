@@ -12,6 +12,7 @@ import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginErrorDetail } from '../../auth/login-error.js';
 import type { LoginFailureReason } from '../../errors/index.js';
 import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
+import { overNetwork } from './network.js';
 import type {
   BinaryRequest,
   BinaryResponse,
@@ -302,14 +303,16 @@ export class PlaywrightPortalDriver implements PortalDriver {
     }
     // Bound the request so a hung CGI fails loud instead of blocking the surface
     // indefinitely (ADR-004 "never hang"); 30s mirrors the ported Python timeout. On
-    // timeout fetch rejects → the facade wraps it as DteError (no retry, ADR-004).
-    const response = await fetch(url, {
-      method: options.method ?? 'POST',
-      headers,
-      signal: AbortSignal.timeout(30_000),
-      ...(body !== undefined ? { body } : {}),
-    });
-    const buffer = await response.arrayBuffer();
+    // timeout fetch rejects → a NetworkError naming the host (#215; no retry, ADR-004).
+    const response = await overNetwork(url, () =>
+      fetch(url, {
+        method: options.method ?? 'POST',
+        headers,
+        signal: AbortSignal.timeout(30_000),
+        ...(body !== undefined ? { body } : {}),
+      }),
+    );
+    const buffer = await overNetwork(url, () => response.arrayBuffer());
     const text = new TextDecoder(charsetOf(response.headers.get('content-type'))).decode(buffer);
     return { status: response.status, body: text };
   }

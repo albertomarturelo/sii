@@ -8,6 +8,7 @@ import {
   LoginBlockedError,
   LoginFailedError,
   LoginQueuedError,
+  NetworkError,
   NotAuthenticatedError,
   RateLimitError,
   SessionExpiredError,
@@ -32,6 +33,7 @@ export type ErrorKind =
   | 'browser_required'
   | 'unexpected_response'
   | 'sii_error'
+  | 'network'
   | 'unexpected';
 
 /** `reason` / `codigo` ride on every `login_*` kind (`codigo` is `null` when SII printed
@@ -56,6 +58,7 @@ export function classifyError(error: unknown): ErrorInfo {
   if (error instanceof BrowserRequiredError) return { type: 'browser_required' };
   if (error instanceof UnexpectedResponseError) return { type: 'unexpected_response' };
   if (error instanceof SiiError) return { type: 'sii_error' };
+  if (error instanceof NetworkError) return { type: 'network' };
   return { type: 'unexpected' };
 }
 

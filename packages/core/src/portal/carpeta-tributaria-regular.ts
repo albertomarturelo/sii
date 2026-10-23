@@ -22,7 +22,7 @@
 // `raw`. Nothing here touches the Carpeta document itself (#109, ADR-022 descriptor).
 import { z } from 'zod';
 import { HOSTS, WWW2_APP_CARPETA } from '../config/index.js';
-import { CarpetaError, NotAuthenticatedError } from '../errors/index.js';
+import { CarpetaError, NetworkError, NotAuthenticatedError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { readWww2Session } from './www2-session.js';
 import type { Www2Session } from './www2-session.js';
@@ -135,6 +135,8 @@ export async function fetchInstituciones(
     // it through verbatim. Anything else (a 401 body, the wrong endpoint) is a typed CarpetaError
     // carrying the seam's verbatim detail (ADR-004), never a raw Playwright error.
     if (e instanceof NotAuthenticatedError) throw e;
+    // SII never answered: the network's cause, not a «no es JSON» (#215).
+    if (e instanceof NetworkError) throw e;
     throw new CarpetaError(
       `Respuesta inesperada del SII en /instituciones (Carpeta Tributaria): ${
         e instanceof Error ? e.message : String(e)

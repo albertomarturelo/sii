@@ -25,6 +25,7 @@ import {
   nonJsonResponseError,
 } from './response.js';
 import { CookieJar } from './cookie-jar.js';
+import { overNetwork } from './network.js';
 import type {
   BinaryRequest,
   BinaryResponse,
@@ -91,13 +92,16 @@ async function fetchWithJar(
     const sent = new Headers();
     for (const [k, v] of Object.entries({ ...BROWSER_HEADERS, ...headers })) sent.set(k, v);
     if (cookie) sent.set('cookie', cookie);
-    const res = await fetchImpl(url, {
-      method,
-      redirect: 'manual',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      ...(body !== undefined ? { body } : {}),
-      headers: sent,
-    });
+    const hopUrl = url;
+    const res = await overNetwork(hopUrl, () =>
+      fetchImpl(hopUrl, {
+        method,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        ...(body !== undefined ? { body } : {}),
+        headers: sent,
+      }),
+    );
     jar.applySetCookies(url, res.headers.getSetCookie?.() ?? []);
     const location = res.headers.get('location');
     if (res.status >= 300 && res.status < 400 && location) {
@@ -110,7 +114,7 @@ async function fetchWithJar(
       }
       continue;
     }
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    const bytes = new Uint8Array(await overNetwork(hopUrl, () => res.arrayBuffer()));
     const contentType = res.headers.get('content-type');
     return {
       finalUrl: jsLoginWallUrl(res.status, contentType, bytes) ?? (res.url || url),
@@ -317,13 +321,15 @@ export class HttpPortalDriver implements PortalDriver {
       if (!headers.has('content-type'))
         headers.set('content-type', 'application/x-www-form-urlencoded');
     }
-    const response = await this.fetchImpl(url, {
-      method: options.method ?? 'POST',
-      headers,
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      ...(body !== undefined ? { body } : {}),
-    });
-    const buffer = await response.arrayBuffer();
+    const response = await overNetwork(url, () =>
+      this.fetchImpl(url, {
+        method: options.method ?? 'POST',
+        headers,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        ...(body !== undefined ? { body } : {}),
+      }),
+    );
+    const buffer = await overNetwork(url, () => response.arrayBuffer());
     const text = new TextDecoder(charsetOf(response.headers.get('content-type'))).decode(buffer);
     return { status: response.status, body: text };
   }
