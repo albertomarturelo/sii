@@ -26,6 +26,9 @@ Every decision behind a release is recorded as an ADR under
 - `sii f29 submit <periodo>` and the MCP's `f29_submit_preview` / `f29_submit` file SII's F29
   propuesta as-is: a preview first, `--confirm <total>` to file, declare only, and SII's payment
   link back (ADR-029, #193).
+- **Breaking (MCP):** `auth_login`, `auth_status`, `auth_logout` and `operate` answer the same
+  JSON object as `sii <cmd> --json` instead of Spanish text, like every other tool. A client that
+  read their text should `JSON.parse` it; errors are unchanged (#198).
 
 ## 0.14.0 — 2026-10-21 — Lo que otros informaron de ti
 

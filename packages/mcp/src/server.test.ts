@@ -2,7 +2,13 @@
 // registered in server.ts itself (per-module tool suites live in tools/*.test.ts;
 // the shared fixture is test-helpers.ts). Fakes only — no SII.
 import { describe, it, expect } from 'vitest';
-import { HOSTS, testing } from '@albertomarturelo/sii-core';
+import {
+  HOSTS,
+  authStatus,
+  listOperable,
+  operatingStatus,
+  testing,
+} from '@albertomarturelo/sii-core';
 import {
   connect,
   datos,
@@ -12,6 +18,10 @@ import {
   resourceText,
   toolText,
 } from './test-helpers.js';
+
+/** The session tools answer the task's object as JSON, like every other tool (ADR-012, #198). */
+type Obj = Record<string, unknown>;
+const toolJson = (res: unknown): Obj => JSON.parse(toolText(res)) as Obj;
 
 describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no SII)', () => {
   it('exposes the auth/identity tools — and auth_login takes NO password', async () => {
@@ -93,9 +103,13 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
       restoreSession: { landingUrl: HOSTS.miSii, datos, requestText: status },
     });
     const client = await connect(runtime);
-    const text = toolText(await client.callTool({ name: 'auth_login', arguments: { www2: true } }));
-    expect(text).toContain('Sesión iniciada como 11.111.111-1.');
-    expect(text).toContain('Sesión www2: activa');
+    const r = toolJson(await client.callTool({ name: 'auth_login', arguments: { www2: true } }));
+    expect(r).toMatchObject({
+      authenticated: true,
+      rut: '11111111-1',
+      reason: 'browser_login',
+      www2: { authenticated: true, expiresAt: expect.any(String) },
+    });
   });
 
   it('exposes the orientation resources', async () => {
@@ -114,19 +128,24 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
   it('auth_status reports not-authenticated before login', async () => {
     const client = await connect(makeRuntime());
     const res = await client.callTool({ name: 'auth_status', arguments: {} });
-    expect(toolText(res)).toContain('No autenticado');
+    expect(toolJson(res)).toMatchObject({ authenticated: false, rut: null, operating: null });
   });
 
   it('auth_login mints a session, then auth_status + sii://session reflect it', async () => {
     const runtime = makeRuntime();
     const client = await connect(runtime);
 
-    expect(toolText(await client.callTool({ name: 'auth_login', arguments: {} }))).toContain(
-      'Sesión iniciada como 11.111.111-1.',
-    );
-    expect(toolText(await client.callTool({ name: 'auth_status', arguments: {} }))).toContain(
-      'Autenticado (sesión local) como 11.111.111-1.',
-    );
+    expect(toolJson(await client.callTool({ name: 'auth_login', arguments: {} }))).toEqual({
+      authenticated: true,
+      rut: '11111111-1',
+      reason: 'browser_login',
+    });
+    expect(toolJson(await client.callTool({ name: 'auth_status', arguments: {} }))).toMatchObject({
+      authenticated: true,
+      rut: '11111111-1',
+      sessionSource: 'cached',
+      operating: { operatingRut: '11111111-1', isSelf: true },
+    });
     const session = await client.readResource({ uri: 'sii://session' });
     expect(resourceText(session)).toContain('11111111-1');
     const operable = await client.readResource({ uri: 'sii://operable' });
@@ -160,16 +179,17 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     expect(propKeys(tools.find((t) => t.name === 'auth_logout')?.inputSchema)).toEqual([]);
 
     await client.callTool({ name: 'auth_login', arguments: {} });
-    // The close is proven → serverClosed=true; pin the exact mapped
-    // string so the branch that ran is unambiguous (the false-branch mapping is
-    // trivial and is core's concern — see auth.test.ts).
-    expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toBe(
-      'Sesión cerrada (servidor y local).',
-    );
+    // The close is proven → serverClosed=true (the unproven branch is core's concern — see
+    // auth.test.ts). No www2 layer was stored, so www2ValidUntil is absent.
+    expect(toolJson(await client.callTool({ name: 'auth_logout', arguments: {} }))).toEqual({
+      loggedOut: true,
+      serverClosed: true,
+      www2Closed: false,
+    });
     // After logout the local session is gone → auth_status reports not-authenticated.
-    expect(toolText(await client.callTool({ name: 'auth_status', arguments: {} }))).toContain(
-      'No autenticado',
-    );
+    expect(toolJson(await client.callTool({ name: 'auth_status', arguments: {} }))).toMatchObject({
+      authenticated: false,
+    });
   });
 
   it('auth_logout says when a www2 layer SII did not revoke stops working (#146)', async () => {
@@ -189,52 +209,57 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
       www2: { savedAt: '2026-06-27T12:00:00.000Z', expiresAt: until },
     });
     const client = await connect(runtime);
-    const text = toolText(await client.callTool({ name: 'auth_logout', arguments: {} }));
-    expect(text).toContain(`La sesión www2 sigue válida en el SII hasta ${until}`);
-    expect(text).not.toContain('Sesión www2 cerrada.');
+    const r = toolJson(await client.callTool({ name: 'auth_logout', arguments: {} }));
+    expect(r).toMatchObject({ loggedOut: true, www2Closed: false, www2ValidUntil: until });
   });
 
   it('auth_logout with no live session reports nothing to close', async () => {
     const client = await connect(makeRuntime());
-    expect(toolText(await client.callTool({ name: 'auth_logout', arguments: {} }))).toContain(
-      'No había sesión activa.',
-    );
+    expect(toolJson(await client.callTool({ name: 'auth_logout', arguments: {} }))).toMatchObject({
+      loggedOut: false,
+    });
   });
 
   it('operate reports the context and selects self', async () => {
     const runtime = makeRuntime();
     const client = await connect(runtime);
     await client.callTool({ name: 'auth_login', arguments: {} });
-    expect(toolText(await client.callTool({ name: 'operate', arguments: {} }))).toContain(
-      'Operando como tú mismo: 11.111.111-1.',
-    );
+    const self = { operatingRut: '11111111-1', selfRut: '11111111-1', isSelf: true };
+    expect(toolJson(await client.callTool({ name: 'operate', arguments: {} }))).toMatchObject(self);
     expect(
-      toolText(await client.callTool({ name: 'operate', arguments: { self: true } })),
-    ).toContain('Operando como tú mismo: 11.111.111-1.');
+      toolJson(await client.callTool({ name: 'operate', arguments: { self: true } })),
+    ).toMatchObject(self);
   });
 
   it('operate list=true lists the operable set (self/current markers)', async () => {
     const client = await connect(makeRuntime());
-    // No session → actionable hint, no throw.
-    expect(
-      toolText(await client.callTool({ name: 'operate', arguments: { list: true } })),
-    ).toContain('No hay sesión activa. Usa la tool auth_login.');
+    // No session → the CLI's no-session shape, no throw (the description names auth_login).
+    expect(toolJson(await client.callTool({ name: 'operate', arguments: { list: true } }))).toEqual(
+      { operable: null },
+    );
+    expect(toolJson(await client.callTool({ name: 'operate', arguments: {} }))).toEqual({
+      operating: null,
+    });
     await client.callTool({ name: 'auth_login', arguments: {} });
-    const listed = toolText(await client.callTool({ name: 'operate', arguments: { list: true } }));
-    expect(listed).toContain('11.111.111-1');
-    expect(listed).toContain('tú mismo');
-    expect(listed).toContain('operando ahora');
+    const listed = toolJson(await client.callTool({ name: 'operate', arguments: { list: true } }));
+    expect(listed).toMatchObject({
+      operatingRut: '11111111-1',
+      operable: [{ rut: '11111111-1', isSelf: true }],
+    });
   });
 
   it('auth_status refresh=true reads the identity from the portal', async () => {
     const client = await connect(makeRuntime());
     await client.callTool({ name: 'auth_login', arguments: {} });
-    const text = toolText(
+    const id = toolJson(
       await client.callTool({ name: 'auth_status', arguments: { refresh: true } }),
     );
-    expect(text).toContain('11.111.111-1');
-    expect(text).toContain('Juan Pérez');
-    expect(text).toContain('persona');
+    expect(id).toMatchObject({
+      rut: '11111111-1',
+      nombre: expect.stringContaining('Juan Pérez'),
+      accountType: 'persona',
+      www2: { authenticated: false },
+    });
   });
 
   it('operate by a rut in the operable set selects it; outside it errors (isError)', async () => {
@@ -242,8 +267,8 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     await client.callTool({ name: 'auth_login', arguments: {} });
     // self IS operable → selects it.
     expect(
-      toolText(await client.callTool({ name: 'operate', arguments: { rut: '11111111-1' } })),
-    ).toContain('Operando como tú mismo: 11.111.111-1.');
+      toolJson(await client.callTool({ name: 'operate', arguments: { rut: '11111111-1' } })),
+    ).toMatchObject({ operatingRut: '11111111-1', isSelf: true });
     // A valid RUT NOT in the operable set → domain error surfaced as isError.
     const res = await client.callTool({ name: 'operate', arguments: { rut: '12345670-K' } });
     expect(isError(res)).toBe(true);
@@ -252,6 +277,23 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     expect(e.type).toBe('validation');
     expect(e.error).toEqual(expect.any(String));
     expect(e).not.toHaveProperty('exitCode');
+  });
+
+  it('the session tools answer the same objects as the CLI, not text (ADR-012, #198)', async () => {
+    const runtime = makeRuntime();
+    await testing.seedSession(runtime);
+    const client = await connect(runtime);
+    // `sii auth status` prints { ...authStatus, operating }; `sii operate --list` the list.
+    expect(toolJson(await client.callTool({ name: 'auth_status', arguments: {} }))).toEqual({
+      ...(await authStatus(runtime)),
+      operating: await operatingStatus(runtime),
+    });
+    expect(toolJson(await client.callTool({ name: 'operate', arguments: { list: true } }))).toEqual(
+      await listOperable(runtime),
+    );
+    expect(toolJson(await client.callTool({ name: 'operate', arguments: {} }))).toEqual(
+      await operatingStatus(runtime),
+    );
   });
 
   it('a tool error names its stable type (not_authenticated with no session)', async () => {

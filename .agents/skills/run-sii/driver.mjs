@@ -165,10 +165,10 @@ async function smoke() {
     check('mcp initialize', !!init.serverInfo, `${init.serverInfo.name} ${init.serverInfo.version}`);
     const { tools } = await request('tools/list');
     check('mcp tools/list', tools.length > 20, `${tools.length} tools`);
-    // The auth/operate tools in server.ts answer Spanish text, not JSON (the domain tools
-    // and the sii:// resources are JSON) — so match the formatted RUT.
+    // Every tool answers the task's object as JSON text, like `sii <cmd>` (ADR-012, #198).
     const st = await request('tools/call', { name: 'auth_status', arguments: {} });
-    check('mcp auth_status (seeded)', st.content[0].text.includes('11.111.111-1'), st.content[0].text.split('\n')[0]);
+    const sj = JSON.parse(st.content[0].text);
+    check('mcp auth_status (seeded)', sj.rut === '11111111-1' && sj.operating?.isSelf === true);
     const res = await request('resources/read', { uri: 'sii://operating' });
     check('mcp read sii://operating', res.contents[0].text.includes('11111111-1'));
   });
