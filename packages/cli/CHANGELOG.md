@@ -9,6 +9,13 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.16.0 — 2026-10-23
+
+### Added
+
+- **The error kind `network` (#215).** `{ "type": "network", "exitCode": 1 }` when SII never
+  answered; `error` names the host and Node's cause. It was `unexpected`, with the same exit code.
+
 ## 0.15.0 — 2026-10-23
 
 ### Added

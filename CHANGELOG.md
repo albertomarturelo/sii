@@ -23,11 +23,25 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **A network failure names the host and the cause (#215).** It answered a bare `fetch failed`
-  (`unexpected`); it is now the error kind `network` (exit 1, as before), its message names the SII
-  host and Node's cause (`ECONNRESET`, `ENOTFOUND`, `TIMEOUT`…), and the failed login's audit
-  receipt records the kind, host and cause. A read no longer reports it as « no es JSON ». Core
-  exports `NetworkError`.
+## 0.16.0 — 2026-10-23 — Dónde se cortó la red
+
+When SII never answers, the CLI and the MCP say which host failed and why, instead of a bare
+`fetch failed`.
+
+**A network failure names the host and the cause (#215).** Node's `fetch` reports every
+transport failure as `fetch failed` and keeps the reason in a field nothing showed. An egress
+proxy that reset the TLS handshake to one SII host (`misiir.sii.cl`) while letting the login host
+through read as `unexpected`, and it took a separate diagnosis to find.
+- The error is now the kind `network`, with exit 1 as before: a consumer that does not know the
+  kind reads it as `unexpected`, which is what it was. Its message names the SII host and Node's
+  cause (`ECONNRESET`, `ENOTFOUND`, `TIMEOUT`…); never the path, the query or the request body.
+- RCV, F29, F22, representación, Carpeta and the public DTE consulta reported it as « Respuesta
+  inesperada de SII (no es JSON) » or a DTE error. They now let it through. `alertas` stops on
+  it instead of reporting a source error.
+- A failed login's audit receipt records the RUT, the kind and, for a network failure, the host
+  and the cause. Never the message or the Clave; a network failure does not set the latch.
+- The contador bot's skill documents the kind: stop and notify, never retry a login in the same
+  run, and the machine's network must let every `*.sii.cl` host through.
 
 ## 0.15.0 — 2026-10-23 — Lo que SII no te avisa
 
