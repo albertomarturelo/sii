@@ -9,9 +9,6 @@ import { z } from 'zod';
 import {
   HOSTS,
   authStatus,
-  describeOperating,
-  formatOperableEntry,
-  formatRut as fmt,
   listOperable,
   login,
   logout,
@@ -19,21 +16,12 @@ import {
   operateSelf,
   operatingStatus,
   statusRefresh,
-  type AuthWww2Status,
   type Runtime,
 } from '@albertomarturelo/sii-core';
 import { toolText } from './tool-helpers.js';
 
-/** One human line for the www2 app-session layer (ADR-026). */
-const www2Line = (w: AuthWww2Status): string =>
-  w.authenticated
-    ? `Sesión www2: activa${w.expiresAt ? ` (hasta ${w.expiresAt})` : ''}.`
-    : 'Sesión www2: no iniciada (auth_login con www2=true para la Carpeta Tributaria).';
-
-/** The www2 layer a logout could not close: SII does not revoke it, it expires on its own (#146). */
-const www2StillValid = (until: string | null): string =>
-  `La sesión www2 sigue válida en el SII${until ? ` hasta ${until}` : ''}: el SII no la ` +
-  'revoca al cerrar sesión. Sus cookies ya se borraron de este equipo.';
+/** A tool result is the task's object, the same one `sii <cmd>` prints as JSON (ADR-012). */
+const json = (value: unknown): string => JSON.stringify(value, null, 2);
 
 // Domain read surfaces — each module owns a tools/<mod>.ts register fn (append-only).
 import { registerWhoamiTools } from './tools/whoami.js';
@@ -118,19 +106,13 @@ export function buildServer(runtime: Runtime): McpServer {
         'Abre el navegador en la página del SII para que el usuario escriba su Clave Tributaria. ' +
         'NUNCA recibe la Clave como argumento (ADR-006); persiste solo cookies. Idempotente sobre una sesión viva. ' +
         'www2=true añade además la sesión de la plataforma www2 (necesaria para carpeta_*): el mismo ' +
-        'navegador abre la página OAuth del SII y el usuario vuelve a escribir su Clave ahí (ADR-026).',
+        'navegador abre la página OAuth del SII y el usuario vuelve a escribir su Clave ahí (ADR-026). ' +
+        'Devuelve { authenticated, rut, reason } (reason "already_authenticated" si ya había sesión) ' +
+        'y, con www2=true, el estado de esa capa en www2.',
       inputSchema: { www2: z.boolean().optional() },
       annotations: { readOnlyHint: false, openWorldHint: true },
     },
-    ({ www2 }) =>
-      toolText(async () => {
-        const r = await login(runtime, www2 ? { www2: true } : {});
-        const head =
-          r.reason === 'already_authenticated'
-            ? `Ya tienes una sesión activa como ${fmt(r.rut)}.`
-            : `Sesión iniciada como ${fmt(r.rut)}.`;
-        return r.www2 ? `${head}\n${www2Line(r.www2)}` : head;
-      }),
+    ({ www2 }) => toolText(async () => json(await login(runtime, www2 ? { www2: true } : {}))),
   );
 
   server.registerTool(
@@ -138,29 +120,22 @@ export function buildServer(runtime: Runtime): McpServer {
     {
       title: 'Estado de sesión',
       description:
-        'Lectura LOCAL de la sesión (quién soy, operando-como). refresh=true lee la identidad desde el portal (requiere sesión viva).',
+        'Lectura LOCAL de la sesión (quién soy, operando-como). refresh=true lee la identidad desde el portal (requiere sesión viva). ' +
+        'Devuelve { authenticated, rut, sessionSource, www2, loginBlocked, operating }; authenticated=false ⇒ usa auth_login; ' +
+        'www2.authenticated=false ⇒ auth_login con www2=true para la Carpeta Tributaria. loginBlocked lista los RUT cuyo ' +
+        'login desatendido (CLI) quedó bloqueado tras un rechazo: lo levanta una persona en la terminal, nunca esta tool. ' +
+        'Con refresh=true: { rut, nombre, accountType, www2 }.',
       inputSchema: { refresh: z.boolean().optional() },
       annotations: { readOnlyHint: true },
     },
     ({ refresh }) =>
       toolText(async () => {
-        if (refresh) {
-          const id = await statusRefresh(runtime);
-          return `RUT: ${fmt(id.rut)}\nNombre: ${id.nombre ?? '—'}\nTipo: ${id.accountType}\n${www2Line(id.www2)}`;
-        }
-        const s = await authStatus(runtime);
+        if (refresh) return json(await statusRefresh(runtime));
+        const status = await authStatus(runtime);
         // The rejection latch (ADR-028) is reported, never lifted here: unblock is CLI-only.
-        const blocked = s.loginBlocked
-          .map(
-            (b) =>
-              `\nLogin desatendido (CLI) bloqueado para ${fmt(b.rut)} desde ${b.at}` +
-              `${b.codigo ? ` (código ${b.codigo})` : ''}; lo levanta una persona en la terminal.`,
-          )
-          .join('');
-        if (!s.authenticated || !s.rut) return `No autenticado. Usa la tool auth_login.${blocked}`;
-        const ctx = await operatingStatus(runtime);
-        const op = ctx && !ctx.isSelf ? `\n${describeOperating(ctx)}` : '';
-        return `Autenticado (sesión local) como ${fmt(s.rut)}.${op}\n${www2Line(s.www2)}${blocked}`;
+        const operating =
+          status.authenticated && status.rut ? await operatingStatus(runtime) : null;
+        return json({ ...status, operating });
       }),
   );
 
@@ -172,22 +147,14 @@ export function buildServer(runtime: Runtime): McpServer {
       title: 'Cerrar sesión',
       description:
         'Cierra la sesión: intenta cerrarla en el servidor (mejor esfuerzo) y borra las cookies locales. ' +
-        'No recibe argumentos. Para cambiar de cuenta: auth_logout y luego auth_login.',
+        'No recibe argumentos. Para cambiar de cuenta: auth_logout y luego auth_login. ' +
+        'Devuelve { loggedOut, serverClosed, www2Closed, www2ValidUntil? }: serverClosed=false ⇒ solo se ' +
+        'borró la sesión local; www2ValidUntil presente ⇒ el SII no revoca la sesión www2 y sigue válida ' +
+        'hasta esa hora (sus cookies ya se borraron de este equipo).',
       // Touches SII: the best-effort server-side close is a real portal call (like auth_login).
       annotations: { readOnlyHint: false, openWorldHint: true },
     },
-    () =>
-      toolText(async () => {
-        const r = await logout(runtime);
-        if (!r.loggedOut) return 'No había sesión activa.';
-        const head = r.serverClosed
-          ? 'Sesión cerrada (servidor y local).'
-          : 'Sesión cerrada (local).';
-        if (r.www2Closed) return `${head} Sesión www2 cerrada.`;
-        return r.www2ValidUntil !== undefined
-          ? `${head} ${www2StillValid(r.www2ValidUntil)}`
-          : head;
-      }),
+    () => toolText(async () => json(await logout(runtime))),
   );
 
   server.registerTool(
@@ -197,7 +164,10 @@ export function buildServer(runtime: Runtime): McpServer {
       description:
         'Selecciona el RUT bajo el que operas: una empresa representada (rut) o tú mismo (self=true). ' +
         'list=true LISTA los RUT que puedes operar (tú mismo + empresas representadas). ' +
-        'Validado contra el conjunto operable. Sin argumentos, reporta el contexto actual.',
+        'Validado contra el conjunto operable. Sin argumentos, reporta el contexto actual. ' +
+        'Devuelve el contexto { operatingRut, selfRut, isSelf, razonSocial }; con list=true, ' +
+        '{ operatingRut, operable: [{ rut, razonSocial, isSelf }] }. Sin sesión: { operating: null } ' +
+        '(o { operable: null } con list=true) ⇒ usa auth_login.',
       inputSchema: {
         rut: z.string().optional(),
         self: z.boolean().optional(),
@@ -207,18 +177,11 @@ export function buildServer(runtime: Runtime): McpServer {
     },
     ({ rut, self, list }) =>
       toolText(async () => {
-        if (list) {
-          const result = await listOperable(runtime);
-          if (!result) return 'No hay sesión activa. Usa la tool auth_login.';
-          return result.operable.map((e) => formatOperableEntry(e, result.operatingRut)).join('\n');
-        }
-        if (self) {
-          const r = await operateSelf(runtime);
-          return describeOperating(r.context);
-        }
-        if (rut) return describeOperating((await operate(runtime, rut)).context);
-        const ctx = await operatingStatus(runtime);
-        return ctx ? describeOperating(ctx) : 'No hay sesión activa. Usa la tool auth_login.';
+        // The same objects `sii operate` prints, including its no-session shapes.
+        if (list) return json((await listOperable(runtime)) ?? { operable: null });
+        if (self) return json((await operateSelf(runtime)).context);
+        if (rut) return json((await operate(runtime, rut)).context);
+        return json((await operatingStatus(runtime)) ?? { operating: null });
       }),
   );
 

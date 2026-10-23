@@ -79,10 +79,9 @@ pnpm vitest run packages/core/src/auth/auth.test.ts
   audit log all live there.
 - **`SII_HOME` must be absolute.** A relative value is a `validation` error (exit 1) before any
   command runs.
-- **The MCP's auth/operate tools answer Spanish TEXT, not JSON** (`"Autenticado (sesión local)
-  como 11.111.111-1. …"`). The domain tools (`tools/*.ts`) and the `sii://` resources are JSON.
-  Parse each one accordingly. Tracked as a bug in #198; once it is fixed, update this line and
-  the `auth_status` check in `driver.mjs`.
+- **An MCP tool's JSON is a STRING inside `content[0].text`**, the same object `sii <cmd>`
+  prints. `JSON.parse` it. A failed call has `isError: true` and its text is the error object
+  `{ error, type, … }`.
 - **The `operating as:` header goes to STDERR and appears only with `--human`.** In JSON mode
   stdout carries the result alone.
 - **`seedSession` must run with `SII_HOME` already set.** `createNodeRuntime()` picks the store
@@ -95,5 +94,3 @@ pnpm vitest run packages/core/src/auth/auth.test.ts
 - `driver: …/dist/main.js missing` → run `pnpm build`.
 - `driver: \`sii <verb> …\` reaches production SII; pass --live` → working as designed. Use a
   core-vs-fakes call instead, or ask the owner before going live.
-- `SyntaxError: Unexpected token 'A', "Autenticad"…` when you parse an MCP result → it is one
-  of the text tools (see Gotchas). Don't `JSON.parse` it.
