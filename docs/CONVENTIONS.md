@@ -263,6 +263,11 @@ Python `sii-cli`, adapted to TypeScript.
   a new key). Empty `data[]` is a legitimate "no rows", never an error. zod stays at
   the boundary only — curated domain types are plain TypeScript. `representacion.ts`
   predates this (hand-rolled, pre-zod) and may be migrated; `rcv.ts` is the template.
+- **A field one feature adds to a shared schema never breaks another feature's read (#214).**
+  `DatosCntrNow` is the identity read every login depends on, and `alertas` reads more fields
+  off the same object. Such a field carries `.catch(null)`, so an unexpected type on some account
+  loses only that field (its consumer reads it as unknown), never the whole parse. Applied twice
+  before it was written down: `atributos` (#208), then the three `contribuyente` window fields.
 - **Domain read surfaces own a per-module file + a register fn (no barrel churn).**
   Each module ships `cli/src/commands/<mod>.ts` (`register<Mod>(program, runtime)`)
   and `mcp/src/tools/<mod>.ts` (`register<Mod>Tools(server, runtime)`); `program.ts`

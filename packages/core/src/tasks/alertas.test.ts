@@ -90,7 +90,7 @@ interface Script {
   now?: Date;
   dead?: boolean;
   /** Mi SII `DatosCntrNow.contribuyente` extras (the F29 window and regime); none ⇒ no bounds. */
-  regimen?: Record<string, string | null>;
+  regimen?: Record<string, unknown>;
   /** Mi SII `DatosCntrNow.atributos` (the account's SII registrations, #208). */
   atributos?: unknown;
   /** Mi SII answers a page without `DatosCntrNow` (a changed page, not a dead session). */
@@ -432,6 +432,26 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     // No atributos at all, or a shape we do not know.
     expect(await f29De({ regimen: NUEVA })).toEqual(noDeclarante);
     expect(await f29De({ regimen: NUEVA, atributos: 'otra forma' })).toEqual(noDeclarante);
+  });
+
+  it('a non-string window field reads as unknown, never as not obligated (#214)', async () => {
+    // An unreadable inicio: no lower bound, so the regime alone does not raise anything.
+    expect(
+      await f29De({
+        regimen: { fechaInicioActividades: 1786320000000 },
+        atributos: [atributo('14D1')],
+      }),
+    ).toEqual({ estado: 'no_declarante', sinDeclarar: [] });
+    // An unreadable término is no end; an unreadable day keeps the later 20th.
+    expect(await sinDeclarar({ regimen: { fechaTerminoGiro: 1782777600000 } })).toEqual([
+      '2026-09',
+    ]);
+    expect(
+      await sinDeclarar({
+        now: new Date(2026, 9, 13, 12),
+        regimen: { autorizadoDeclararDia20: false },
+      }),
+    ).toEqual([]);
   });
 
   it('--fuentes reads only those, in canonical order, and reports the rest as omitted', async () => {

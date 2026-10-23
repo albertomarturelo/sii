@@ -19,10 +19,12 @@ const DatosCntr = z
         apellidoMaterno: z.string().nullish(),
         eMail: z.string().nullish(),
         // The F29 obligation window and deadline regime (`alertas`, ADR-030). Observed
-        // 2026-10-23 on an empresa: `"2026-03-26 00:00:00.0"`, `null`, `"S"`.
-        fechaInicioActividades: z.string().nullish(),
-        fechaTerminoGiro: z.string().nullish(),
-        autorizadoDeclararDia20: z.string().nullish(),
+        // 2026-10-23 on an empresa: `"2026-03-26 00:00:00.0"`, `null`, `"S"`. `.catch(null)`,
+        // like `atributos`: another type on some account loses the window (unknown, never
+        // "not obligated"), never the identity read the login depends on (#214).
+        fechaInicioActividades: z.string().nullish().catch(null),
+        fechaTerminoGiro: z.string().nullish().catch(null),
+        autorizadoDeclararDia20: z.string().nullish().catch(null),
       })
       .loose()
       .optional(),
