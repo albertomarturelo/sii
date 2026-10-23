@@ -75,9 +75,9 @@ remains future — CONVENTIONS: curated + raw for 30+ fields:
 | `eMail` | string | ✓ | PII — surfaced by `whoami` (#70) |
 | `telefonoMovil` | string | | PII |
 | `fechaCreaRegistroCntr` / `fechaModiRegistroCntr` | string | | |
-| `fechaTerminoGiro` | null | | |
-| `autorizadoDeclararDia20` | string | | |
-| `fechaInicioActividades` | string | | |
+| `fechaTerminoGiro` | null | | `null` observed 2026-10-23; when set, bounds `alertas`' F29 window |
+| `autorizadoDeclararDia20` | string | | `"S"` observed 2026-10-23 (empresa); read by `alertas` for the F29 due day (`"N"` ⇒ the 12th) |
+| `fechaInicioActividades` | string | | `"2026-03-26 00:00:00.0"` observed 2026-10-23; bounds `alertas`' F29 window |
 | `unidadOperativaCodigo` / `…Descripcion` / `…Direccion` | string | | |
 | `unidadOperativaGc*` | null | | |
 | `capitalPorEnterar` / `capitalEnterado` | string | | |

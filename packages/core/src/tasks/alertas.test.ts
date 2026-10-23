@@ -89,6 +89,8 @@ interface Script {
   peticiones?: 'ok' | 'rate_limited';
   now?: Date;
   dead?: boolean;
+  /** Mi SII `DatosCntrNow.contribuyente` extras (the F29 window and regime); none ⇒ no bounds. */
+  regimen?: Record<string, string | null>;
 }
 
 function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
@@ -102,6 +104,8 @@ function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
     portal: new FakePortalDriver({
       restoreSession: {
         cookies: { TOKEN: 't' },
+        // The fake synthesises the Mi SII HTML (DatosCntrNow) from this for requestText(miSii).
+        datos: () => ({ contribuyente: { rut: 20000042, dv: '0', ...s.regimen } }),
         requestJson: (url: string, options?: JsonRequest) => {
           if (s.dead) throw new NotAuthenticatedError('Sesión expirada (sintético).');
           if (url.includes('buscaDeclVgte')) {
@@ -122,7 +126,7 @@ function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
           return { metaData: {}, data: null };
         },
         requestText: (url: string) => {
-          if (!url.endsWith('/peticion')) return '';
+          if (!url.endsWith('/peticion')) return undefined; // Mi SII: the fake's DatosCntrNow
           calls.push('peticiones');
           if (s.peticiones === 'rate_limited')
             throw new RateLimitError('Demasiadas consultas (sintético).');
@@ -239,8 +243,8 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
         return `f29:${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       }),
     );
-    // One pause between consecutive requests (ADR-004).
-    expect((rt.clock as FixedClock).slept).toHaveLength(11);
+    // One pause between consecutive requests: the Mi SII read, then 12 estados (ADR-004).
+    expect((rt.clock as FixedClock).slept).toHaveLength(12);
   });
 
   it('a período is not "sin declarar" until its due date has passed', async () => {
@@ -264,6 +268,66 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
       2027, 0, 20,
     ]);
     expect(dic.sinPago.getDate()).toBe(28);
+  });
+
+  // Live 2026-10-23: an empresa with inicio de actividades in March got five "sin declarar"
+  // for the months before it existed. Its own DatosCntrNow bounds the window.
+  const NADA_HASTA_MARZO: F29Script = Object.fromEntries(
+    ['2025-10', '2025-11', '2025-12', '2026-01', '2026-02'].map((p) => [p, []]),
+  );
+  const sinDeclarar = async (s: Script) => {
+    const { rt } = makeRuntime(s);
+    await seed(rt);
+    return (await alertas(rt, { fuentes: 'f29' })).alertas
+      .filter((a) => a.tipo === 'f29_sin_declarar')
+      .map((a) => a.periodo);
+  };
+
+  it('no sin_declarar before the month of inicio de actividades', async () => {
+    expect(await sinDeclarar({ f29: NADA_HASTA_MARZO })).toEqual([
+      '2025-10',
+      '2025-11',
+      '2025-12',
+      '2026-01',
+      '2026-02',
+    ]);
+    expect(
+      await sinDeclarar({
+        f29: NADA_HASTA_MARZO,
+        regimen: { fechaInicioActividades: '2026-03-26 00:00:00.0' },
+      }),
+    ).toEqual([]);
+    // The inicio month itself is due.
+    expect(
+      await sinDeclarar({
+        f29: NADA_HASTA_MARZO,
+        regimen: { fechaInicioActividades: '2026-02-10 00:00:00.0' },
+      }),
+    ).toEqual(['2026-02']);
+  });
+
+  it('no sin_declarar after the month of término de giro', async () => {
+    expect(await sinDeclarar({ regimen: { fechaTerminoGiro: '2026-06-30 00:00:00.0' } })).toEqual(
+      [],
+    );
+    expect(await sinDeclarar({ regimen: { fechaTerminoGiro: null } })).toEqual(['2026-09']);
+  });
+
+  it('autorizadoDeclararDia20 picks the 20th or the 12th', async () => {
+    const at = (day: number) => new Date(2026, 9, day, 12);
+    // "N": due Monday 2026-10-12, so the 13th already alerts.
+    expect(await sinDeclarar({ now: at(13), regimen: { autorizadoDeclararDia20: 'N' } })).toEqual([
+      '2026-09',
+    ]);
+    // "S" (observed) and an unknown value keep the 20th: nothing on the 13th.
+    expect(await sinDeclarar({ now: at(13), regimen: { autorizadoDeclararDia20: 'S' } })).toEqual(
+      [],
+    );
+    expect(await sinDeclarar({ now: at(13), regimen: { autorizadoDeclararDia20: '?' } })).toEqual(
+      [],
+    );
+    // A day-12 due date on a Sunday moves to Monday (2026-07-12 is a Sunday).
+    expect(vencimientoF29(Periodo.of(2026, 6), 12).conPago.getDate()).toBe(13);
   });
 
   it('an account with no Vigente F29 in the window is no_declarante: no sin_declarar noise', async () => {

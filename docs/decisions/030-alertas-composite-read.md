@@ -31,21 +31,27 @@ The sources also differ in auth mode: F22 / F29 are session-keyed, peticiones is
     ⇒ nothing. Otherwise a record with estado `70` (Rechazada por pago inconcluso) ⇒
     `f29_rechazada`, `10` (Guardada, never sent) ⇒ `f29_guardada`, any unobserved estado ⇒
     `f29_otro_estado` (surfaced, never dropped), with SII's label verbatim. No record past the
-    due date ⇒ `f29_sin_declarar`, ONLY when the window holds a Vigente F29: an account that never
-    files F29 (a persona without giro) gets none, and the source says `no_declarante`.
+    due date ⇒ `f29_sin_declarar`, ONLY inside the account's own obligation window and when the
+    window holds a Vigente F29: an account that never files F29 (a persona without giro) gets
+    none, and the source says `no_declarante`. **The window and the regime come from the
+    account's `DatosCntrNow`** (Mi SII, one more call; observed 2026-10-23): no período before the
+    month of `fechaInicioActividades` (`"2026-03-26 00:00:00.0"`) or after `fechaTerminoGiro`, and
+    `autorizadoDeclararDia20` (`"S"`) picks the 20th, `"N"` the 12th. Found live: an empresa got
+    five false "sin declarar" for the months before it existed.
   - **The F29 due date**, from SII's FAQ (`preguntas_frecuentes/impuestos_mensuales/
     001_130_1060.htm`, updated 17/06/2025, read 2026-10-23): the 12th of the next month in
     general; the 20th for an Internet declaration with payment by an eligible taxpayer
     (facturador electrónico, emisor de BHE); the 28th "sin pago" or sin movimiento; a due date with
     payment on a Saturday or holiday moves to the next business day. `f29_sin_declarar` fires once
-    the 20th has passed (moved off a weekend; holidays are not known, so `estimado: true`) and
-    carries `vencimiento: { conPago, sinPago }`. A day-12 taxpayer is told 8 days late; a sin
-    movimiento filer may see it until the 28th: the cost of not guessing the regime.
-  - `peticiones`: one alerta per petición's latest state transition, SII's note verbatim.
+    the regime's day has passed (moved off a weekend; holidays are not known, so `estimado: true`;
+    an unknown regime keeps the 20th, never early) and carries `vencimiento: { conPago, sinPago }`.
+    A sin movimiento filer may still see it until the 28th.
+  - `peticiones`: one alerta per petición's latest state transition, SII's note verbatim. A
+    closed one is kept: its closing is news, reported once by the id diff. A first run therefore
+    lists old closed petitions too; seed the seen ids or use `--desde` (observed live: 4 of 5).
 - **The caller picks what to read: `--fuentes f22,f29,peticiones`** (default all; MCP
   `fuentes`). Unifying saves sessions, not SII calls: a full run is ~20 paced requests (F22 ≤ 6,
-  F29 12, one período per call; peticiones 2–3), ~20 s at `rateLimitRps: 1`, as the three verbs
-  run apart. Most of it rarely changes, so a daily routine can read `f29,peticiones` and run
+  F29 1 + 12, one período per call; peticiones 2–3), 16–21 s live, as the three verbs run apart. Most of it rarely changes, so a daily routine can read `f29,peticiones` and run
   everything weekly. `--help` and the MCP description state the cost. A shorter F29 window is
   not the lever: it would break `no_declarante` and drop an unpaid month still pending.
 - **Alerta shape** (plain JSON, ADR-012), every field present, `null` when it does not apply:

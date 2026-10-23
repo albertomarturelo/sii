@@ -15,7 +15,8 @@ import {
   classifyError,
   type ErrorKind,
 } from '../errors/index.js';
-import { DEFAULT_SETTINGS } from '../config/index.js';
+import { DEFAULT_SETTINGS, HOSTS } from '../config/index.js';
+import { parseDatosCntrNow } from '../auth/datos-cntr.js';
 import {
   fetchF22Declaraciones,
   fetchF22Observaciones,
@@ -132,19 +133,50 @@ function fechaSii(s: string | null): string | null {
 /** The F29 due dates of `periodo`, from SII's own FAQ (www.sii.cl/preguntas_frecuentes/
  *  impuestos_mensuales/001_130_1060.htm, updated 17/06/2025, read 2026-10-23): the 12th of the
  *  next month in general; the 20th for an Internet declaration WITH payment by an eligible
- *  taxpayer (facturador electrónico, emisor de BHE); the 28th for one "sin pago" or sin
- *  movimiento. A due date with payment on a Saturday or holiday moves to the next business day.
- *  We use the 20th (the deadline most filers have) moved off a weekend; holidays are not known,
- *  hence `estimado`. Not knowing the taxpayer's regime, a day-12 filer is told late, and a sin
- *  movimiento filer may see the alerta until the 28th (ADR-030). */
-export function vencimientoF29(periodo: Periodo): { conPago: Date; sinPago: Date } {
+ *  taxpayer; the 28th for one "sin pago" or sin movimiento. A due date with payment on a
+ *  Saturday or holiday moves to the next business day: we move it off a weekend, holidays are not
+ *  known (hence `estimado`). `dia` is the taxpayer's regime (`autorizadoDeclararDia20`). */
+export function vencimientoF29(
+  periodo: Periodo,
+  dia: 12 | 20 = 20,
+): { conPago: Date; sinPago: Date } {
   const year = periodo.month === 12 ? periodo.year + 1 : periodo.year;
   const month = periodo.month === 12 ? 0 : periodo.month; // JS month index of the NEXT month
-  const conPago = new Date(year, month, 20);
+  const conPago = new Date(year, month, dia);
   const dow = conPago.getDay();
-  if (dow === 6) conPago.setDate(22);
-  if (dow === 0) conPago.setDate(21);
+  if (dow === 6) conPago.setDate(dia + 2);
+  if (dow === 0) conPago.setDate(dia + 1);
   return { conPago, sinPago: new Date(year, month, 28) };
+}
+
+/** When the account must file F29 and by which day, from its own `DatosCntrNow` (Mi SII). */
+interface RegimenF29 {
+  readonly inicio: Periodo | null; // no F29 is due before the month of inicio de actividades
+  readonly termino: Periodo | null; // nor after the month of término de giro
+  readonly dia: 12 | 20;
+}
+
+/** `"2026-03-26 00:00:00.0"` (observed) ⇒ that month; anything else ⇒ null (no bound). */
+function mesDe(s: string | null | undefined): Periodo | null {
+  const m = s ? /^(\d{4})-(\d{2})-\d{2}/.exec(s) : null;
+  return m ? Periodo.of(Number(m[1]), Number(m[2])) : null;
+}
+
+const antes = (a: Periodo, b: Periodo): boolean =>
+  a.year < b.year || (a.year === b.year && a.month < b.month);
+
+async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
+  // A dead jar bounces here and the seam raises SessionExpiredError (aborts the read). A live
+  // page without the object only loses the bounds: no window, and the later day-20 deadline.
+  const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
+  const c = parseDatosCntrNow(body)?.contribuyente;
+  return {
+    inicio: mesDe(c?.fechaInicioActividades),
+    termino: mesDe(c?.fechaTerminoGiro),
+    // `"S"` observed. A day-12 taxpayer says "N"; an unknown value keeps the 20th, the later of
+    // the two, so the alerta is never early.
+    dia: c?.autorizadoDeclararDia20?.trim().toUpperCase() === 'N' ? 12 : 20,
+  };
 }
 
 const base = (origen: FuenteAlertas) => ({
@@ -209,11 +241,12 @@ async function leerF29(
     const d = new Date(now.getFullYear(), now.getMonth() - F29_PERIODOS + i, 1);
     return Periodo.of(d.getFullYear(), d.getMonth() + 1);
   });
+  const regimen = await leerRegimen(session);
   const sinDeclarar: Alerta[] = [];
   let declarante = false;
   for (let i = 0; i < periodos.length; i++) {
     const periodo = periodos[i]!;
-    if (i > 0) await runtime.clock.sleep(pacingMs());
+    await runtime.clock.sleep(pacingMs()); // after the Mi SII read too (ADR-004)
     const { declaraciones } = await fetchF29Estado(session, { rut, periodo });
     if (declaraciones.some(isVigente)) {
       declarante = true;
@@ -245,7 +278,11 @@ async function leerF29(
       });
       continue;
     }
-    const venc = vencimientoF29(periodo);
+    // Outside the account's own obligation window nothing was due: a month before the empresa
+    // existed is not a missing F29 (observed live: five false alertas before ADR-030's fix).
+    if (regimen.inicio && antes(periodo, regimen.inicio)) continue;
+    if (regimen.termino && antes(regimen.termino, periodo)) continue;
+    const venc = vencimientoF29(periodo, regimen.dia);
     if (today <= isoDate(venc.conPago)) continue; // due date not passed: still on time
     sinDeclarar.push({
       ...base('f29'),

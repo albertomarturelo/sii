@@ -18,6 +18,11 @@ const DatosCntr = z
         apellidoPaterno: z.string().nullish(),
         apellidoMaterno: z.string().nullish(),
         eMail: z.string().nullish(),
+        // The F29 obligation window and deadline regime (`alertas`, ADR-030). Observed
+        // 2026-10-23 on an empresa: `"2026-03-26 00:00:00.0"`, `null`, `"S"`.
+        fechaInicioActividades: z.string().nullish(),
+        fechaTerminoGiro: z.string().nullish(),
+        autorizadoDeclararDia20: z.string().nullish(),
       })
       .loose()
       .optional(),
