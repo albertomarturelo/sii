@@ -1,8 +1,11 @@
-<!-- Slash command: /issue:start <issue-number>
-     Pick up a GitHub issue as the focus of THIS session.
-     Token budget: ~2,000–4,000 (issue + ADRs + 1 reference file).
-
-     Repo slug: albertomarturelo/sii. -->
+---
+name: issue-start
+description: "Pick up a GitHub issue as the focus of this session: fetch it, load its ADRs and one reference file, create the branch, and state the objective + acceptance checklist. Invoke explicitly with an issue number."
+argument-hint: "[issue-number]"
+disable-model-invocation: true
+metadata:
+  token-budget: "~2,000–4,000 (issue + ADRs + 1 reference file)"
+---
 
 The user passes an issue number. If they don't, ask which (or list open
 issues via `gh issue list --repo albertomarturelo/sii --state open`).
@@ -41,7 +44,7 @@ issues via `gh issue list --repo albertomarturelo/sii --state open`).
 8. Ask: **"Ready to start?"**
 
 If `Estimated sessions` > 1, remind the user the issue should have been
-decomposed and ask whether to split it now via `/issue:new`.
+decomposed and ask whether to split it now via `/issue-new`.
 
 **Token discipline:** do NOT scan target files or neighboring modules at
 this step. The issue body + ADRs are the spec. Code reading happens when

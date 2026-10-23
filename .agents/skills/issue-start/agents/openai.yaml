@@ -1,0 +1,4 @@
+# Codex runs this skill only on explicit $issue-start, mirroring
+# disable-model-invocation in SKILL.md for Claude Code.
+policy:
+  allow_implicit_invocation: false

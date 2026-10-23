@@ -1,6 +1,9 @@
-<!-- Slash command: /context:validate
-     Invoke periodically (weekly recommended) to check context integrity.
-     Token budget: ~2,000–5,000. -->
+---
+name: validate-context
+description: "Audit CFD context integrity (CLAUDE.md size/shape, ROADMAP freshness, ADR index sync and completeness, conventions, the ADR-003 surface boundary, language) and report PASS/WARN/FAIL with proposed fixes. Use when asked to audit the context, or before a push or a release."
+metadata:
+  token-budget: "~2,000–5,000"
+---
 
 Validate the CFD context in this project. Check, in order, and output a
 checklist with PASS / WARN / FAIL per item:

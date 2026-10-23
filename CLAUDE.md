@@ -66,7 +66,7 @@ hard-won SII wire knowledge and guardrails are PORTED, the code is not.
   code comment. (ADR-004)
 - **Decisions get an ADR BEFORE implementation.** About to add a dependency,
   move a layer boundary, or pick between plausible patterns? Run
-  `/decision:new` first. (ADR-001 / CFD)
+  `/new-decision` first. (ADR-001 / CFD)
 - **Corrections become conventions.** Fix the same pattern twice → write it into
   `docs/CONVENTIONS.md` in the same commit.
 - **Identity is single-account + operate-centric.** One live session at a time
@@ -81,6 +81,7 @@ hard-won SII wire knowledge and guardrails are PORTED, the code is not.
 <!--
 This file is the INDEX, not the encyclopedia. Adding paragraphs here? Move them
 to a docs/*.md file and @reference it. Target ≤150 lines.
-Slash commands live in .claude/commands/ — run /session:start at the start of a
-session and /session:close before ending one.
+CFD procedures are Agent Skills in .agents/skills/ (.claude/skills is a symlink to
+it) — run /session-start at the start of a session and /session-close before
+ending one.
 -->

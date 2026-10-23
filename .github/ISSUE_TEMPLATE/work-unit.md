@@ -5,9 +5,9 @@ title: ""
 labels: []
 ---
 
-<!-- Fixed 6-section body. `/issue:start` parses by section header — do NOT
+<!-- Fixed 6-section body. `/issue-start` parses by section header — do NOT
      rename or reorder. If a section truly does not apply (e.g. Reproduction on
-     a feature), remove ONLY that section. See .claude/commands/issue-new.md. -->
+     a feature), remove ONLY that section. See .agents/skills/issue-new/SKILL.md. -->
 
 ## Context
 
@@ -23,7 +23,7 @@ labels: []
 <!-- ADR numbers the agent must read before starting — at minimum the
      architectural ones the change touches (ADR-003 core boundary/seams,
      ADR-004 SII domain, ADR-005 identity/operate, ADR-006 auth).
-     If a needed decision isn't an ADR yet, STOP and run /decision:new first. -->
+     If a needed decision isn't an ADR yet, STOP and run /new-decision first. -->
 
 - [ADR-NNN](docs/decisions/NNN-*.md)
 

@@ -40,7 +40,8 @@ sii-new/                      # pnpm workspaces, TypeScript project references
 │   ├── cli/   (@albertomarturelo/sii-cli)     # Human CLI (terminal). Also what Claude Code drives via Bash.
 │   └── mcp/   (@albertomarturelo/sii-mcp)     # MCP stdio server. The integration point for Claude Code AND Claude Desktop.
 ├── docs/                     # CFD context layer (this file lives here)
-└── .claude/commands/         # CFD slash commands
+├── .agents/skills/           # CFD procedures as Agent Skills (ADR-001 amendment)
+└── .claude/skills -> ../.agents/skills
 ```
 
 - **`@albertomarturelo/sii-cli`** — the human terminal surface. Claude Code can also invoke it

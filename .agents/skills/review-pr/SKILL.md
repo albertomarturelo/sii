@@ -1,9 +1,10 @@
-<!-- Slash command: /review-pr <PR-number>
-     Review a PR against the project's CONTEXT (ADRs + CONVENTIONS +
-     linked issue AC) WITHOUT scanning full files. Token budget: ≤6,000.
-     English-only output.
-
-     Repo slug: albertomarturelo/sii. -->
+---
+name: review-pr
+description: "Review a PR against the project's context (ADRs, CONVENTIONS, the linked issue's acceptance criteria) without scanning full files; report Critical / Suggestions / Nits, never auto-fix. Use when asked to review a pull request, or to self-review before opening one."
+argument-hint: "[pr-number]"
+metadata:
+  token-budget: "≤6,000"
+---
 
 The user passes a PR number. If not provided, infer from the current
 branch (`gh pr status --repo albertomarturelo/sii --json number --jq '.currentBranch.number'`).

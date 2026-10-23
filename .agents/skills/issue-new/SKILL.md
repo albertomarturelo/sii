@@ -1,9 +1,10 @@
-<!-- Slash command: /issue:new
-     Create a self-sufficient unit of work in GitHub Issues.
-     Token budget for the full flow: ~1,500–3,000.
-
-     The completeness of this issue determines how cheaply the NEXT
-     session starts. Be thorough HERE so you can be cheap THERE. -->
+---
+name: issue-new
+description: "Create a self-sufficient GitHub issue on albertomarturelo/sii with the fixed 6-section CFD body. Invoke explicitly when a new unit of work needs an issue."
+disable-model-invocation: true
+metadata:
+  token-budget: "~1,500–3,000 for the full flow"
+---
 
 Guide the user through creating a new GitHub issue on `albertomarturelo/sii`
 using the fixed 6-section body template.
@@ -22,7 +23,7 @@ Ask, in order, and confirm each answer before moving on:
    At minimum the architectural ones the change touches: `ADR-003` for
    anything crossing the core boundary / ports, `ADR-004` for any SII
    domain code, `ADR-005` for identity/operate, `ADR-006` for auth.
-   **If a needed decision isn't an ADR yet, STOP and run `/decision:new`
+   **If a needed decision isn't an ADR yet, STOP and run `/new-decision`
    first.**
 7. **Acceptance criteria (DoD).** Bulleted markdown `[ ]` items.
    Include all three of:
@@ -41,7 +42,7 @@ Ask, in order, and confirm each answer before moving on:
     `portal`, `identity`, `docs`, `tests`).
 
 Then generate the body using the fixed template (do NOT deviate from
-section order or names — `/issue:start` parses by section header):
+section order or names — `/issue-start` parses by section header):
 
 ```markdown
 ## Context

@@ -1,7 +1,8 @@
 **/dist/**
 node_modules/**
 pnpm-lock.yaml
-# CFD docs + slash commands keep their hand-authored formatting (markdownlint owns them)
+# CFD docs + skills keep their hand-authored formatting (markdownlint owns them)
 docs/**
 *.md
 .claude/**
+.agents/**

@@ -1,6 +1,10 @@
-<!-- Slash command: /session:start (alias: /project:status)
-     Invoke at the BEGINNING of every working session.
-     Token budget: ~500–1,500. -->
+---
+name: session-start
+description: "Orient at the start of a session: read docs/ROADMAP.md, the ADR index, the last commits and the open issues in ~1k tokens, then state what moved last, what is blocked and the focus. Invoke explicitly at the start of every working session."
+disable-model-invocation: true
+metadata:
+  token-budget: "~500–1,500"
+---
 
 Read the following files in order, then produce a brief summary:
 
