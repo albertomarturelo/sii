@@ -24,7 +24,8 @@ conocimiento del SII y los guardrails se **portan**; el código se escribe nuevo
 Superficies de **lectura** operativas y validadas en vivo: autenticación
 (`auth`), representación (`operate`), **RCV**, **F22** (status / formulario /
 observaciones / historial / terceros), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
-(consulta pública), **whoami** y **peticiones administrativas** (SISPAD).
+(consulta pública), **whoami**, **peticiones administrativas** (SISPAD) y **alertas** (lo
+que el SII tiene pendiente contigo y no te avisa).
 
 El login de la CLI **no usa navegador**
 ([ADR-027](docs/decisions/027-http-portal-driver.md)): es un POST directo al formulario
@@ -55,8 +56,10 @@ Primera superficie de **descarga de documentos**: `f29 pdf`, que guarda en disco
 el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuando el
 período fue pagado, **su comprobante de pago**— y el Certificado de Declaración.
 
-Primera superficie de **escritura**: `bte emit` (emisión de Boletas de Honorarios
-Electrónicas).
+Superficies de **escritura**: `bte emit` (emisión de Boletas de Honorarios Electrónicas) y
+`f29 submit` (presentar el F29 con la propuesta del SII; solo declara, nunca paga —
+[ADR-029](docs/decisions/029-f29-submit-propuesta.md)). Las dos parten por una vista previa y
+exigen repetir el monto para el paso irreversible.
 
 **Facturación por el Portal MIPYME** (`sii dte`): prepara una factura (DTE 33/34) con
 la Clave —sin certificado digital—, la guarda como **borrador**, te da el PDF de vista
@@ -91,6 +94,28 @@ decidió y por qué: [Decisiones de 0.11.0](#decisiones-de-0110).
   del declarante, que puede ser una persona natural, sí aparecen.
 - **También en 0.14.0:** `operate --list` muestra el nombre de tu cuenta, no tu RUT (tras un
   nuevo login).
+
+**Novedades en 0.15.0:** **lo que el SII no te avisa** (`alertas`) y **presentar el F29**
+(`f29 submit`).
+- **`alertas`:** en una sola sesión, las observaciones del F22 de los últimos 3 años, los F29
+  guardados sin enviar, rechazados o sin declarar pasado su vencimiento (últimos 12 meses), y
+  el último estado de cada petición administrativa.
+  - Cada alerta trae un `id` estable: una rutina diaria avisa solo de lo nuevo, sin que la CLI
+    guarde nada. `--desde` filtra por fecha y `--fuentes` limita las ~20 consultas al SII.
+  - Un mes sin F29 solo cuenta dentro de tu ventana de obligación, que se lee de Mi SII: desde
+    el inicio de actividades, con el día de vencimiento de tu régimen. Una empresa Pro Pyme General la
+    recibe aunque nunca haya presentado; una cuenta que no declara F29 ve `no_declarante`.
+- **`f29 submit`:** `sii f29 submit <periodo>` muestra la propuesta del SII, los códigos que
+  calculan sus fórmulas y el TOTAL A PAGAR; `--confirm <total>` la presenta tal cual.
+  - Se niega antes de presentar si el SII calcula otro total o si el borrador validado no
+    coincide con la propuesta: que el SII diga «no presenta errores» no basta.
+  - No paga. Una respuesta perdida tras el envío se informa como sin confirmar y nunca se
+    reenvía, porque un segundo envío es una rectificatoria.
+  - Verificado byte a byte contra el navegador en capturas reales; la primera presentación en
+    vivo por la CLI está pendiente (#162). Revisa la propuesta antes de confirmar: puede venir
+    incompleta (PPM, retenciones, documentos fuera del RCV).
+- **Cambio para clientes MCP:** `auth_login`, `auth_status`, `auth_logout` y `operate`
+  devuelven el mismo JSON que `sii <cmd> --json`, en vez de texto.
 
 Checklist completo en [`docs/ROADMAP.md`](docs/ROADMAP.md); el historial de
 versiones, en [`CHANGELOG.md`](CHANGELOG.md).
@@ -152,6 +177,7 @@ sii auth login
 #    sii auth login --rut <tu-rut> --clave-env SII_CLAVE
 
 # 4) Úsalo desde la terminal
+sii alertas                    # lo que el SII tiene pendiente contigo y no te avisa
 sii peticiones list            # ¿tengo trámites detenidos ("en espera de Antecedentes")?
 sii rcv summary 2026-05        # resumen del RCV de compras
 sii f29 overview 2026          # posición de IVA mes a mes
@@ -352,10 +378,11 @@ el **MCP** las ofrece como *tools* a Claude; la **CLI**, como comandos `sii …`
 
 Claude ve las operaciones como herramientas con permiso configurable por
 herramienta (lectura vs escritura). Las de **escritura** —iniciar/cerrar sesión,
-operar como, guardar un borrador de factura, y **emitir** una BHE— quedan
-controladas. Dos son `destructive` y exigen confirmación explícita: `bte_emit`
-(irreversible y con validez legal, más el monto en eco) y `dte_borrador_delete`
-(borrar un borrador no se deshace). Guardar un borrador **no** lo es: es
+operar como, guardar un borrador de factura, **emitir** una BHE y **presentar** el F29—
+quedan controladas. Tres son `destructive` y exigen confirmación explícita: `bte_emit` y
+`f29_submit` (irreversibles y con validez legal, más el monto en eco) y
+`dte_borrador_delete` (borrar un borrador no se deshace). `f29_submit_preview` no presenta,
+pero deja un borrador «Guardada» en el SII, así que tampoco es de solo lectura. Guardar un borrador **no** lo es: es
 reversible y sin efecto legal, así que no pide ceremonia
 ([ADR-023](docs/decisions/023-factura-borradores-only.md)). **Emitir** una factura
 no está expuesto en ninguna herramienta.
@@ -385,12 +412,14 @@ en la conversación — lo abres tú desde la ruta que indica.
 - «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
 - «¿Tengo peticiones administrativas detenidas ante el SII (en espera de antecedentes)?» → `peticiones_list`
 - «¿A nombre de quién estoy registrado — razón social y correo?» → `whoami`
+- «¿Qué tengo pendiente con el SII que no me hayan avisado?» → `alertas`
+- «Prepárame el F29 de mayo 2026 con la propuesta del SII y muéstrame el total.» → `f29_submit_preview` (luego `f29_submit` solo con tu aprobación)
 - «Simula una boleta de honorarios de $500.000 a un cliente (sin emitir).» → `bte_emit_preview`
 - «Cambia a operar como la empresa que represento.» → `operate`
 
-> Emitir una BHE de verdad (`bte_emit`) **no** ocurre por un prompt suelto: es una
-> herramienta `destructive` que pide confirmación explícita + el monto en eco
-> (ADR-017). El login abre tu navegador en la página real del SII — la Clave nunca
+> Emitir una BHE de verdad (`bte_emit`) o presentar el F29 (`f29_submit`) **no** ocurre por
+> un prompt suelto: son herramientas `destructive` que piden confirmación explícita + el monto
+> en eco (ADR-017, ADR-029). El login abre tu navegador en la página real del SII — la Clave nunca
 > llega al modelo.
 
 ### Vía CLI (`sii`)
@@ -417,6 +446,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii f29 overview <desde> <hasta> \| <año>` | Posición de IVA mes a mes en un rango |
 | `sii f29 status <periodo>` | Estado del F29 de un mes |
 | `sii f29 pdf <periodo> [--tipo] [--out]` | Descarga el PDF del F29 presentado (y su comprobante de pago) |
+| `sii f29 submit <periodo>` (`--confirm <total>`) | Presenta el F29 con la propuesta del SII — por defecto vista previa (deja un borrador «Guardada»); la presentación real exige `--confirm` con el TOTAL A PAGAR |
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
@@ -427,6 +457,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii dte pdf <folio> --empresa <rut> [--out]` | Descarga el PDF de un documento emitido |
 | `sii peticiones list [--rut]` | Peticiones administrativas (SISPAD) + su timeline de estados |
 | `sii whoami` | Razón social/nombre + correo de la cuenta autenticada |
+| `sii alertas [--fuentes f22,f29,peticiones] [--desde <fecha>]` | Lo que el SII tiene pendiente contigo y no te avisa (F22, F29, peticiones), con `id` estable; ~20 consultas al SII |
 
 Las superficies **session-keyed** (`f22`, `f29`, `bte`) leen siempre el principal
 de la sesión (sin `--rut`); la **body-RUT** (`rcv`) acepta `--rut` / `operate`
