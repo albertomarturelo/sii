@@ -16,7 +16,7 @@ import {
   type ErrorKind,
 } from '../errors/index.js';
 import { DEFAULT_SETTINGS, HOSTS } from '../config/index.js';
-import { parseDatosCntrNow } from '../auth/datos-cntr.js';
+import { parseDatosCntrNow, type DatosCntr } from '../auth/datos-cntr.js';
 import {
   fetchF22Declaraciones,
   fetchF22Observaciones,
@@ -154,7 +154,21 @@ interface RegimenF29 {
   readonly inicio: Periodo | null; // no F29 is due before the month of inicio de actividades
   readonly termino: Periodo | null; // nor after the month of término de giro
   readonly dia: 12 | 20;
+  /** SII holds the account in a primera-categoría regime: F29 is due every month from this
+   *  month on, filed or not. `null` means unknown, never "not obligated". */
+  readonly obligadoDesde: Periodo | null;
 }
+
+// SII's FAQ: F29 is mandatory every month, sin movimiento included, for "todos aquellos
+// contribuyentes afectos a la Ley de Impuestos a las Ventas y Servicios" from the « Inicio de
+// Actividades en la primera categoría » (preguntas_frecuentes/impuestos_mensuales/
+// 001_130_1051.htm and 001_130_1053.htm, updated 05/06/2025, read 2026-10-23), until the término
+// de giro (001_130_2312.htm). The `atributos` codes of a primera-categoría regime, as observed:
+// only exact codes, a new one joins with its citation. A persona with only honorarios has an
+// inicio de actividades too but none of these (observed 2026-10-23: `NOTI`, `SGPE`).
+const REGIMEN_PRIMERA_CATEGORIA = new Set([
+  '14D1', // « REGIMEN PRO PYME GENERAL (14D) », observed 2026-10-23 on an empresa
+]);
 
 /** `"2026-03-26 00:00:00.0"` (observed) ⇒ that month; anything else ⇒ null (no bound). */
 function mesDe(s: string | null | undefined): Periodo | null {
@@ -162,16 +176,48 @@ function mesDe(s: string | null | undefined): Periodo | null {
   return m ? Periodo.of(Number(m[1]), Number(m[2])) : null;
 }
 
+/** An atributo's `fechaInicio`, `"26-03-2026"` (observed) ⇒ that month; anything else ⇒ null. */
+function mesDeAtributo(s: string | null | undefined): Periodo | null {
+  const m = s ? /^\d{2}-(\d{2})-(\d{4})$/.exec(s.trim()) : null;
+  return m ? Periodo.of(Number(m[2]), Number(m[1])) : null;
+}
+
 const antes = (a: Periodo, b: Periodo): boolean =>
   a.year < b.year || (a.year === b.year && a.month < b.month);
+
+/** The month the account entered an observed primera-categoría regime, and the inicio de
+ *  actividades, whichever is later: an account that moved from honorarios into the regime owed
+ *  nothing before it (#209 review). Either one unknown ⇒ null. */
+function obligadoDesde(
+  inicio: Periodo | null,
+  atributos: NonNullable<DatosCntr['atributos']>,
+): Periodo | null {
+  if (!inicio) return null; // no lower bound: "due every month" would reach before the account
+  const desde = atributos
+    .filter(
+      (a) =>
+        REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? '') &&
+        a.fechaTermino == null &&
+        a.eliminado == null,
+    )
+    .map((a) => mesDeAtributo(a.fechaInicio));
+  const meses = desde.filter((p): p is Periodo => p !== null);
+  // An active regime whose start does not parse is not proof of when the obligation began.
+  if (meses.length === 0 || meses.length < desde.length) return null;
+  const regimen = meses.reduce((a, b) => (antes(a, b) ? a : b));
+  return antes(regimen, inicio) ? inicio : regimen;
+}
 
 async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
   // A dead jar bounces here and the seam raises SessionExpiredError (aborts the read). A live
   // page without the object only loses the bounds: no window, and the later day-20 deadline.
   const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
-  const c = parseDatosCntrNow(body)?.contribuyente;
+  const datos = parseDatosCntrNow(body);
+  const c = datos?.contribuyente;
+  const inicio = mesDe(c?.fechaInicioActividades);
   return {
-    inicio: mesDe(c?.fechaInicioActividades),
+    inicio,
+    obligadoDesde: obligadoDesde(inicio, datos?.atributos ?? []),
     termino: mesDe(c?.fechaTerminoGiro),
     // `"S"` observed. A day-12 taxpayer says "N"; an unknown value keeps the 20th, the later of
     // the two, so the alerta is never early.
@@ -242,7 +288,7 @@ async function leerF29(
     return Periodo.of(d.getFullYear(), d.getMonth() + 1);
   });
   const regimen = await leerRegimen(session);
-  const sinDeclarar: Alerta[] = [];
+  const sinDeclarar: { periodo: Periodo; alerta: Alerta }[] = [];
   let declarante = false;
   for (let i = 0; i < periodos.length; i++) {
     const periodo = periodos[i]!;
@@ -285,22 +331,31 @@ async function leerF29(
     const venc = vencimientoF29(periodo, regimen.dia);
     if (today <= isoDate(venc.conPago)) continue; // due date not passed: still on time
     sinDeclarar.push({
-      ...base('f29'),
-      id: `f29:${periodo.formatted}:sin_declarar`,
-      tipo: 'f29_sin_declarar',
-      periodo: periodo.formatted,
-      fecha: isoDate(venc.conPago),
-      vencimiento: {
-        conPago: isoDate(venc.conPago),
-        sinPago: isoDate(venc.sinPago),
-        estimado: true,
+      periodo,
+      alerta: {
+        ...base('f29'),
+        id: `f29:${periodo.formatted}:sin_declarar`,
+        tipo: 'f29_sin_declarar',
+        periodo: periodo.formatted,
+        fecha: isoDate(venc.conPago),
+        vencimiento: {
+          conPago: isoDate(venc.conPago),
+          sinPago: isoDate(venc.sinPago),
+          estimado: true,
+        },
       },
     });
   }
   // An account with no Vigente F29 in the window does not file F29 (a persona without giro):
-  // twelve "sin declarar" would be noise, not alertas (ADR-030).
-  if (!declarante) return 'no_declarante';
-  for (const a of sinDeclarar) push(a);
+  // twelve "sin declarar" would be noise, not alertas (ADR-030). Unless SII holds it in a
+  // primera-categoría regime: then a new business that never filed is exactly the case (#208),
+  // from the month its obligation began.
+  const desde = declarante ? null : regimen.obligadoDesde;
+  if (!declarante && !desde) return 'no_declarante';
+  for (const { periodo, alerta } of sinDeclarar) {
+    if (desde && antes(periodo, desde)) continue;
+    push(alerta);
+  }
   return 'ok';
 }
 

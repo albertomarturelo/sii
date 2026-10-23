@@ -73,6 +73,30 @@ The sources also differ in auth mode: F22 / F29 are session-keyed, peticiones is
   notifications. Situación tributaria, notificaciones and F29 observaciones join as new `origen`s
   once their spikes land.
 
+## Amendment (2026-10-23, #208): SII's regime decides the obligation
+
+"Files F29" was inferred from activity: a Vigente F29 in the window. A new business that has not
+filed its first F29 has none, so it read `no_declarante`, the case it needs most. SII's FAQ puts
+the obligation on the regime, not on activity: F29 is mandatory every month, sin movimiento
+included, for "todos aquellos contribuyentes afectos a la Ley de Impuestos a las Ventas y
+Servicios" from the « Inicio de Actividades en la primera categoría » (`preguntas_frecuentes/
+impuestos_mensuales/001_130_1051.htm`, `001_130_1053.htm`, updated 05/06/2025, read 2026-10-23)
+until the término de giro (`001_130_2312.htm`).
+
+- **Obligated** = `DatosCntrNow.atributos[]` holds an active (no `fechaTermino`, no `eliminado`)
+  entry whose `atrCodigo` is a primera-categoría regime AND `fechaInicioActividades` is known.
+  Then `sin declarar` runs with no Vigente F29 needed, and the source reads `ok`, from the LATER
+  of the inicio month and the atributo's own `fechaInicio` (`DD-MM-YYYY`): an account that moved
+  from honorarios into the regime owed nothing before it. A start that does not parse ⇒ unknown. Observed 2026-10-23: the empresa carries `14D1` « REGIMEN PRO PYME GENERAL (14D) »;
+  the persona (honorarios only) has an inicio de actividades too, but only `NOTI` and `SGPE`
+  (« Categoría Contribuyente = 2 »), so inicio alone could not tell them apart.
+- **Only observed codes count** (today `14D1`). Another regime (transparente, semi-integrado…)
+  joins with its own observation. An unknown code, no atributos or an unparseable shape is
+  "unknown", never "not obligated": the activity rule above still applies.
+- Rejected: `fechaInicioActividades` alone (flags the persona); `FPYM` (facturador MIPYME), which
+  the FAQ ties to IVA only together with a first declaración con movimiento; waiting for the
+  situación tributaria (#204), whose actividades list "afecta IVA" but is not observed yet.
+
 ## Alternatives Considered
 
 1. **Wait for every source before shipping.** Rejected: two sources are unobserved and may need
@@ -93,8 +117,8 @@ The sources also differ in auth mode: F22 / F29 are session-keyed, peticiones is
 
 - Easier: a daily routine is one command and an id diff. A new source slots in as an `origen`
   without changing the shape.
-- Risk: an account with no Vigente F29 in the window is silent about missing months by design,
-  which includes a new business's first F29 (#208).
+- Risk: an account with no Vigente F29 in the window and no observed primera-categoría regime
+  is silent about missing months by design (a new business in an unobserved regime included).
   The due date is an estimate, and the result says so.
 - Obligation: the ids are a contract. Changing one makes every caller see an old alerta as new,
   so an id change is **Breaking** in the changelog (ADR-021 amendment).

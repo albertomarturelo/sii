@@ -48,7 +48,7 @@ Top level:
 | `sysdate` | null | |
 | `contribuyente` | object | the identity payload (below) |
 | `direcciones` | array | 1 entry observed (addresses — PII) |
-| `atributos` | array | 2 entries observed |
+| `atributos` | array | the account's SII registrations (below); 2–7 entries observed |
 | `alertas` | array | 0 entries observed |
 
 `contribuyente` (≈45 fields; **curated subset core reads is marked ✓**). The
@@ -91,6 +91,29 @@ remains future — CONVENTIONS: curated + raw for 30+ fields:
 | `personaMiSii` | string | | |
 
 (`contribuyente` also repeats `codigoError` / `descripcionError` / `sysdate`.)
+
+`atributos[]` entries (observed 2026-10-23 on both accounts; read by `alertas` for the F29
+obligation, #208 / ADR-030 amendment). **PII:** every entry repeats the own `rut` / `dv`, and
+`valor` of `NOTI` is the notification email — core curates only `atrCodigo`, `fechaInicio` and the end markers.
+
+| key | type | core reads | notes |
+| --- | --- | :---: | --- |
+| `rut` / `dv` | number / string | | the account's own RUT (PII) |
+| `atrCodigo` | string | ✓ | the registration code |
+| `descAtrCodigo` | string | | SII's label for the code |
+| `fechaInicio` | string | ✓ | `DD-MM-YYYY`; a regime's start bounds `alertas`' F29 obligation |
+| `fechaCreacion` | string | | `DD-MM-YYYY` |
+| `fechaTermino` | null | ✓ | `null` on every entry observed; set ⇒ the registration ended |
+| `eliminado` | null | ✓ | `null` on every entry observed |
+| `valor` | string | | free per code (`"S"`, `"SIMPLIFICADA"`, `"."`); the email under `NOTI` |
+| `usuarioActivacion` / `usuarioDesactivacion` | string / null | | |
+
+Codes observed: empresa — `14D1` « REGIMEN PRO PYME GENERAL (14D) » (✓ `alertas`: a
+primera-categoría regime ⇒ F29 due every month), `CPYM` « CONTABILIDAD REGIMEN TRIBUTARIO PYME »,
+`EMTP` « EMPRESA DE MENOR TAMANO », `FPYM` « FACTURADOR ELECTRONICO MIPYME », `NOTI`, `REGS`
+« CONTRIBUYENTE PERTENECE AL REGISTRO DE SOCIEDADES », `SGMI` « MICRO EMPRESA »; persona
+(honorarios) — `NOTI`, `SGPE` « PERSONA » (`valor` « Tipo contribuyente=1 y Categoría
+Contribuyente = 2 »).
 
 ## Verified this session (2026-06-28)
 

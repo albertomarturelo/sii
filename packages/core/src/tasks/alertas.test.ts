@@ -91,6 +91,8 @@ interface Script {
   dead?: boolean;
   /** Mi SII `DatosCntrNow.contribuyente` extras (the F29 window and regime); none ⇒ no bounds. */
   regimen?: Record<string, string | null>;
+  /** Mi SII `DatosCntrNow.atributos` (the account's SII registrations, #208). */
+  atributos?: unknown;
   /** Mi SII answers a page without `DatosCntrNow` (a changed page, not a dead session). */
   miSiiSinDatos?: boolean;
   /** A non-SII error escapes a facade (a bug in our code). Peticiones' facade does not wrap
@@ -110,7 +112,10 @@ function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
       restoreSession: {
         cookies: { TOKEN: 't' },
         // The fake synthesises the Mi SII HTML (DatosCntrNow) from this for requestText(miSii).
-        datos: () => ({ contribuyente: { rut: 20000042, dv: '0', ...s.regimen } }),
+        datos: () => ({
+          contribuyente: { rut: 20000042, dv: '0', ...s.regimen },
+          ...(s.atributos !== undefined && { atributos: s.atributos }),
+        }),
         requestJson: (url: string, options?: JsonRequest) => {
           if (s.dead) throw new NotAuthenticatedError('Sesión expirada (sintético).');
           if (url.includes('buscaDeclVgte')) {
@@ -349,6 +354,84 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     });
     expect(res.alertas).toEqual([]);
     expect(res.incompleto).toBe(false);
+  });
+
+  // #208: a new business that never filed has no Vigente F29 to prove it files. SII's own
+  // primera-categoría regime atributo does, from the month of inicio de actividades.
+  const atributo = (atrCodigo: string, extra: Record<string, unknown> = {}) => ({
+    rut: 20000042,
+    dv: '0',
+    atrCodigo,
+    fechaInicio: '10-08-2026',
+    fechaTermino: null,
+    eliminado: null,
+    ...extra,
+  });
+  const NUEVA = { fechaInicioActividades: '2026-08-10 00:00:00.0' };
+  const f29De = async (s: Script) => {
+    const { rt } = makeRuntime({ f29: 'empty', ...s });
+    await seed(rt);
+    const res = await alertas(rt, { fuentes: 'f29' });
+    return {
+      estado: res.fuentes.find((f) => f.origen === 'f29')?.estado,
+      sinDeclarar: res.alertas.filter((a) => a.tipo === 'f29_sin_declarar').map((a) => a.periodo),
+    };
+  };
+
+  it('an account in a primera-categoría regime gets its first F29s from inicio (#208)', async () => {
+    // 2026-08 due 2026-09-21 (the 20th is a Sunday), 2026-09 due 2026-10-20: both passed.
+    expect(await f29De({ regimen: NUEVA, atributos: [atributo('14D1')] })).toEqual({
+      estado: 'ok',
+      sinDeclarar: ['2026-08', '2026-09'],
+    });
+  });
+
+  it('the obligation starts at the later of inicio and the regime (#209 review)', async () => {
+    // From honorarios (inicio long before the window) into Pro Pyme in August: nothing before.
+    const antigua = { fechaInicioActividades: '2019-05-02 00:00:00.0' };
+    expect(
+      await f29De({
+        regimen: antigua,
+        atributos: [atributo('14D1', { fechaInicio: '15-08-2026' })],
+      }),
+    ).toEqual({ estado: 'ok', sinDeclarar: ['2026-08', '2026-09'] });
+    // An established obligated account that filed nothing in the window owes every month,
+    // sin movimiento included (FAQ 001_130_1053).
+    const todo = await f29De({
+      regimen: antigua,
+      atributos: [atributo('14D1', { fechaInicio: '02-05-2019' })],
+    });
+    expect(todo.estado).toBe('ok');
+    expect(todo.sinDeclarar).toHaveLength(12);
+    expect(todo.sinDeclarar[0]).toBe('2025-10');
+  });
+
+  it('without a known active regime it falls back to no_declarante (#208)', async () => {
+    const noDeclarante = { estado: 'no_declarante', sinDeclarar: [] };
+    // A persona with only honorarios: an inicio de actividades, no regime atributo (observed).
+    expect(
+      await f29De({ regimen: NUEVA, atributos: [atributo('NOTI'), atributo('SGPE')] }),
+    ).toEqual(noDeclarante);
+    // An unobserved code is not guessed; an ended or deleted regime no longer obliges.
+    expect(await f29De({ regimen: NUEVA, atributos: [atributo('14XX')] })).toEqual(noDeclarante);
+    expect(
+      await f29De({
+        regimen: NUEVA,
+        atributos: [atributo('14D1', { fechaTermino: '31-08-2026' })],
+      }),
+    ).toEqual(noDeclarante);
+    expect(
+      await f29De({ regimen: NUEVA, atributos: [atributo('14D1', { eliminado: 'S' })] }),
+    ).toEqual(noDeclarante);
+    // No inicio: no lower bound, so the regime alone would raise months before the account.
+    expect(await f29De({ atributos: [atributo('14D1')] })).toEqual(noDeclarante);
+    // An active regime whose start does not parse: when the obligation began is unknown.
+    expect(
+      await f29De({ regimen: NUEVA, atributos: [atributo('14D1', { fechaInicio: '2026-08-10' })] }),
+    ).toEqual(noDeclarante);
+    // No atributos at all, or a shape we do not know.
+    expect(await f29De({ regimen: NUEVA })).toEqual(noDeclarante);
+    expect(await f29De({ regimen: NUEVA, atributos: 'otra forma' })).toEqual(noDeclarante);
   });
 
   it('--fuentes reads only those, in canonical order, and reports the rest as omitted', async () => {
