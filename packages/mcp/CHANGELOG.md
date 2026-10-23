@@ -9,6 +9,23 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.15.0 — 2026-10-23
+
+### Added
+
+- **`alertas` (#195, #208)** (`fuentes`, `desde`; `readOnlyHint`). The description states the
+  cost and the PII the alertas carry.
+- **`f29_submit_preview` (#161)** (`periodo`; no `readOnlyHint`, it leaves a borrador « Guardada »)
+  and **`f29_submit`** (`periodo`, `confirmar: true`, `total`; `destructiveHint`). The description
+  says it files a legal declaration and tells the model to file only on the user's approval.
+
+### Changed
+
+- **Breaking: `auth_login`, `auth_status`, `auth_logout` and `operate` return JSON (#198).** The
+  same object as `sii <cmd> --json`, including the no-session shapes, instead of Spanish text. A
+  client that read the text should `JSON.parse` it. The hints the text carried moved into the
+  tool descriptions; errors are unchanged.
+
 ## 0.14.0 — 2026-10-21
 
 ### Added

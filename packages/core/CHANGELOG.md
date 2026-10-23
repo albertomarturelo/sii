@@ -4,6 +4,51 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.15.0 — 2026-10-23
+
+### Added
+
+- **`alertas(runtime, { fuentes?, desde? })` (#195, #208, ADR-030).** One `withSession` over the
+  F22, F29 and peticiones facades, paced, with one audit receipt (rut, count, each source's
+  estado). Returns `{ rut, alertas, fuentes, incompleto }`.
+  - Each `Alerta` is `{ id, tipo, origen, periodo, anio, folio, peticion, codigo, estado, mensaje,
+    url, fecha }` (+ `vencimiento` on `f29_sin_declarar`); the `id` is built from what the alerta
+    is, so it is stable across runs, and an id change will be marked **Breaking**.
+  - `fuentes` reports `ok` / `no_declarante` / `error` (with its `classifyError` kind) /
+    `omitida`. `NotAuthenticated`, `SessionExpired` and SII's rate limit abort the read; a
+    non-SII error propagates.
+  - The F29 window and due day come from the account's `DatosCntrNow`
+    (`fechaInicioActividades`, `fechaTerminoGiro`, `autorizadoDeclararDia20`). An active
+    primera-categoría regime in `DatosCntrNow.atributos` (observed `14D1`) makes the F29 due
+    from the later of inicio and the regime's start, with no earlier filing needed.
+  - Session-keyed: refuses a representing `operate` pointer before any call.
+- `FUENTES_ALERTAS` and the types `Alerta`, `AlertasArgs`, `AlertasResult`, `EstadoFuente`,
+  `FuenteAlertas`, `FuenteResultado`, `TipoAlerta`.
+- **`f29SubmitPreview` / `f29Submit` (#161, ADR-029).** The F29 write over the propuesta
+  handoff (`guardarPropuesta`, `enviarDatosFlujo`) and the rfiInternet GWT chain, with the form
+  interpreter filling the layout as SII's client does.
+  - The preview returns `{ rut, periodo, propuesta, calculados, total, desacuerdos,
+    listoParaPresentar, borradorGuardado }` and leaves a borrador « Guardada » at SII.
+  - `f29Submit` re-runs the chain, refuses a total other than SII's (`validation`) or any
+    disagreement between the validated FormularioRfi XML and the propuesta, saves once and files
+    once. It returns `{ rut, periodo, folio, total, estado, pagoUrl }`; `pagoUrl` stays `null`
+    until SII's payment link is observed.
+  - Only SII's own `//EX` (`F29RechazoError`) proves the filing call had no effect. Any other
+    failure after it was sent is reported as unconfirmed, after reading the estado, and never
+    resent. The audit carries rut, period, duration and folio only.
+  - Refuses a representing pointer, a Vigente período and a período without propuesta.
+- Types `F29SubmitPreview`, `F29SubmitResult`, `F29Desacuerdo`, `F29MotivoDesacuerdo`, and the
+  error class `F29RechazoError` (a `F29Error`, kind `sii_error`).
+
+### Fixed
+
+- **The protocol-7 GWT encoder shares cached boxes as the client JRE does (#161).** Equal
+  `Boolean`s, and equal `Byte` / `Short` / `Integer` / `Character` in -128..127, are one object,
+  written once and then back-referenced. Without it a rebuilt request carried the right values
+  but not the browser's bytes.
+- `parseDatosCntrNow` reads `atributos` (`atrCodigo`, `fechaInicio`, end markers); a changed
+  shape degrades to `null` and never costs the identity read.
+
 ## 0.14.0 — 2026-10-21
 
 ### Added

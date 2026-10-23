@@ -9,6 +9,17 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.15.0 — 2026-10-23
+
+### Added
+
+- **`sii alertas [--fuentes f22,f29,peticiones] [--desde YYYY-MM-DD]` (#195, #208).** What SII
+  holds against the account but does not push, in one session, each alerta with a stable `id`.
+  `--help` states the cost (~20 paced SII calls for a full read). Session-keyed.
+- **`sii f29 submit <periodo>` / `--confirm <total>` (#161).** Without `--confirm`, the preview
+  (leaves a borrador « Guardada » at SII); with it, files SII's propuesta once, declare only.
+  `--confirm` must repeat the TOTAL A PAGAR (91) of the preview. Session-keyed.
+
 ## 0.14.0 — 2026-10-21
 
 ### Added
