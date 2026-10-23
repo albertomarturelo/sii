@@ -5,7 +5,7 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 
 | ID  | Title                                                                                          | Status   | Date       |
 | --- | ---------------------------------------------------------------------------------------------- | -------- | ---------- |
-| 001 | [Adopt Context-First Development (CFD) for this repo](001-adopt-cfd-methodology.md)             | Accepted | 2026-06-27 |
+| 001 | [Adopt Context-First Development (CFD) for this repo](001-adopt-cfd-methodology.md)             | Accepted (amended: Agent Skills) | 2026-06-27 |
 | 002 | [TypeScript + Node + pnpm-workspaces monorepo toolchain](002-typescript-node-pnpm-monorepo.md)  | Accepted | 2026-06-27 |
 | 003 | [Shared core consumed by CLI + MCP; injectable seams for external deps](003-shared-core-ports-adapters.md) | Accepted | 2026-06-27 |
 | 004 | [Port the SII guardrails + ToS posture from sii-py](004-port-sii-guardrails-and-tos-posture.md) | Accepted | 2026-06-27 |

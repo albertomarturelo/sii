@@ -457,9 +457,9 @@ Requiere Node `>=20` y el pnpm fijado en `packageManager` (`package.json`).
 ## Metodología
 
 El repo corre bajo **Context-First Development (CFD)**: decisiones-antes-de-código
-(ADRs), una capa de contexto que cada sesión lee primero, y slash commands en
-`.claude/commands/` (`/session:start`, `/session:close`, `/decision:new`,
-`/issue:new`, `/issue:start`, `/review-pr`, `/context:validate`). Ver
+(ADRs), una capa de contexto que cada sesión lee primero, y los procedimientos como
+Agent Skills en `.agents/skills/` (`/session-start`, `/session-close`, `/new-decision`,
+`/issue-new`, `/issue-start`, `/review-pr`, `/validate-context`). Ver
 [ADR-001](docs/decisions/001-adopt-cfd-methodology.md).
 
 ## Seguridad

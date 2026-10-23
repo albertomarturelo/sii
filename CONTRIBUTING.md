@@ -22,58 +22,59 @@ boilerplate, it is how the project stays coherent.
 
 This repo runs under **Context-First Development** ([ADR-001](docs/decisions/001-adopt-cfd-methodology.md)):
 the context layer is read before code is written, and every step of the workflow
-has a written procedure. Those procedures live in [`.claude/commands/`](.claude/commands/)
-as slash commands.
+has a written procedure. Those procedures live in [`.agents/skills/`](.agents/skills/)
+as [Agent Skills](https://agentskills.io/specification), one `<name>/SKILL.md` each;
+`.claude/skills` is a symlink to that directory, so Claude Code and the agents that
+read `.agents/skills` (Codex, Copilot, Gemini CLI) share one copy.
 
-**You do not need Claude Code to contribute.** Each command is a plain markdown
+**You do not need Claude Code to contribute.** Each skill is a plain markdown
 file describing steps you can follow by hand. The checklists in those files are
-the contract; the slash command is only the convenience that runs them for you.
-The file name does not always mirror the command name — `/decision:new` lives in
-`new-decision.md` and `/context:validate` in `validate-context.md` — so each step
-below names its file.
+the contract; `/<name>` is only the convenience that runs them for you. The
+session and issue rituals run only when invoked by name; `new-decision`,
+`review-pr` and `validate-context` may also be picked up by the agent on its own.
 
 Run them in this order:
 
-1. **`/session:start`** (`session-start.md`) — orient: `ROADMAP.md`, the ADR index,
+1. **`/session-start`** (`session-start/SKILL.md`) — orient: `ROADMAP.md`, the ADR index,
    open issues. Produces a ~1k-token picture of what moved last and what is
    blocked. *Optional, but it is how you avoid duplicating work already in flight.*
-2. **`/issue:new`** (`issue-new.md`) — the unit of work, written in the fixed
+2. **`/issue-new`** (`issue-new/SKILL.md`) — the unit of work, written in the fixed
    **6-section body** (`Context`, `Target`, `ADRs to load`, `Acceptance criteria`,
    `Reproduction` (fixes only), `Estimated sessions`). Produces the GitHub issue.
-   *Mandatory — `/issue:start` parses that body by section header, so a free-form
+   *Mandatory — `/issue-start` parses that body by section header, so a free-form
    issue cannot be picked up. Open the issue before you write code, and if
    `Estimated sessions` is more than 1, split it into sub-issues before starting.*
-3. **`/issue:start <n>`** (`issue-start.md`) — loads the issue and **its listed ADRs
+3. **`/issue-start <n>`** (`issue-start/SKILL.md`) — loads the issue and **its listed ADRs
    before touching code**, then creates the branch. Produces the branch + the
    acceptance checklist you will paste into the PR. *Mandatory — the ADRs named in
    the issue are the constraints your implementation has to satisfy.*
-4. **`/decision:new`** (`new-decision.md`) — run this **before implementing any
+4. **`/new-decision`** (`new-decision/SKILL.md`) — run this **before implementing any
    decision that has no ADR yet**: adding a dependency, moving a layer boundary,
    choosing between two plausible patterns, or naming a new surface. Produces
    `docs/decisions/NNN-*.md` (≤100 lines, 5 mandatory sections) plus its
    `_index.md` row. *Mandatory for such changes, and the **ADR lands in the same PR
    as the code — never after**.*
-5. **`/context:validate`** (`validate-context.md`) — context-layer health, plus the
+5. **`/validate-context`** (`validate-context/SKILL.md`) — context-layer health, plus the
    three guards it shares with CI: ADR index integrity, ADR completeness, and the
    ADR-003 surface boundary. It does **not** run CI's PII or third-party-SII greps —
    those are CI-only, and the PII one is skipped on forks (see
    [below](#what-ci-checks--and-what-it-does-not-check-on-your-fork)). Produces a
    PASS/WARN/FAIL checklist. *Run it before every push.*
-6. **`/review-pr <n>`** (`review-pr.md`) — **self-review against the ADRs +
+6. **`/review-pr <n>`** (`review-pr/SKILL.md`) — **self-review against the ADRs +
    `CONVENTIONS.md` + your issue's acceptance criteria, BEFORE opening the PR**, and
    again after every push. Checks the diff against
    [the PR checklist](#the-pr-checklist) below and produces a Critical /
    Suggestions / Nits report. *Mandatory. The maintainer runs the identical command
    on your PR, so a clean self-review is what makes the maintainer's review a
    confirmation instead of a first pass.*
-7. **`/session:close`** (`session-close.md`) — close out: tick the `ROADMAP.md` row,
+7. **`/session-close`** (`session-close/SKILL.md`) — close out: tick the `ROADMAP.md` row,
    fold any correction into `CONVENTIONS.md`, propose an ADR for anything decided
    informally. Produces a session summary you can paste into the PR description.
    *Run it when you stop working, not only when you finish.*
 
 ## The PR checklist
 
-This is [`.claude/commands/review-pr.md`](.claude/commands/review-pr.md) in
+This is [`.agents/skills/review-pr/SKILL.md`](.agents/skills/review-pr/SKILL.md) in
 checklist form. **The checklist is the contract**; run it by hand if you do not use
 Claude Code. Every group cites the ADRs it enforces.
 
