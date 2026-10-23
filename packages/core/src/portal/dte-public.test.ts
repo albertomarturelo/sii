@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { FakePortalDriver } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
-import { DteError } from '../errors/index.js';
+import { DteError, NetworkError } from '../errors/index.js';
 import { fetchDteAutorizados } from './dte-public.js';
 
 // Synthetic data only (no real PII, no SII): subject RUT 20.000.042-0.
@@ -113,6 +113,15 @@ describe('DTE public facade (fake driver, synthetic HTML, no SII)', () => {
   it('a network/CGI failure becomes a DteError (never a raw fetch error)', async () => {
     const driver = new FakePortalDriver({ failPublic: new Error('ECONNRESET') });
     await expect(fetchDteAutorizados(driver, RUT)).rejects.toBeInstanceOf(DteError);
+  });
+
+  it('a NetworkError from the seam keeps its kind, not a DteError (#215)', async () => {
+    const failPublic = new NetworkError('Sin respuesta de palena.sii.cl: ECONNRESET', {
+      host: 'palena.sii.cl',
+      causa: 'ECONNRESET',
+    });
+    const driver = new FakePortalDriver({ failPublic });
+    await expect(fetchDteAutorizados(driver, RUT)).rejects.toBe(failPublic);
   });
 
   it('a non-200 response is a DteError (infrastructure failure, not a user condition)', async () => {

@@ -16,6 +16,7 @@ import {
   UnexpectedResponseError,
   ValidationError,
   classifyError,
+  type ErrorKind,
 } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
@@ -466,7 +467,7 @@ async function liveSessionFor(runtime: Runtime, rut: Rut): Promise<AuthLoginResu
 /** What a failed login's receipt says about the failure: its stable kind and, for a network
  *  failure, the host and Node's cause code (#215). A receipt that said only "failed" left the
  *  reader unable to tell a rejected Clave from a proxy cutting one host. Never the message. */
-function failureOf(err: unknown): { type: string; host?: string; causa?: string | null } {
+function failureOf(err: unknown): { type: ErrorKind; host?: string; causa?: string | null } {
   const { type } = classifyError(err);
   if (err instanceof NetworkError) return { type, host: err.host, causa: err.causa };
   return { type };

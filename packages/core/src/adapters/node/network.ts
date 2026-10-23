@@ -2,8 +2,8 @@
 // failed')` and keeps the reason in `cause`: a socket / DNS / TLS error carrying a `code`, or an
 // AggregateError with an empty message when every address of a host failed. Our timeout signal
 // rejects with a `TimeoutError` instead. Surfacing only the message hid an egress proxy that
-// resets the TLS handshake to ONE SII host (#215, Node 20.19: `ECONNRESET Client network socket
-// disconnected before secure TLS connection was established`, on misiir only).
+// resets the TLS handshake to ONE SII host (#215, observed 2026-10-23 on Node 20.19: `ECONNRESET
+// Client network socket disconnected before secure TLS connection was established`, misiir only).
 import { NetworkError } from '../../errors/index.js';
 
 // A cause message is Node's, not ours or SII's: bounded so a verbose TLS error stays one line.

@@ -6,6 +6,7 @@ import {
   BrowserRequiredError,
   LoginFailedError,
   LoginQueuedError,
+  NetworkError,
   SessionExpiredError,
 } from '../../errors/index.js';
 
@@ -130,6 +131,53 @@ describe('HttpPortalDriver — credentialLogin', () => {
     await expect(new HttpPortalDriver(impl).credentialLogin(LOGIN)).rejects.toBeInstanceOf(
       LoginQueuedError,
     );
+  });
+});
+
+describe('HttpPortalDriver — network failures (#215)', () => {
+  // The shape undici rejects with: a bare TypeError, the reason in `cause`.
+  const reset = (): TypeError =>
+    new TypeError('fetch failed', {
+      cause: Object.assign(
+        new Error(
+          'Client network socket disconnected before secure TLS connection was established',
+        ),
+        { code: 'ECONNRESET' },
+      ),
+    });
+
+  it('a login whose Mi SII hop is reset names that host, not a bare "fetch failed"', async () => {
+    // The contador bot's case: zeusr answered, misiir was reset by an egress proxy.
+    const impl = (async (input: string | URL) => {
+      const url = String(input);
+      // By host: the zeusr login URL carries Mi SII in its query (`referencia`).
+      if (new URL(url).host === 'misiir.sii.cl') throw reset();
+      if (url.includes('CAutInicio.cgi')) {
+        return new Response('', { status: 302, headers: { location: MI_SII } });
+      }
+      return new Response('');
+    }) as FetchLike;
+    const err: unknown = await new HttpPortalDriver(impl).credentialLogin(LOGIN).catch((e) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err).toMatchObject({ host: 'misiir.sii.cl', causa: 'ECONNRESET' });
+    expect((err as Error).message).not.toContain(LOGIN.clave);
+  });
+
+  it('a body cut mid-read is a NetworkError too', async () => {
+    const terminated = new TypeError('terminated', {
+      cause: Object.assign(new Error('other side closed'), { code: 'UND_ERR_SOCKET' }),
+    });
+    const impl = (async () =>
+      new Response(
+        new ReadableStream({
+          start: (c) => c.error(terminated),
+        }),
+        { headers: { 'content-type': 'application/json' } },
+      )) as FetchLike;
+    const session = await new HttpPortalDriver(impl).restore({ cookies: [] });
+    await expect(
+      session.requestJson('https://www4.sii.cl/x', { method: 'POST', body: {} }),
+    ).rejects.toMatchObject({ name: 'NetworkError', host: 'www4.sii.cl', causa: 'UND_ERR_SOCKET' });
   });
 });
 
