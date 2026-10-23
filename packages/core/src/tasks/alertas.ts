@@ -154,7 +154,21 @@ interface RegimenF29 {
   readonly inicio: Periodo | null; // no F29 is due before the month of inicio de actividades
   readonly termino: Periodo | null; // nor after the month of término de giro
   readonly dia: 12 | 20;
+  /** SII holds the account in a primera-categoría regime: F29 is due every month from its
+   *  inicio, filed or not. `false` means unknown, never "not obligated". */
+  readonly obligado: boolean;
 }
+
+// SII's FAQ: F29 is mandatory every month, sin movimiento included, for "todos aquellos
+// contribuyentes afectos a la Ley de Impuestos a las Ventas y Servicios" from the « Inicio de
+// Actividades en la primera categoría » (preguntas_frecuentes/impuestos_mensuales/
+// 001_130_1051.htm and 001_130_1053.htm, updated 05/06/2025, read 2026-10-23), until the término
+// de giro (001_130_2312.htm). The `atributos` codes of a primera-categoría regime, as observed:
+// only exact codes, a new one joins with its citation. A persona with only honorarios has an
+// inicio de actividades too but none of these (observed 2026-10-23: `NOTI`, `SGPE`).
+const REGIMEN_PRIMERA_CATEGORIA = new Set([
+  '14D1', // « REGIMEN PRO PYME GENERAL (14D) », observed 2026-10-23 on an empresa
+]);
 
 /** `"2026-03-26 00:00:00.0"` (observed) ⇒ that month; anything else ⇒ null (no bound). */
 function mesDe(s: string | null | undefined): Periodo | null {
@@ -169,9 +183,21 @@ async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
   // A dead jar bounces here and the seam raises SessionExpiredError (aborts the read). A live
   // page without the object only loses the bounds: no window, and the later day-20 deadline.
   const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
-  const c = parseDatosCntrNow(body)?.contribuyente;
+  const datos = parseDatosCntrNow(body);
+  const c = datos?.contribuyente;
+  const inicio = mesDe(c?.fechaInicioActividades);
   return {
-    inicio: mesDe(c?.fechaInicioActividades),
+    inicio,
+    // Without an inicio the window has no lower bound, and "due every month" would bring back
+    // the false alertas before the account existed: obligation needs both.
+    obligado:
+      inicio !== null &&
+      (datos?.atributos ?? []).some(
+        (a) =>
+          REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? '') &&
+          a.fechaTermino == null &&
+          a.eliminado == null,
+      ),
     termino: mesDe(c?.fechaTerminoGiro),
     // `"S"` observed. A day-12 taxpayer says "N"; an unknown value keeps the 20th, the later of
     // the two, so the alerta is never early.
@@ -298,8 +324,9 @@ async function leerF29(
     });
   }
   // An account with no Vigente F29 in the window does not file F29 (a persona without giro):
-  // twelve "sin declarar" would be noise, not alertas (ADR-030).
-  if (!declarante) return 'no_declarante';
+  // twelve "sin declarar" would be noise, not alertas (ADR-030). Unless SII holds it in a
+  // primera-categoría regime: then a new business that never filed is exactly the case (#208).
+  if (!declarante && !regimen.obligado) return 'no_declarante';
   for (const a of sinDeclarar) push(a);
   return 'ok';
 }
