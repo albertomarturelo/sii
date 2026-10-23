@@ -91,6 +91,10 @@ Token cost so far ~2–4k. **Still no full source-file reads.**
   updated if the module map changed; a new SII surface adds a `sii-contract/*.md`.
   A changed CLI command / flag / error kind updates the `docs/integrations/*/skill-*.md`
   that describe it, in the same PR.
+- A user-visible change (CLI verb / flag / output field, MCP tool or result, error kind, core
+  export) adds ONE line under `## Unreleased` in the root `CHANGELOG.md`, starting with
+  **Breaking** when it breaks a caller. Missing line = Suggestion; a breaking change without
+  the marker = Critical (the release's bump depends on it — ADR-021 amendment).
   (`CURRENT_STATUS.md` is NOT versioned — untracked since #79; never flag it here.)
 
 ## 4. Output a structured report

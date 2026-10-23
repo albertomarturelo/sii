@@ -1,5 +1,8 @@
 # ADR-021: Publish the CLI + MCP surfaces to public npm
 
+> **Amended 2026-10-23 (#202):** an `## Unreleased` changelog section and a patch/minor rule,
+> both enforced at the tag. [Amendment](#amendment-2026-10-23-202).
+
 ## Status
 
 Accepted — 2026-07-03. **Extends ADR-019** (which put `@albertomarturelo/sii-core` on the
@@ -38,6 +41,27 @@ lockstep with the core on the existing `v*`-tag CD:
   `npm i -g`, but the **Chromium binary is a documented one-time post-install step**
   (`npx playwright install chromium`), NOT a heavy automatic postinstall. This is the one UX
   cliff; the READMEs make it step 2.
+
+## Amendment (2026-10-23, #202)
+
+The lockstep and the CD stand. Two gaps were found in the versioning: nothing recorded
+user-visible changes between releases, and nothing said what a PATCH may carry.
+
+- **`## Unreleased` in the root `CHANGELOG.md`.** Each user-visible PR writes ONE line there in
+  its feature commit; a breaking one starts with **Breaking**. Before this, the release commit
+  rebuilt the list from `git log` (after 0.14.0, `main` held `f29 submit` and a breaking MCP
+  output change, #198, with no record of either). Only the root file gets it: four changelogs
+  per PR would conflict on every merge. The release commit expands the lines into the
+  per-package sections, as before.
+- **Pre-1.0 bump rule.** PATCH = `Fixed`, `Security`, non-breaking `Changed`. Anything `Added`,
+  `Removed` or **Breaking** ⇒ MINOR. (0.12.2 shipped an `### Added` in core as a patch.)
+- **Enforced at the tag, not by memory.** `release.yml` fails before publishing when
+  `## Unreleased` still holds an entry, or when a patch tag's sections (root or any package)
+  carry `### Added` / `### Removed` / `### Breaking` / `**Breaking`. Checked against the real
+  changelogs: v0.12.2 fails, v0.12.1 / v0.13.0 / v0.14.0 pass.
+- Rejected: a changeset tool (`changesets`), a new dependency and a second source of truth for
+  three lockstep packages. Rejected: a CI check on every PR for the line: "user-visible" is a
+  judgment, so `review-pr` checks it instead.
 
 ## Alternatives Considered
 

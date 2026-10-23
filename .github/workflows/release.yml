@@ -66,6 +66,50 @@ jobs:
           done
           echo "Tag ${GITHUB_REF_NAME} matches core + cli + mcp."
 
+      - name: Verify the changelog fits the bump (ADR-021 amendment)
+        # The release commit moves `## Unreleased` into the version's sections, so at the tag it
+        # must be empty: an entry left there is a change that ships without being announced.
+        # Pre-1.0, a PATCH carries fixes only; Added / Removed / Breaking need a MINOR. Both
+        # rules were met by memory before (0.12.2 shipped an `### Added` in core).
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          # A section's text, from its `## ` heading to the next one, HTML comments dropped.
+          section() {
+            awk -v head="$1" '
+              index($0, head) == 1 { inside = 1; next }
+              inside && /^## / { exit }
+              inside {
+                line = $0
+                if (incomment || line ~ /<!--/) { incomment = (line !~ /-->/); next }
+                print line
+              }
+            ' "$2"
+          }
+          left="$(section '## Unreleased' CHANGELOG.md | grep -v '^[[:space:]]*$' || true)"
+          if [ -n "$left" ]; then
+            echo "::error::CHANGELOG.md still has entries under '## Unreleased'. Move them into the ${version} sections in the release commit, then retag."
+            printf '%s\n' "$left"
+            exit 1
+          fi
+          patch="${version##*.}"
+          if [ "$patch" != "0" ]; then
+            bad=0
+            for f in CHANGELOG.md packages/core/CHANGELOG.md packages/cli/CHANGELOG.md packages/mcp/CHANGELOG.md; do
+              hits="$(section "## ${version} " "$f" | grep -nE '^### (Added|Removed|Breaking)|\*\*Breaking' || true)"
+              if [ -n "$hits" ]; then
+                echo "::error file=${f}::${version} is a PATCH but its section carries:"
+                printf '%s\n' "$hits"
+                bad=1
+              fi
+            done
+            if [ "$bad" = 1 ]; then
+              echo "::error::Added / Removed / Breaking ship in a MINOR before 1.0. Bump to the next minor and retag."
+              exit 1
+            fi
+          fi
+          echo "Changelog fits ${version}: Unreleased is empty and the sections match the bump."
+
       - name: Publish to public npm (idempotent — skips already-published versions)
         run: pnpm -r publish --no-git-checks --access public
         env:
