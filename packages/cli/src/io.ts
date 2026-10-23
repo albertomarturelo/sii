@@ -59,6 +59,8 @@ const EXIT_CODES: Record<ErrorKind, number> = {
   browser_required: 1,
   unexpected_response: 1,
   sii_error: 1,
+  // 1, not a new code: a consumer that predates the kind reads it as `unexpected`, which it was.
+  network: 1,
   unexpected: 1,
 };
 

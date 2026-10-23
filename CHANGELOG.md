@@ -23,6 +23,12 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **A network failure names the host and the cause (#215).** It answered a bare `fetch failed`
+  (`unexpected`); it is now the error kind `network` (exit 1, as before), its message names the SII
+  host and Node's cause (`ECONNRESET`, `ENOTFOUND`, `TIMEOUT`…), and the failed login's audit
+  receipt records the kind, host and cause. A read no longer reports it as « no es JSON ». Core
+  exports `NetworkError`.
+
 ## 0.15.0 — 2026-10-23 — Lo que SII no te avisa
 
 The CLI and the MCP read in one call what SII holds against you but never pushes, and they can

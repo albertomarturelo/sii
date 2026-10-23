@@ -13,6 +13,7 @@ import {
   LoginBlockedError,
   LoginFailedError,
   LoginQueuedError,
+  NetworkError,
   NotAuthenticatedError,
   SessionExpiredError,
   UnexpectedResponseError,
@@ -1040,6 +1041,29 @@ describe('auth — non-interactive login (ADR-028, synthetic data)', () => {
     const rt = makeRuntime(credDriver(realPersonaDatos));
     const res = await suppliedClaveLogin(rt, { ...ENV, source: 'stdin' });
     expect(res.reason).toBe('stdin_login');
+  });
+
+  it('a network failure is not a judged Clave: no latch, and the receipt names kind, host and cause (#215)', async () => {
+    const driver = new FakePortalDriver({
+      failCredentialLogin: new NetworkError('Sin respuesta de misiir.sii.cl: ECONNRESET …', {
+        host: 'misiir.sii.cl',
+        causa: 'ECONNRESET',
+      }),
+    });
+    const rt = makeRuntime(driver);
+    await expect(suppliedClaveLogin(rt, ENV)).rejects.toBeInstanceOf(NetworkError);
+    expect(await readLoginBlock(rt.store, CRED.rut)).toBeNull();
+    const failed = (rt.audit as RecordingAuditSink).entries.find(
+      (e) => e.action === 'auth_login' && e.result === 'failed',
+    );
+    expect(failed).toMatchObject({
+      rut: CRED.rut,
+      source: 'env',
+      type: 'network',
+      host: 'misiir.sii.cl',
+      causa: 'ECONNRESET',
+    });
+    expect(JSON.stringify(failed)).not.toContain(ENV.clave);
   });
 
   it('a live session for the same RUT answers already_authenticated, nothing submitted', async () => {

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { FakePortalSession } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
 import { Periodo } from '../periodo/index.js';
-import { RcvError, SessionExpiredError } from '../errors/index.js';
+import { NetworkError, RcvError, SessionExpiredError } from '../errors/index.js';
 import { fetchRcvResumen, fetchRcvDetalle } from './rcv.js';
 
 // Synthetic data only (no real PII, no SII): operating 20.000.042-0, emisor 77.777.777-7.
@@ -159,5 +159,17 @@ describe('RCV facade (fake session, synthetic envelopes, no SII)', () => {
     await expect(
       fetchRcvResumen(s, { rut: RUT, periodo: PERIODO, side: 'COMPRA' }),
     ).rejects.toBeInstanceOf(SessionExpiredError);
+  });
+
+  it('a network failure propagates as NetworkError, never as «no es JSON» (#215)', async () => {
+    const s = session(() => {
+      throw new NetworkError('Sin respuesta de www4.sii.cl: ECONNRESET', {
+        host: 'www4.sii.cl',
+        causa: 'ECONNRESET',
+      });
+    });
+    await expect(
+      fetchRcvResumen(s, { rut: RUT, periodo: PERIODO, side: 'COMPRA' }),
+    ).rejects.toBeInstanceOf(NetworkError);
   });
 });

@@ -18,7 +18,7 @@
 // `metaData.errors` (a list of {id, descripcion}) — NOT RCV's `respEstado.codRespuesta`.
 import { z } from 'zod';
 import { HOSTS } from '../../config/index.js';
-import { F22Error, NotAuthenticatedError } from '../../errors/index.js';
+import { F22Error, NetworkError, NotAuthenticatedError } from '../../errors/index.js';
 import type { Rut } from '../../rut/index.js';
 import type { JsonRequest, PortalSession } from '../../seams/index.js';
 
@@ -128,6 +128,8 @@ export async function postSdi(
   } catch (e) {
     // An expired/dead session (the seam raises it) is actionable — let it through.
     if (e instanceof NotAuthenticatedError) throw e;
+    // SII never answered: the network's cause, not a «no es JSON» (#215).
+    if (e instanceof NetworkError) throw e;
     throw new F22Error('Respuesta inesperada de SII (no es JSON).');
   }
   const parsed = Envelope.safeParse(raw);

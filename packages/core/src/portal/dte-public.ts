@@ -13,7 +13,7 @@
 // authorized docs. No JSON envelope, no captcha. We parse the table rows in-house with
 // a small tag stripper — stdlib only, no third-party HTML library (ADR-004).
 import { HOSTS } from '../config/index.js';
-import { DteError } from '../errors/index.js';
+import { DteError, NetworkError } from '../errors/index.js';
 import type { Rut } from '../rut/index.js';
 import type { PortalDriver, PublicResponse } from '../seams/index.js';
 
@@ -210,7 +210,7 @@ function parseReport(html: string, subjectCanonical: string): DteAutorizados {
  *  Hits the palena consulta CGI with no session, for ANY RUT incl. counterparties
  *  (ADR-014). Returns the resolution header + authorized-document grid, or a clean
  *  negative (`autorizado: false` + SII's verbatim `mensaje`) when the RUT is not a
- *  registered DTE emisor. Throws `DteError` on a network/CGI failure, a non-200, or an
+ *  registered DTE emisor. Throws `DteError` on a CGI failure, a non-200, or an
  *  unrecognizable body. `driver` is the seam — NO `PortalSession` (it is session-less). */
 export async function fetchDteAutorizados(driver: PortalDriver, rut: Rut): Promise<DteAutorizados> {
   let response: PublicResponse;
@@ -221,6 +221,7 @@ export async function fetchDteAutorizados(driver: PortalDriver, rut: Rut): Promi
       form: { RUT_EMP: String(rut.body), DV_EMP: rut.dv },
     });
   } catch (e) {
+    if (e instanceof NetworkError) throw e; // the network's cause, kind `network` (#215)
     throw new DteError(`No se pudo consultar el SII (${AUTORIZADOS_URL}): ${messageOf(e)}`);
   }
   // palena answers HTTP 200 for BOTH authorized and not-authorized; a non-200 is an

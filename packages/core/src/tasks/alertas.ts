@@ -420,8 +420,8 @@ export async function alertas(runtime: Runtime, args: AlertasArgs = {}): Promise
           estados.push({ origen, estado });
         } catch (e) {
           // A dead session or SII's rate limit ends the whole read: going on would mean asking
-          // again against a block (ADR-004). A bug (not a SiiError) must not hide as a source
-          // error either. Any other SII failure stops that source only; what it read stays.
+          // again against a block (ADR-004). A bug or a network failure (not a SiiError) must not
+          // hide as a source error either. Any other SII failure stops that source only; what it read stays.
           if (e instanceof NotAuthenticatedError || e instanceof RateLimitError) throw e;
           if (!(e instanceof SiiError)) throw e;
           estados.push({

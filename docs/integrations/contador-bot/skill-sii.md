@@ -105,6 +105,7 @@ Decide by `type`, never by the message text. An unknown `type` is treated as `un
 | `rate_limited` | SII limit or block | 4 | Stop; never retry |
 | `validation`, `credential_not_found`, `browser_required` | Wrong command or machine setup | 1 | Stop and notify |
 | `sii_error`, `unexpected_response`, `unexpected` | SII refused, or something changed | 1 | Stop and notify |
+| `network` | SII never answered; `error` names the host and the cause (e.g. `ECONNRESET`) | 1 | Stop and notify, quoting `error`: this computer's network must let every `*.sii.cl` host through. Never retry a login in the same run |
 
 `reason` and `codigo` come only with the `login_*` kinds.
 

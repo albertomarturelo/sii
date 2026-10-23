@@ -141,6 +141,10 @@ Python `sii-cli`, adapted to TypeScript.
   what tells you the endpoint is wrong. Never return the raw string from the seam: a bare
   value would sail past the facade's zod envelope (ADR-011) and hide a broken endpoint;
   the fix for such an endpoint is to call the RIGHT one, not to relax the seam.
+  **A facade's catch lets `NetworkError` through, like `NotAuthenticated` (#215).** SII never
+  answered, so it is not SII's response and must not read as « no es JSON »: the HTTP driver
+  raises it with the host and Node's cause, and it is not a `SiiError`, so a composite read
+  aborts on it. Six facades relabelled it before this rule.
 - **Inline-JS-map facades (legacy CGIs) go through `PortalSession.goto` + `evaluate`,
   NOT `requestJson`.** Some surfaces (BHE/BTE on `loa.sii.cl/cgi_IMT/`) serve an HTML
   skeleton whose tables are filled client-side from global JS maps (`xml_values`,

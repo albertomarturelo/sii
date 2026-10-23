@@ -7,6 +7,7 @@ import {
   LoginBlockedError,
   LoginFailedError,
   LoginQueuedError,
+  NetworkError,
   NotAuthenticatedError,
   RateLimitError,
   RcvError,
@@ -63,6 +64,11 @@ describe('classifyError', () => {
     expect(classifyError(new RcvError('m'))).toEqual({ type: 'sii_error' });
     expect(classifyError(new F29Error('m'))).toEqual({ type: 'sii_error' });
     expect(classifyError(new CarpetaError('m'))).toEqual({ type: 'sii_error' });
+  });
+
+  it('names a transport failure `network`, apart from a bug (#215)', () => {
+    const e = new NetworkError('m', { host: 'misiir.sii.cl', causa: 'ECONNRESET' });
+    expect(classifyError(e)).toEqual({ type: 'network' });
   });
 
   it('calls anything that is not a domain error unexpected', () => {

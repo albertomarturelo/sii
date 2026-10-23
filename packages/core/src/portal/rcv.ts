@@ -18,7 +18,7 @@
 // carrying the full row for tax-special fields (ADR-004 curated+raw).
 import { z } from 'zod';
 import { HOSTS } from '../config/index.js';
-import { NotAuthenticatedError, RcvError } from '../errors/index.js';
+import { NetworkError, NotAuthenticatedError, RcvError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import type { Periodo } from '../periodo/index.js';
 import type { JsonRequest, PortalSession } from '../seams/index.js';
@@ -241,9 +241,11 @@ async function postSdi(
   } catch (e) {
     // An expired/dead session is an ACTIONABLE NotAuthenticated (the seam detects the
     // login wall) — let it through verbatim so the user is told to re-login, not a
-    // misleading "no es JSON". Any other non-JSON / network failure becomes a typed
+    // misleading "no es JSON". Any other non-JSON failure becomes a typed
     // RcvError (ADR-004), never a raw Playwright error.
     if (e instanceof NotAuthenticatedError) throw e;
+    // SII never answered: the network's cause, not a «no es JSON» (#215).
+    if (e instanceof NetworkError) throw e;
     throw new RcvError('Respuesta inesperada de SII (no es JSON).');
   }
 }

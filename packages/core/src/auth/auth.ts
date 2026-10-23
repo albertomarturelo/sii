@@ -10,10 +10,12 @@ import {
   CredentialNotFoundError,
   LoginBlockedError,
   LoginFailedError,
+  NetworkError,
   NotAuthenticatedError,
   SessionExpiredError,
   UnexpectedResponseError,
   ValidationError,
+  classifyError,
 } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { recordAudit } from '../audit/index.js';
@@ -406,6 +408,7 @@ export async function login(
       result: 'failed',
       reason: 'browser_login',
       source: 'browser',
+      ...failureOf(err),
     });
     throw err;
   } finally {
@@ -458,6 +461,15 @@ async function liveSessionFor(runtime: Runtime, rut: Rut): Promise<AuthLoginResu
     );
   }
   return warm;
+}
+
+/** What a failed login's receipt says about the failure: its stable kind and, for a network
+ *  failure, the host and Node's cause code (#215). A receipt that said only "failed" left the
+ *  reader unable to tell a rejected Clave from a proxy cutting one host. Never the message. */
+function failureOf(err: unknown): { type: string; host?: string; causa?: string | null } {
+  const { type } = classifyError(err);
+  if (err instanceof NetworkError) return { type, host: err.host, causa: err.causa };
+  return { type };
 }
 
 /** The headless fill-and-submit shared by every Clave source (ADR-010 / ADR-025 / ADR-028) —
@@ -517,8 +529,10 @@ async function credentialLoginFlow(
     recordAudit(runtime, {
       action: 'auth_login',
       result: 'failed',
+      rut: rut.canonical,
       reason: `${source}_login`,
       source,
+      ...failureOf(err),
     });
     throw err;
   } finally {
