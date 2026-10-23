@@ -370,6 +370,14 @@ Python `sii-cli`, adapted to TypeScript.
   before it existed: "files F29 at least once in the window" was true, but it did not exist
   yet. Read the bounds SII holds for the account (`DatosCntrNow` `fechaInicioActividades`,
   `fechaTerminoGiro`, `autorizadoDeclararDia20`) before deciding something was due.
+  **The obligation itself comes from SII's registration, not from activity (#208).** Activity
+  ("a Vigente F29 in the window") misses a new business that never filed, and an inicio de
+  actividades alone also fits an honorarios-only persona. Read the regime SII holds
+  (`DatosCntrNow.atributos`, observed codes only) and start the obligation at the LATER of the
+  inicio and the regime's own start: the first version used the inicio alone, which the #209
+  review caught, and would have flagged the months before an account entered the regime. An
+  unknown code or an unparseable date is "unknown", never "not obligated"; keep the activity
+  rule as the fallback. A probe over `atributos` redacts `valor`: under `NOTI` it is the email.
 - **Validate a RUT locally (Mod-11) BEFORE any login attempt.** A malformed RUT
   must never become a wasted submit — repeated failed logins lock the account.
   The CLI parses + Mod-11-checks the RUT before prompting/sending the Clave; a
