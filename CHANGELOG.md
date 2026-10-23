@@ -29,6 +29,10 @@ Every decision behind a release is recorded as an ADR under
 - **Breaking (MCP):** `auth_login`, `auth_status`, `auth_logout` and `operate` answer the same
   JSON object as `sii <cmd> --json` instead of Spanish text, like every other tool. A client that
   read their text should `JSON.parse` it; errors are unchanged (#198).
+- `sii alertas` and the MCP's `alertas`: one read of what SII holds against you but does not
+  push (F22 observaciones, F29 guardados / rechazados / sin declarar, peticiones' latest
+  state), each with a stable `id` to diff runs; `--fuentes` limits the ~20 SII calls (ADR-030,
+  #195).
 
 ## 0.14.0 — 2026-10-21 — Lo que otros informaron de ti
 
