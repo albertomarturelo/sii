@@ -386,6 +386,26 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     });
   });
 
+  it('the obligation starts at the later of inicio and the regime (#209 review)', async () => {
+    // From honorarios (inicio long before the window) into Pro Pyme in August: nothing before.
+    const antigua = { fechaInicioActividades: '2019-05-02 00:00:00.0' };
+    expect(
+      await f29De({
+        regimen: antigua,
+        atributos: [atributo('14D1', { fechaInicio: '15-08-2026' })],
+      }),
+    ).toEqual({ estado: 'ok', sinDeclarar: ['2026-08', '2026-09'] });
+    // An established obligated account that filed nothing in the window owes every month,
+    // sin movimiento included (FAQ 001_130_1053).
+    const todo = await f29De({
+      regimen: antigua,
+      atributos: [atributo('14D1', { fechaInicio: '02-05-2019' })],
+    });
+    expect(todo.estado).toBe('ok');
+    expect(todo.sinDeclarar).toHaveLength(12);
+    expect(todo.sinDeclarar[0]).toBe('2025-10');
+  });
+
   it('without a known active regime it falls back to no_declarante (#208)', async () => {
     const noDeclarante = { estado: 'no_declarante', sinDeclarar: [] };
     // A persona with only honorarios: an inicio de actividades, no regime atributo (observed).
@@ -405,6 +425,10 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     ).toEqual(noDeclarante);
     // No inicio: no lower bound, so the regime alone would raise months before the account.
     expect(await f29De({ atributos: [atributo('14D1')] })).toEqual(noDeclarante);
+    // An active regime whose start does not parse: when the obligation began is unknown.
+    expect(
+      await f29De({ regimen: NUEVA, atributos: [atributo('14D1', { fechaInicio: '2026-08-10' })] }),
+    ).toEqual(noDeclarante);
     // No atributos at all, or a shape we do not know.
     expect(await f29De({ regimen: NUEVA })).toEqual(noDeclarante);
     expect(await f29De({ regimen: NUEVA, atributos: 'otra forma' })).toEqual(noDeclarante);

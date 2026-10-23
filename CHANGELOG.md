@@ -31,10 +31,9 @@ Every decision behind a release is recorded as an ADR under
   read their text should `JSON.parse` it; errors are unchanged (#198).
 - `sii alertas` and the MCP's `alertas`: one read of what SII holds against you but does not
   push (F22 observaciones, F29 guardados / rechazados / sin declarar, peticiones' latest
-  state), each with a stable `id` to diff runs; `--fuentes` limits the ~20 SII calls (ADR-030,
-  #195).
-- `sii alertas` reports a new business's missing F29 from its inicio de actividades when SII
-  holds it in a primera-categoría regime (Pro Pyme General), instead of `no_declarante` (#208).
+  state), each with a stable `id` to diff runs; `--fuentes` limits the ~20 SII calls. A missing
+  F29 counts from the inicio de actividades, and an account SII holds in a primera-categoría
+  regime (Pro Pyme General) gets it even before its first filing (ADR-030, #195, #208).
 
 ## 0.14.0 — 2026-10-21 — Lo que otros informaron de ti
 

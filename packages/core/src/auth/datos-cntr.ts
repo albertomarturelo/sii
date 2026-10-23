@@ -29,14 +29,15 @@ const DatosCntr = z
     // The account's SII registrations (`alertas` reads the tax regime off it, #208). Observed
     // 2026-10-23: `{ atrCodigo: "14D1", descAtrCodigo: "REGIMEN PRO PYME GENERAL (14D)",
     // fechaInicio: "26-03-2026", fechaTermino: null, eliminado: null, … }`. Entries also carry
-    // the own RUT and, under `NOTI`, the notification email in `valor`, so only the code and the
-    // end markers are curated. `.catch(null)`: a changed shape loses the regime, never the
+    // the own RUT and, under `NOTI`, the notification email in `valor`, so only the code, its start
+    // and the end markers are curated. `.catch(null)`: a changed shape loses the regime, never the
     // identity read the login depends on.
     atributos: z
       .array(
         z
           .object({
             atrCodigo: z.string().nullish(),
+            fechaInicio: z.string().nullish(),
             fechaTermino: z.unknown().optional(),
             eliminado: z.unknown().optional(),
           })

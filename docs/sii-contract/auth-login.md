@@ -94,14 +94,15 @@ remains future — CONVENTIONS: curated + raw for 30+ fields:
 
 `atributos[]` entries (observed 2026-10-23 on both accounts; read by `alertas` for the F29
 obligation, #208 / ADR-030 amendment). **PII:** every entry repeats the own `rut` / `dv`, and
-`valor` of `NOTI` is the notification email — core curates only `atrCodigo` and the end markers.
+`valor` of `NOTI` is the notification email — core curates only `atrCodigo`, `fechaInicio` and the end markers.
 
 | key | type | core reads | notes |
 | --- | --- | :---: | --- |
 | `rut` / `dv` | number / string | | the account's own RUT (PII) |
 | `atrCodigo` | string | ✓ | the registration code |
 | `descAtrCodigo` | string | | SII's label for the code |
-| `fechaInicio` / `fechaCreacion` | string | | `DD-MM-YYYY` |
+| `fechaInicio` | string | ✓ | `DD-MM-YYYY`; a regime's start bounds `alertas`' F29 obligation |
+| `fechaCreacion` | string | | `DD-MM-YYYY` |
 | `fechaTermino` | null | ✓ | `null` on every entry observed; set ⇒ the registration ended |
 | `eliminado` | null | ✓ | `null` on every entry observed |
 | `valor` | string | | free per code (`"S"`, `"SIMPLIFICADA"`, `"."`); the email under `NOTI` |

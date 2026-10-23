@@ -85,8 +85,9 @@ until the término de giro (`001_130_2312.htm`).
 
 - **Obligated** = `DatosCntrNow.atributos[]` holds an active (no `fechaTermino`, no `eliminado`)
   entry whose `atrCodigo` is a primera-categoría regime AND `fechaInicioActividades` is known.
-  Then `sin declarar` runs from the month of inicio with no Vigente F29 needed, and the source
-  reads `ok`. Observed 2026-10-23: the empresa carries `14D1` « REGIMEN PRO PYME GENERAL (14D) »;
+  Then `sin declarar` runs with no Vigente F29 needed, and the source reads `ok`, from the LATER
+  of the inicio month and the atributo's own `fechaInicio` (`DD-MM-YYYY`): an account that moved
+  from honorarios into the regime owed nothing before it. A start that does not parse ⇒ unknown. Observed 2026-10-23: the empresa carries `14D1` « REGIMEN PRO PYME GENERAL (14D) »;
   the persona (honorarios only) has an inicio de actividades too, but only `NOTI` and `SGPE`
   (« Categoría Contribuyente = 2 »), so inicio alone could not tell them apart.
 - **Only observed codes count** (today `14D1`). Another regime (transparente, semi-integrado…)
