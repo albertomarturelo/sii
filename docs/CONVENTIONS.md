@@ -246,7 +246,11 @@ Python `sii-cli`, adapted to TypeScript.
   irreversible call, check what SII validated against the source it came from (the propuesta,
   the formulas), and refuse on any disagreement without contacting the irreversible endpoint.
   **An ambiguous outcome is resolved by reading state, never by resending:** a second F29 send
-  is a rectificatoria.
+  is a rectificatoria. Only the server's own refusal proves the irreversible call had no effect
+  (rfiInternet's `//EX`, raised as `F29RechazoError`). A lost answer, a body that does not parse
+  or a dead session after the call was sent is UNCONFIRMED: read the state, and say so when it
+  does not settle it. An error class shared by "SII said no" and "we could not read SII's
+  answer" must not decide this (#193 review).
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
