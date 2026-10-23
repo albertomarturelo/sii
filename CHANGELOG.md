@@ -23,17 +23,46 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- `sii f29 submit <periodo>` and the MCP's `f29_submit_preview` / `f29_submit` file SII's F29
-  propuesta as-is: a preview first, `--confirm <total>` to file, declare only, and SII's payment
-  link back (ADR-029, #193).
-- **Breaking (MCP):** `auth_login`, `auth_status`, `auth_logout` and `operate` answer the same
-  JSON object as `sii <cmd> --json` instead of Spanish text, like every other tool. A client that
-  read their text should `JSON.parse` it; errors are unchanged (#198).
-- `sii alertas` and the MCP's `alertas`: one read of what SII holds against you but does not
-  push (F22 observaciones, F29 guardados / rechazados / sin declarar, peticiones' latest
-  state), each with a stable `id` to diff runs; `--fuentes` limits the ~20 SII calls. A missing
-  F29 counts from the inicio de actividades, and an account SII holds in a primera-categoría
-  regime (Pro Pyme General) gets it even before its first filing (ADR-030, #195, #208).
+## 0.15.0 — 2026-10-23 — Lo que SII no te avisa
+
+The CLI and the MCP read in one call what SII holds against you but never pushes, and they can
+file the F29.
+
+**`alertas` (#195, #208).** SII does not notify an F22 observación, a petición waiting for
+antecedentes, or a month without F29.
+- `sii alertas` reads them in ONE session and returns one list: the F22 observaciones of the
+  last 3 años tributarios, the F29 « Guardada » never sent, « Rechazada por pago inconcluso »,
+  unobserved estados and months not filed past their due date (last 12 períodos), and each
+  petición's latest state.
+- Every alerta has a stable `id`, so a routine reports only what is new without the CLI storing
+  anything. `--desde` filters by date; `--fuentes f22,f29,peticiones` limits the ~20 paced SII
+  calls of a full read.
+- A missing F29 is only reported inside the account's own obligation window, read from Mi SII:
+  from the inicio de actividades to the término de giro, with the due day (12 or 20) of its
+  regime. An account SII holds in a primera-categoría regime (Pro Pyme General) gets it even
+  before its first filing; an account that does not file F29 reads `no_declarante`.
+- A source that fails is reported in `fuentes` / `incompleto` and the others still return; a
+  dead session or SII's rate limit stops the read. The MCP's `alertas` does the same.
+
+**`f29 submit` (#161, ADR-029).** The F29 is filed from SII's propuesta, as SII proposes it.
+- `sii f29 submit <periodo>` is the preview: SII validates the borrador, and the result shows the
+  propuesta, the códigos SII's formulas compute and the TOTAL A PAGAR (91). It files nothing,
+  but leaves a borrador « Guardada » at SII.
+- `--confirm <total>` files it, and must repeat that total. It refuses before filing when SII
+  computes another total, when the validated borrador disagrees with the propuesta (SII's "no
+  presenta errores" is not taken as proof), for a período already Vigente and for one without
+  propuesta.
+- It declares only and never pays. An answer that is lost after the filing call is reported as
+  unconfirmed and never resent: a second filing is a rectificatoria.
+- The MCP's `f29_submit_preview` and `f29_submit` (`destructiveHint`, `confirmar` + `total`) do
+  the same. The contador bot's skill files only on the user's typed approval.
+- Checked byte for byte against the browser's real requests on two private captures. The first
+  live filing through the CLI is still pending (#162).
+
+**Breaking (MCP): the session tools answer JSON (#198).** `auth_login`, `auth_status`,
+`auth_logout` and `operate` returned Spanish text. They now return the same object as
+`sii <cmd> --json`, like every other tool. A client that read their text should `JSON.parse` it;
+errors are unchanged.
 
 ## 0.14.0 — 2026-10-21 — Lo que otros informaron de ti
 
