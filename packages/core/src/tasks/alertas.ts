@@ -1,0 +1,403 @@
+// `alertas` — one read of what SII holds against the taxpayer but does not push (ADR-030).
+// A composite: ONE `withSession` over the existing portal facades (never the other tasks, which
+// would each open a session), every call paced, one audit receipt. SESSION-KEYED (ADR-005): it
+// reads the session principal, takes no `--rut`, and refuses a representing pointer up front.
+// Stateless: each alerta has an id built from what it is, so a caller diffs runs by id.
+import { assertOperatingSelf, withSession } from '../auth/index.js';
+import { recordAudit } from '../audit/index.js';
+import { Anio, Periodo } from '../periodo/index.js';
+import { Rut } from '../rut/index.js';
+import {
+  NotAuthenticatedError,
+  RateLimitError,
+  SiiError,
+  ValidationError,
+  classifyError,
+  type ErrorKind,
+} from '../errors/index.js';
+import { DEFAULT_SETTINGS, HOSTS } from '../config/index.js';
+import { parseDatosCntrNow } from '../auth/datos-cntr.js';
+import {
+  fetchF22Declaraciones,
+  fetchF22Observaciones,
+  pickVigenteFolio,
+} from '../portal/f22/index.js';
+import { fetchF29Estado, type DeclaracionEstadoF29 } from '../portal/f29.js';
+import { fetchPeticiones } from '../portal/peticiones.js';
+import type { PortalSession, Runtime } from '../seams/index.js';
+
+export const FUENTES_ALERTAS = ['f22', 'f29', 'peticiones'] as const;
+export type FuenteAlertas = (typeof FUENTES_ALERTAS)[number];
+
+export type TipoAlerta =
+  | 'f22_observacion'
+  | 'f29_rechazada'
+  | 'f29_guardada'
+  | 'f29_otro_estado'
+  | 'f29_sin_declarar'
+  | 'peticion_estado';
+
+/** One alerta. Every field is present (null when it does not apply), so the JSON is stable. */
+export interface Alerta {
+  /** Built from the alerta's identity, never from the run: the same condition has the same id
+   *  on every run. Changing a format is Breaking (ADR-030 / ADR-021 amendment). */
+  readonly id: string;
+  readonly tipo: TipoAlerta;
+  readonly origen: FuenteAlertas;
+  readonly periodo: string | null; // F29, YYYY-MM
+  readonly anio: string | null; // F22, año tributario YYYY
+  readonly folio: string | null; // the declaración's folio (F22 / F29)
+  readonly peticion: number | null; // número de la petición
+  readonly codigo: string | null; // F22 observación código (B102, G37…)
+  readonly estado: string | null; // SII's estado label, verbatim
+  readonly mensaje: string | null; // SII's own text (glosa, nota), verbatim
+  readonly url: string | null; // SII's ayuda link, when it gives one
+  readonly fecha: string | null; // YYYY-MM-DD
+  /** `f29_sin_declarar` only: both due dates. `estimado` because holidays are not known. */
+  readonly vencimiento?: {
+    readonly conPago: string;
+    readonly sinPago: string;
+    readonly estimado: true;
+  };
+}
+
+export type EstadoFuente = 'ok' | 'no_declarante' | 'error' | 'omitida';
+
+export interface FuenteResultado {
+  readonly origen: FuenteAlertas;
+  readonly estado: EstadoFuente;
+  /** The source's SII failure, kind + verbatim message (ADR-012). Alertas read before it stay. */
+  readonly error?: { readonly type: ErrorKind; readonly error: string };
+}
+
+export interface AlertasResult {
+  readonly rut: string;
+  readonly alertas: readonly Alerta[];
+  readonly fuentes: readonly FuenteResultado[];
+  /** A requested source failed: the list may be missing alertas. */
+  readonly incompleto: boolean;
+}
+
+export interface AlertasArgs {
+  /** `f22,f29,peticiones` (CLI) or a list (MCP); default all. */
+  readonly fuentes?: string | readonly string[] | undefined;
+  /** YYYY-MM-DD: drop alertas dated before it (undated ones are kept). */
+  readonly desde?: string | undefined;
+}
+
+/** F22: años tributarios read, the current one first (3 ⇒ the prescription window). */
+const F22_ANIOS = 3;
+/** F29: períodos read, ending at the previous month (the current one is not due yet). */
+const F29_PERIODOS = 12;
+
+const pacingMs = (): number => Math.round(1000 / DEFAULT_SETTINGS.rateLimitRps);
+
+const pad = (n: number): string => String(n).padStart(2, '0');
+const isoDate = (d: Date): string =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+function parseFuentes(input: AlertasArgs['fuentes']): FuenteAlertas[] {
+  if (input === undefined) return [...FUENTES_ALERTAS];
+  const raw = typeof input === 'string' ? input.split(',') : [...input];
+  const names = raw.map((s) => s.trim().toLowerCase()).filter((s) => s !== '');
+  if (names.length === 0) {
+    throw new ValidationError(`Indica al menos una fuente: ${FUENTES_ALERTAS.join(', ')}.`);
+  }
+  for (const n of names) {
+    if (!(FUENTES_ALERTAS as readonly string[]).includes(n)) {
+      throw new ValidationError(
+        `Fuente desconocida: "${n}". Las fuentes son ${FUENTES_ALERTAS.join(', ')}.`,
+      );
+    }
+  }
+  // Keep the canonical order, so the result does not depend on how the caller listed them.
+  return FUENTES_ALERTAS.filter((f) => names.includes(f));
+}
+
+function parseDesde(input: string | undefined): string | null {
+  if (input === undefined) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input.trim());
+  const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  if (!m || !d || d.getMonth() !== Number(m[2]) - 1 || d.getDate() !== Number(m[3])) {
+    throw new ValidationError(`Fecha inválida en --desde: "${input}" (formato AAAA-MM-DD).`);
+  }
+  return `${m[1]}-${m[2]}-${m[3]}`;
+}
+
+/** SII's `DD/MM/YYYY` (F29 `declFechaCreacion`, observed) as YYYY-MM-DD; anything else ⇒ null. */
+function fechaSii(s: string | null): string | null {
+  const m = s ? /^(\d{2})\/(\d{2})\/(\d{4})/.exec(s) : null;
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+}
+
+/** The F29 due dates of `periodo`, from SII's own FAQ (www.sii.cl/preguntas_frecuentes/
+ *  impuestos_mensuales/001_130_1060.htm, updated 17/06/2025, read 2026-10-23): the 12th of the
+ *  next month in general; the 20th for an Internet declaration WITH payment by an eligible
+ *  taxpayer; the 28th for one "sin pago" or sin movimiento. A due date with payment on a
+ *  Saturday or holiday moves to the next business day: we move it off a weekend, holidays are not
+ *  known (hence `estimado`). `dia` is the taxpayer's regime (`autorizadoDeclararDia20`). */
+export function vencimientoF29(
+  periodo: Periodo,
+  dia: 12 | 20 = 20,
+): { conPago: Date; sinPago: Date } {
+  const year = periodo.month === 12 ? periodo.year + 1 : periodo.year;
+  const month = periodo.month === 12 ? 0 : periodo.month; // JS month index of the NEXT month
+  const conPago = new Date(year, month, dia);
+  const dow = conPago.getDay();
+  if (dow === 6) conPago.setDate(dia + 2);
+  if (dow === 0) conPago.setDate(dia + 1);
+  return { conPago, sinPago: new Date(year, month, 28) };
+}
+
+/** When the account must file F29 and by which day, from its own `DatosCntrNow` (Mi SII). */
+interface RegimenF29 {
+  readonly inicio: Periodo | null; // no F29 is due before the month of inicio de actividades
+  readonly termino: Periodo | null; // nor after the month of término de giro
+  readonly dia: 12 | 20;
+}
+
+/** `"2026-03-26 00:00:00.0"` (observed) ⇒ that month; anything else ⇒ null (no bound). */
+function mesDe(s: string | null | undefined): Periodo | null {
+  const m = s ? /^(\d{4})-(\d{2})-\d{2}/.exec(s) : null;
+  return m ? Periodo.of(Number(m[1]), Number(m[2])) : null;
+}
+
+const antes = (a: Periodo, b: Periodo): boolean =>
+  a.year < b.year || (a.year === b.year && a.month < b.month);
+
+async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
+  // A dead jar bounces here and the seam raises SessionExpiredError (aborts the read). A live
+  // page without the object only loses the bounds: no window, and the later day-20 deadline.
+  const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
+  const c = parseDatosCntrNow(body)?.contribuyente;
+  return {
+    inicio: mesDe(c?.fechaInicioActividades),
+    termino: mesDe(c?.fechaTerminoGiro),
+    // `"S"` observed. A day-12 taxpayer says "N"; an unknown value keeps the 20th, the later of
+    // the two, so the alerta is never early.
+    dia: c?.autorizadoDeclararDia20?.trim().toUpperCase() === 'N' ? 12 : 20,
+  };
+}
+
+const base = (origen: FuenteAlertas) => ({
+  origen,
+  periodo: null,
+  anio: null,
+  folio: null,
+  peticion: null,
+  codigo: null,
+  estado: null,
+  mensaje: null,
+  url: null,
+  fecha: null,
+});
+
+async function leerF22(
+  runtime: Runtime,
+  session: PortalSession,
+  rut: Rut,
+  push: (a: Alerta) => void,
+): Promise<EstadoFuente> {
+  const current = runtime.clock.now().getFullYear();
+  for (let i = 0; i < F22_ANIOS; i++) {
+    const anio = Anio.of(current - i);
+    if (i > 0) await runtime.clock.sleep(pacingMs());
+    const decls = await fetchF22Declaraciones(session, { rut, anio });
+    const folio = pickVigenteFolio(decls.declaraciones);
+    if (folio === null) continue; // no declaración that año: nothing to observe
+    await runtime.clock.sleep(pacingMs());
+    for (const o of await fetchF22Observaciones(session, { rut, anio, folio })) {
+      push({
+        ...base('f22'),
+        id: `f22:${anio.canonical}:${folio}:${o.codigo}`,
+        tipo: 'f22_observacion',
+        anio: anio.canonical,
+        folio,
+        codigo: o.codigo,
+        mensaje: o.descripcion,
+        url: o.url,
+      });
+    }
+  }
+  return 'ok';
+}
+
+const ESTADO_VIGENTE = 1;
+const ESTADO_GUARDADA = 10; // observed (sii-contract/f29.md)
+const ESTADO_RECHAZADA = 70; // "Rechazada por pago inconcluso", observed
+
+const isVigente = (d: DeclaracionEstadoF29): boolean =>
+  d.estadoId === ESTADO_VIGENTE || (d.estado ?? '').toLowerCase().includes('vigente');
+
+async function leerF29(
+  runtime: Runtime,
+  session: PortalSession,
+  rut: Rut,
+  push: (a: Alerta) => void,
+): Promise<EstadoFuente> {
+  const now = runtime.clock.now();
+  const today = isoDate(now);
+  const periodos = Array.from({ length: F29_PERIODOS }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - F29_PERIODOS + i, 1);
+    return Periodo.of(d.getFullYear(), d.getMonth() + 1);
+  });
+  const regimen = await leerRegimen(session);
+  const sinDeclarar: Alerta[] = [];
+  let declarante = false;
+  for (let i = 0; i < periodos.length; i++) {
+    const periodo = periodos[i]!;
+    await runtime.clock.sleep(pacingMs()); // after the Mi SII read too (ADR-004)
+    const { declaraciones } = await fetchF29Estado(session, { rut, periodo });
+    if (declaraciones.some(isVigente)) {
+      declarante = true;
+      continue;
+    }
+    const rec =
+      declaraciones.find((d) => d.estadoId === ESTADO_RECHAZADA) ??
+      declaraciones.find((d) => d.estadoId === ESTADO_GUARDADA) ??
+      declaraciones[0];
+    if (rec) {
+      const tipo: TipoAlerta =
+        rec.estadoId === ESTADO_RECHAZADA
+          ? 'f29_rechazada'
+          : rec.estadoId === ESTADO_GUARDADA
+            ? 'f29_guardada'
+            : 'f29_otro_estado';
+      // A Guardada borrador carries folio 0 (observed): not a folio of anything.
+      const folio = rec.folio ? String(rec.folio) : null;
+      const suffix =
+        tipo === 'f29_otro_estado' ? `otro_estado:${rec.estadoId ?? 'null'}` : tipo.slice(4);
+      push({
+        ...base('f29'),
+        id: `f29:${periodo.formatted}:${suffix}${folio ? `:${folio}` : ''}`,
+        tipo,
+        periodo: periodo.formatted,
+        folio,
+        estado: rec.estado,
+        fecha: fechaSii(rec.fecha),
+      });
+      continue;
+    }
+    // Outside the account's own obligation window nothing was due: a month before the empresa
+    // existed is not a missing F29 (observed live: five false alertas before ADR-030's fix).
+    if (regimen.inicio && antes(periodo, regimen.inicio)) continue;
+    if (regimen.termino && antes(regimen.termino, periodo)) continue;
+    const venc = vencimientoF29(periodo, regimen.dia);
+    if (today <= isoDate(venc.conPago)) continue; // due date not passed: still on time
+    sinDeclarar.push({
+      ...base('f29'),
+      id: `f29:${periodo.formatted}:sin_declarar`,
+      tipo: 'f29_sin_declarar',
+      periodo: periodo.formatted,
+      fecha: isoDate(venc.conPago),
+      vencimiento: {
+        conPago: isoDate(venc.conPago),
+        sinPago: isoDate(venc.sinPago),
+        estimado: true,
+      },
+    });
+  }
+  // An account with no Vigente F29 in the window does not file F29 (a persona without giro):
+  // twelve "sin declarar" would be noise, not alertas (ADR-030).
+  if (!declarante) return 'no_declarante';
+  for (const a of sinDeclarar) push(a);
+  return 'ok';
+}
+
+async function leerPeticiones(
+  session: PortalSession,
+  rut: Rut,
+  push: (a: Alerta) => void,
+): Promise<EstadoFuente> {
+  const { peticiones } = await fetchPeticiones(session, { rut });
+  for (const p of peticiones) {
+    const ultimo = p.timeline[0] ?? null; // most-recent-first (portal/peticiones.ts)
+    push({
+      ...base('peticiones'),
+      // The latest transition is in the id, so a petición resurfaces only when it moves.
+      id: `peticion:${p.numero}:${ultimo?.fecha ?? p.estadoActual}`,
+      tipo: 'peticion_estado',
+      peticion: p.numero,
+      estado: p.estadoActual,
+      mensaje: ultimo?.mensaje ?? null,
+      fecha: ultimo?.fecha ? ultimo.fecha.slice(0, 10) : null,
+    });
+  }
+  return 'ok';
+}
+
+/** Read the alertas of the session principal from the requested sources (ADR-030). */
+export async function alertas(runtime: Runtime, args: AlertasArgs = {}): Promise<AlertasResult> {
+  const fuentes = parseFuentes(args.fuentes); // fail fast — no session opened
+  const desde = parseDesde(args.desde);
+  await assertOperatingSelf(
+    runtime,
+    (empresa) =>
+      new ValidationError(
+        `alertas es session-keyed: lee las alertas del titular de la sesión, no del RUT operado ` +
+          `(${empresa}). Para las de esa empresa, inicia sesión como ella ` +
+          '(`sii auth logout` y luego `sii auth login`).',
+      ),
+  );
+  const start = runtime.clock.now().getTime();
+  try {
+    const result = await withSession(runtime, async (session, ctx) => {
+      const rut = Rut.parse(ctx.sessionRut); // session-keyed: ALWAYS the principal
+      const found: Alerta[] = [];
+      const push = (a: Alerta): void => {
+        found.push(a);
+      };
+      const estados: FuenteResultado[] = [];
+      for (let i = 0; i < FUENTES_ALERTAS.length; i++) {
+        const origen = FUENTES_ALERTAS[i]!;
+        if (!fuentes.includes(origen)) {
+          estados.push({ origen, estado: 'omitida' });
+          continue;
+        }
+        if (estados.some((e) => e.estado !== 'omitida')) await runtime.clock.sleep(pacingMs());
+        try {
+          const estado =
+            origen === 'f22'
+              ? await leerF22(runtime, session, rut, push)
+              : origen === 'f29'
+                ? await leerF29(runtime, session, rut, push)
+                : await leerPeticiones(session, rut, push);
+          estados.push({ origen, estado });
+        } catch (e) {
+          // A dead session or SII's rate limit ends the whole read: going on would mean asking
+          // again against a block (ADR-004). A bug (not a SiiError) must not hide as a source
+          // error either. Any other SII failure stops that source only; what it read stays.
+          if (e instanceof NotAuthenticatedError || e instanceof RateLimitError) throw e;
+          if (!(e instanceof SiiError)) throw e;
+          estados.push({
+            origen,
+            estado: 'error',
+            error: { type: classifyError(e).type, error: e.message },
+          });
+        }
+      }
+      const alertasFiltradas = desde
+        ? found.filter((a) => a.fecha === null || a.fecha >= desde)
+        : found;
+      return {
+        rut: rut.canonical,
+        alertas: alertasFiltradas,
+        fuentes: estados,
+        incompleto: estados.some((e) => e.estado === 'error'),
+      };
+    });
+    // Counts only: the alertas carry SII's free text about the taxpayer (ADR-006).
+    recordAudit(runtime, {
+      action: 'alertas',
+      result: result.incompleto ? 'partial' : 'ok',
+      rut: result.rut,
+      count: result.alertas.length,
+      fuentes: Object.fromEntries(result.fuentes.map((f) => [f.origen, f.estado])),
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return result;
+  } catch (e) {
+    recordAudit(runtime, { action: 'alertas', result: 'failed' });
+    throw e;
+  }
+}

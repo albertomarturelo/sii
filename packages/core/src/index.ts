@@ -137,6 +137,16 @@ export type {
 export { peticionesList } from './tasks/peticiones.js';
 export type { PeticionesResult, Peticion, EstadoPeticion } from './tasks/peticiones.js';
 export { carpetaInstituciones } from './tasks/carpeta.js';
+export { alertas, FUENTES_ALERTAS } from './tasks/alertas.js';
+export type {
+  Alerta,
+  AlertasArgs,
+  AlertasResult,
+  EstadoFuente,
+  FuenteAlertas,
+  FuenteResultado,
+  TipoAlerta,
+} from './tasks/alertas.js';
 export type { CarpetaInstitucion } from './tasks/carpeta.js';
 
 // --- seams: the injectable contract a consumer composes a Runtime from ---

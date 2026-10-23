@@ -29,6 +29,7 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name).sort();
     expect(names).toEqual([
+      'alertas',
       'auth_login',
       'auth_logout',
       'auth_status',

@@ -131,9 +131,10 @@ Read-only unless stated. `<periodo>` is `YYYY-MM` (or `YYYYMM`); `<año>` is `YY
 | `sii f22 terceros <año>` / `sii f22 terceros <año> --dj <código> [--pagina <n>]` | What employers, banks, AFP, AGF and corredoras reported about the user in their declaraciones juradas, which is what an observación (e.g. B102) is checked against. `<año>` is the año tributario (2026 = income of 2025). Without `--dj`: the per-DJ resumen with its totals, in ONE SII call; start there. With `--dj`: that DJ's rows (folio, declarante RUT + name, fecha, `estado`, `campos`), every page of 10 up to 30, or one with `--pagina`. The rows are third-party data. Read one DJ at a time, only the ones the question needs. |
 | `sii bte list <periodo> [--recibidas]` | Boletas de honorarios (needs Chromium on the machine) |
 | `sii peticiones list` | Administrative petitions to SII and their state timeline |
+| `sii alertas [--fuentes f22,f29,peticiones] [--desde YYYY-MM-DD]` | What SII holds against the account but does not push: F22 observaciones (last 3 años), F29 « Guardada » never sent, « Rechazada por pago inconcluso » or not filed past its due date (last 12 períodos; `vencimiento.conPago` / `sinPago` are estimates), and each petición's latest state. Every alerta has a stable `id`: keep the ids already reported per RUT in memory and tell the user only about new ones. On the FIRST run for an account, store the ids without reporting the old closed petitions (or run it with `--desde`). A full read is ~20 paced SII calls (~20 s): for a frequent check use `--fuentes f29,peticiones` and read everything weekly. If `incompleto` is true, a source failed: say which (`fuentes[].error`), never present the list as complete. |
 | `sii dte authorized <rut>` | Public lookup: which DTE types a RUT may issue (no login) |
 
-**Session-keyed** surfaces (F29, F22, BTE, `whoami`) always read the logged-in account itself.
+**Session-keyed** surfaces (F29, F22, BTE, `whoami`, `alertas`) always read the logged-in account itself.
 They take no `--rut` and refuse while `operate` points at an empresa. **Body-RUT** surfaces (RCV,
 peticiones) accept `--rut` for a represented empresa.
 
