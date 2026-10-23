@@ -49,6 +49,26 @@ describe('parseDatosCntrNow', () => {
     expect(changed?.atributos).toBeNull();
   });
 
+  it('a non-string alertas field loses that field, never the identity (#214)', () => {
+    for (const [campo, valor] of [
+      ['fechaInicioActividades', 1577836800000],
+      ['fechaInicioActividades', { fecha: '2020-01-01' }],
+      ['fechaTerminoGiro', 1577836800000],
+      ['autorizadoDeclararDia20', false],
+    ] as const) {
+      const datos = parseDatosCntrNow(
+        miSiiHtml(
+          JSON.stringify({
+            contribuyente: { rut: 11111111, dv: '1', nombres: 'A', [campo]: valor },
+          }),
+        ),
+      );
+      expect(datos?.contribuyente?.rut).toBe(11111111);
+      expect(datos?.contribuyente?.nombres).toBe('A');
+      expect(datos?.contribuyente?.[campo]).toBeNull();
+    }
+  });
+
   it('returns null on an unbalanced / unparseable literal rather than throwing', () => {
     expect(parseDatosCntrNow('<script>var DatosCntrNow = {oops</script>')).toBeNull();
   });
