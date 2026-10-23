@@ -38,7 +38,8 @@ export function registerAlertas(program: Command, runtime: Runtime): void {
     .description(
       'Session-keyed (tus propias alertas; para una empresa, inicia sesión como ella). Lo que ' +
         'el SII registra y no avisa: observaciones del F22 (últimos 3 años tributarios), F29 ' +
-        'guardados sin enviar, rechazados o sin declarar (últimos 12 períodos) y el último ' +
+        'guardados sin enviar, rechazados o sin declarar (últimos 12 períodos, desde tu inicio de ' +
+        'actividades y según tu vencimiento: día 12 o 20) y el último ' +
         'estado de tus peticiones administrativas. Solo lectura. Con todas las fuentes son ' +
         '~20 consultas pausadas al SII (~20 s); una rutina frecuente puede limitarlas con ' +
         '--fuentes. Cada alerta trae un id estable para comparar entre ejecuciones.',

@@ -91,6 +91,11 @@ interface Script {
   dead?: boolean;
   /** Mi SII `DatosCntrNow.contribuyente` extras (the F29 window and regime); none ⇒ no bounds. */
   regimen?: Record<string, string | null>;
+  /** Mi SII answers a page without `DatosCntrNow` (a changed page, not a dead session). */
+  miSiiSinDatos?: boolean;
+  /** A non-SII error escapes a facade (a bug in our code). Peticiones' facade does not wrap
+   *  seam errors (F22's turns any into an F22Error), so it is injected there. */
+  bug?: boolean;
 }
 
 function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
@@ -126,8 +131,12 @@ function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
           return { metaData: {}, data: null };
         },
         requestText: (url: string) => {
-          if (!url.endsWith('/peticion')) return undefined; // Mi SII: the fake's DatosCntrNow
+          if (!url.endsWith('/peticion')) {
+            // Mi SII: the fake synthesises DatosCntrNow, unless the page lost it.
+            return s.miSiiSinDatos ? '<html><body>Mi SII</body></html>' : undefined;
+          }
           calls.push('peticiones');
+          if (s.bug) throw new TypeError('bug sintético');
           if (s.peticiones === 'rate_limited')
             throw new RateLimitError('Demasiadas consultas (sintético).');
           return PETICIONES;
@@ -393,6 +402,29 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     expect(res.fuentes.slice(1).map((f) => f.estado)).toEqual(['ok', 'ok']);
     expect(res.alertas.some((a) => a.origen === 'f29')).toBe(true);
     expect(entries(rt).find((e) => e.action === 'alertas')).toMatchObject({ result: 'partial' });
+  });
+
+  it('a Mi SII page without DatosCntrNow only loses the bounds: no window, the 20th', async () => {
+    const { rt } = makeRuntime({ miSiiSinDatos: true, f29: NADA_HASTA_MARZO });
+    await seed(rt);
+    const res = await alertas(rt, { fuentes: 'f29' });
+    expect(res.fuentes[1]).toEqual({ origen: 'f29', estado: 'ok' });
+    const sd = res.alertas.filter((a) => a.tipo === 'f29_sin_declarar');
+    expect(sd.map((a) => a.periodo)).toEqual([
+      '2025-10',
+      '2025-11',
+      '2025-12',
+      '2026-01',
+      '2026-02',
+    ]);
+    expect(sd[0]!.vencimiento?.conPago).toBe('2025-11-20');
+  });
+
+  it('a bug (not a SiiError) propagates instead of hiding as a source error', async () => {
+    const { rt } = makeRuntime({ bug: true });
+    await seed(rt);
+    await expect(alertas(rt)).rejects.toThrow(TypeError);
+    expect(entries(rt).find((e) => e.action === 'alertas')).toMatchObject({ result: 'failed' });
   });
 
   it('a dead session aborts the whole read', async () => {

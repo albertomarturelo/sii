@@ -358,6 +358,18 @@ Python `sii-cli`, adapted to TypeScript.
   `SessionExpired`) is NOT a per-item error and still aborts the whole fan-out. This
   refines "surface verbatim and stop" for the batch case: stop the item, surface it,
   keep the rest. (ADR-004)
+- **A composite read is one session over the facades, never a chain of tasks (ADR-030).**
+  `alertas` is the template for `iva` / `renta`:
+  - one `withSession`, the portal facades called inside it, every call paced, one receipt;
+  - the caller chooses the sources (`--fuentes`), and `--help` states the cost in SII calls;
+  - each source reports `ok` / `error` (with its `classifyError` kind) / `omitida`, plus
+    `incompleto`; a dead session or SII's rate limit aborts all; a non-SII error propagates;
+  - every item has an id built from what it is, so the caller diffs runs and nothing is stored.
+- **A "missing obligation" is bounded by the account's own obligation window, never inferred
+  from activity alone (#195).** Live, an empresa got five « F29 sin declarar » for the months
+  before it existed: "files F29 at least once in the window" was true, but it did not exist
+  yet. Read the bounds SII holds for the account (`DatosCntrNow` `fechaInicioActividades`,
+  `fechaTerminoGiro`, `autorizadoDeclararDia20`) before deciding something was due.
 - **Validate a RUT locally (Mod-11) BEFORE any login attempt.** A malformed RUT
   must never become a wasted submit — repeated failed logins lock the account.
   The CLI parses + Mod-11-checks the RUT before prompting/sending the Clave; a

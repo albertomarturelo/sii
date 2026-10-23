@@ -93,7 +93,8 @@ The sources also differ in auth mode: F22 / F29 are session-keyed, peticiones is
 
 - Easier: a daily routine is one command and an id diff. A new source slots in as an `origen`
   without changing the shape.
-- Risk: an account with no Vigente F29 in the window is silent about missing months by design.
+- Risk: an account with no Vigente F29 in the window is silent about missing months by design,
+  which includes a new business's first F29 (#208).
   The due date is an estimate, and the result says so.
 - Obligation: the ids are a contract. Changing one makes every caller see an old alerta as new,
   so an id change is **Breaking** in the changelog (ADR-021 amendment).

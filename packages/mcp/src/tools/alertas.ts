@@ -16,7 +16,8 @@ export function registerAlertasTools(server: McpServer, runtime: Runtime): void 
         'Session-keyed: las alertas del titular de la sesión (para una empresa, auth_logout y ' +
         'auth_login como ella). Lo que el SII registra y no avisa: observaciones del F22 ' +
         '(últimos 3 años tributarios), F29 guardados sin enviar, rechazados o sin declarar ' +
-        '(últimos 12 períodos; "sin declarar" solo si la cuenta declara F29, y con fechas de ' +
+        '(últimos 12 períodos; "sin declarar" solo si la cuenta declara F29, dentro de su inicio ' +
+        'de actividades / término de giro y según su vencimiento día 12 o 20, con fechas de ' +
         'vencimiento estimadas) y el último estado de las peticiones administrativas. Cada ' +
         'alerta trae un id estable: guarda los vistos y avisa solo de los nuevos. fuentes ' +
         'elige qué leer: todas son ~20 consultas pausadas al SII (~20 s), así que una rutina ' +

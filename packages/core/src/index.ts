@@ -137,7 +137,7 @@ export type {
 export { peticionesList } from './tasks/peticiones.js';
 export type { PeticionesResult, Peticion, EstadoPeticion } from './tasks/peticiones.js';
 export { carpetaInstituciones } from './tasks/carpeta.js';
-export { alertas, FUENTES_ALERTAS, vencimientoF29 } from './tasks/alertas.js';
+export { alertas, FUENTES_ALERTAS } from './tasks/alertas.js';
 export type {
   Alerta,
   AlertasArgs,
