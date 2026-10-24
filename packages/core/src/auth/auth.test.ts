@@ -531,6 +531,18 @@ describe('auth — real-SII flow (replicated, synthetic data)', () => {
     expect(op?.operable[0]?.razonSocial).toBe('Juan Sintético Pérez Soto');
   });
 
+  it('logs in when an alertas field of DatosCntrNow is not a string (#214)', async () => {
+    const datos = realPersonaDatos() as { contribuyente: Record<string, unknown> };
+    datos.contribuyente.fechaInicioActividades = 1262304000000;
+    datos.contribuyente.autorizadoDeclararDia20 = false;
+    const driver = liveDriver(() => datos);
+    const rt = makeRuntime(driver);
+    expect(await login(rt)).toMatchObject({ authenticated: true, rut: '20000042-0' });
+    // The live probe still proves the session, so a second login does not re-mint.
+    expect(await login(rt)).toMatchObject({ reason: 'already_authenticated' });
+    expect(driver.interactiveLoginCalls).toBe(1);
+  });
+
   it('idempotent: a live cached session returns already_authenticated without reopening the browser', async () => {
     const driver = liveDriver(realPersonaDatos);
     const rt = makeRuntime(driver);

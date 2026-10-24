@@ -23,6 +23,11 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **A `DatosCntrNow` field of an unexpected type no longer breaks the login (#214).** If Mi SII
+  serves `fechaInicioActividades`, `fechaTerminoGiro` or `autorizadoDeclararDia20` as something
+  other than text, `auth login`, `whoami` and `auth status --refresh` still read the identity,
+  and `alertas` reads that field as unknown.
+
 ## 0.16.0 — 2026-10-23 — Dónde se cortó la red
 
 When SII never answers, the CLI and the MCP say which host failed and why, instead of a bare
