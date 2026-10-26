@@ -9,6 +9,20 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.17.0 — 2026-10-26
+
+### Changed
+
+- **`bte_list` no longer needs Chromium (#222).** It reads the report over HTTP; the result is
+  unchanged.
+
+### Fixed
+
+- **`bte_emit_preview` / `bte_emit` keep SII's accents (#224).** Its messages and names no
+  longer come back with `�`.
+- **`auth_login`, `whoami` and `auth_status` (`refresh`) survive an unexpected `DatosCntrNow`
+  field type (#214).**
+
 ## 0.16.0 — 2026-10-23
 
 ### Added

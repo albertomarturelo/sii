@@ -23,20 +23,29 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **`bte list` no longer needs Chromium (#222).** The boletas de honorarios report is read from
-  its HTML over the same HTTP connection as every other read, so `sii bte list` and the MCP's
-  `bte_list` run on a machine without a browser. The result is unchanged.
-- **Added: `testing.inlineMapsPage` (#222).** For library consumers, a core test helper that
-  builds a synthetic legacy-CGI page with literal inline maps (and its `InlineMapValue` type), so
-  a fake `bte list` needs no browser engine. A new export: the next release is a minor.
-- **A `DatosCntrNow` field of an unexpected type no longer breaks the login (#214).** If Mi SII
-  serves `fechaInicioActividades`, `fechaTerminoGiro` or `autorizadoDeclararDia20` as something
-  other than text, `auth login`, `whoami` and `auth status --refresh` still read the identity,
-  and `alertas` reads that field as unknown.
-- **Accents in SII's legacy pages no longer come back as `�` (#224).** The boletas de honorarios
-  pages declare their charset only inside the HTML, which the browser-free driver ignored, so a
-  name or an SII message with ñ or an accent came back garbled in `bte emit`. The driver now
-  reads that declaration, as a browser does.
+## 0.17.0 — 2026-10-26 — Boletas sin navegador
+
+The boletas de honorarios report no longer needs Chromium. Besides the MCP's headed login, only
+the MIPYME `dte` commands still drive a browser.
+
+**`bte list` no longer needs Chromium (#222).** The report writes its data into the HTML as
+literal JavaScript statements, so it is read from the page over the same HTTP connection as every
+other read, instead of running the page in a browser. `sii bte list` and the MCP's `bte_list` work
+on a machine with no browser installed (a serverless worker, a container). The result is
+unchanged; a statement the reader cannot evaluate leaves its field `null`, never a guess.
+
+**Accents in SII's legacy pages no longer come back as `�` (#224).** The boletas de honorarios
+pages declare their charset only inside the HTML, which the browser-free driver ignored, so a
+name or an SII message with ñ or an accent came back garbled in `bte emit` (and would have in
+`bte list`). The driver now reads that declaration, as a browser does.
+
+**A `DatosCntrNow` field of an unexpected type no longer breaks the login (#214).** If Mi SII
+serves `fechaInicioActividades`, `fechaTerminoGiro` or `autorizadoDeclararDia20` as something other
+than text, `auth login`, `whoami` and `auth status --refresh` still read the identity, and
+`alertas` reads that field as unknown.
+
+A MINOR, not a patch: the core gains a test helper for library consumers,
+`testing.inlineMapsPage` (ADR-021 amendment). Nothing breaks.
 
 ## 0.16.0 — 2026-10-23 — Dónde se cortó la red
 

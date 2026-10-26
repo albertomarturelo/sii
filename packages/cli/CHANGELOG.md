@@ -9,6 +9,20 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.17.0 — 2026-10-26
+
+### Changed
+
+- **`sii bte list` no longer needs Chromium (#222).** It reads the report over HTTP; the output
+  is unchanged. Only the MIPYME `dte` commands still need `npx playwright install chromium`.
+
+### Fixed
+
+- **`sii bte emit` keeps SII's accents (#224).** Its messages and names no longer come back
+  with `�`.
+- **`sii auth login`, `whoami` and `auth status --refresh` survive an unexpected `DatosCntrNow`
+  field type (#214).**
+
 ## 0.16.0 — 2026-10-23
 
 ### Added
