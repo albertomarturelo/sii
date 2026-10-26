@@ -9,6 +9,11 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.18.0 — 2026-10-26
+
+No change of its own: the version moves in lockstep with the core, whose `bteList` deadline
+(#230) no tool passes.
+
 ## 0.17.0 — 2026-10-26
 
 ### Changed

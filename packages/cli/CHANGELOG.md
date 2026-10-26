@@ -9,6 +9,13 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.18.0 — 2026-10-26
+
+### Changed
+
+- **The exit-code table knows the core's new kind `aborted` (exit 1, #230).** No command passes
+  a signal, so the CLI never emits it; the version moves in lockstep with the core.
+
 ## 0.17.0 — 2026-10-26
 
 ### Changed
