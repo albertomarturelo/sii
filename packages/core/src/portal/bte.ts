@@ -14,7 +14,8 @@
 // SESSION-KEYED (ADR-005): `rut_arrastre` is keyed to the session PRINCIPAL — a represented
 // RUT does NOT reach the empresa's data (confirmed live #62). The task reads self only.
 import { HOSTS } from '../config/index.js';
-import { BteError, checkAborted } from '../errors/index.js';
+import { BteError } from '../errors/index.js';
+import { checkAborted } from '../errors/abort.js';
 import { Rut } from '../rut/index.js';
 import { readInlineMap } from './inline-map.js';
 import type { Periodo } from '../periodo/index.js';

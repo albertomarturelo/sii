@@ -112,16 +112,6 @@ export class AbortedError extends Error {
   }
 }
 
-/** Throw `AbortedError` when `signal` has fired: a task calls it before opening its session and
- *  before every SII call or pacing pause (ADR-031). A no-op without a signal. */
-export function checkAborted(signal: AbortSignal | undefined): void {
-  if (signal?.aborted) {
-    throw new AbortedError('La operación se detuvo antes de la siguiente llamada al SII.', {
-      cause: signal.reason,
-    });
-  }
-}
-
 /** SII rejected a portal/SDI facade request (error envelope or unparseable
  *  response). Carries SII's message verbatim — never translated (ADR-004). */
 export class RepresentacionError extends SiiError {}

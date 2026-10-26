@@ -67,8 +67,9 @@ the task.
 ## Consequences
 
 - An embedder can run any adopting task under a deadline and tell a cut (`aborted`) from a
-  failure. The worst overrun is the request in flight, plus restoring the session if the signal
-  fires during it.
+  failure. The worst overrun is whatever is in progress when the signal fires: the request in
+  flight (≤ 30 s, the driver's timeout) or the pacing pause (≤ 1 s: `Clock.sleep` cannot be
+  interrupted), plus restoring the session if it fires during that.
 - `aborted` is a stable kind (ADR-012 compatibility rules). Consumers that do not know it read it
   as `unexpected`, which is safe: stop, do not retry.
 - Each adopting task owes tests for the three check points, and for "the request in flight

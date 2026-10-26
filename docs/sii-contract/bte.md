@@ -157,7 +157,8 @@ two single-page months read; `cant_boletas` was not read.
 session, before each page's GET, and before and after each pacing pause, never during a GET, so
 the page in flight always completes. A cut throws `AbortedError` (kind `aborted`) and returns no
 partial month; the receipt reads `result: "aborted"` with `paginas`, the pages read. The
-worst overrun past the deadline is one GET (≤ 30 s, the driver's timeout). Nothing on the wire
+worst overrun past the deadline is the step in progress: one GET (≤ 30 s, the driver's
+timeout) or one pacing pause (≤ 1 s, `Clock.sleep` cannot be interrupted). Nothing on the wire
 changes, and the pagination TBD above stays open.
 
 ## Error envelope
