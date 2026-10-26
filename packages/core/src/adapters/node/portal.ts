@@ -11,7 +11,7 @@ import { LOGIN_HOST, loginUrl } from '../../config/index.js';
 import { LoginFailedError } from '../../errors/index.js';
 import { parseSiiLoginErrorDetail } from '../../auth/login-error.js';
 import type { LoginFailureReason } from '../../errors/index.js';
-import { charsetOf, formLoginWallError, nonJsonResponseError } from './response.js';
+import { charsetOfBody, formLoginWallError, nonJsonResponseError } from './response.js';
 import { overNetwork } from './network.js';
 import type {
   BinaryRequest,
@@ -142,7 +142,9 @@ class PlaywrightPortalSession implements PortalSession {
     const wall = formLoginWallError(response.url());
     if (wall) throw wall;
     const buffer = await response.body();
-    const text = new TextDecoder(charsetOf(response.headers()['content-type'])).decode(buffer);
+    const text = new TextDecoder(charsetOfBody(response.headers()['content-type'], buffer)).decode(
+      buffer,
+    );
     return { status: response.status(), body: text };
   }
 
@@ -160,7 +162,9 @@ class PlaywrightPortalSession implements PortalSession {
     const wall = formLoginWallError(response.url());
     if (wall) throw wall;
     const buffer = await response.body();
-    const text = new TextDecoder(charsetOf(response.headers()['content-type'])).decode(buffer);
+    const text = new TextDecoder(charsetOfBody(response.headers()['content-type'], buffer)).decode(
+      buffer,
+    );
     return { status: response.status(), body: text };
   }
 
@@ -313,7 +317,9 @@ export class PlaywrightPortalDriver implements PortalDriver {
       }),
     );
     const buffer = await overNetwork(url, () => response.arrayBuffer());
-    const text = new TextDecoder(charsetOf(response.headers.get('content-type'))).decode(buffer);
+    const text = new TextDecoder(
+      charsetOfBody(response.headers.get('content-type'), new Uint8Array(buffer)),
+    ).decode(buffer);
     return { status: response.status, body: text };
   }
 }
