@@ -56,6 +56,12 @@ Python `sii-cli`, adapted to TypeScript.
   - If the data ships as a JSON literal in the HTML (e.g. `DatosCntrNow`), extract and
     `JSON.parse` it, zod-validated. Never request the browser for that, and never
     upgrade to it silently.
+  - **A text body is decoded the way a browser decodes it (#224).** The header's charset
+    wins; without one, an HTML body's `<meta>` charset (first 1024 bytes); else UTF-8
+    (`charsetOfBody`, every decode site in both Node drivers). `loa.sii.cl` sends a bare
+    `text/html` and declares `iso-8859-1` only in the HTML, so the header alone turned
+    every ñ into U+FFFD. A move from the browser to HTTP is validated on a value with an
+    accent, or by counting U+FFFD in the decoded body: "every field present" hid this.
 - **A seam only ONE surface may use is wired in THAT surface's composition root, never
   as a `createNodeRuntime` default.** Both surfaces build from `createNodeRuntime()`, so a
   default there hands the capability to the MCP server too. Keeping a task off the main
@@ -442,6 +448,13 @@ Python `sii-cli`, adapted to TypeScript.
   secret). Tests use synthetic, Mod-11-valid RUTs only. A task that surfaces the
   user's own PII carries an explicit opt-in name and states the exposure in its
   CLI help + MCP description; PII values never go to the audit log.
+- **No account state in a public artifact.** A live validation is written up as WHAT was
+  confirmed (fields, an anulada, the sums' rule, an empty month parsed), never as the
+  owner's account activity: which períodos are filed or empty, which months had boletas,
+  how many rows, start of activities, plans tied to the filing calendar. This covers the
+  ADRs, `sii-contract/*.md`, ROADMAP, commit bodies, issues and PR bodies. A squash body
+  and GitHub's edit history keep what was written, so it is caught in review, before the
+  merge. Leaked twice: a #179 comment, then #226's ADR + contract (scrubbed in #229).
 
 ## Testing
 
@@ -477,6 +490,11 @@ Python `sii-cli`, adapted to TypeScript.
   branch/PR (stacked if it depends on the first). Split BEFORE opening the PR.
   For a FORK PR, "stacked" means SEQUENCED AFTER the first merge: the dependent
   feature waits, then branches off the updated `main` — never two in one branch.
+  **Merging a same-repo stack:** retarget the dependent PR to `main` (`gh pr edit --base main`)
+  BEFORE merging its base with `--delete-branch`. Deleting the base branch CLOSES the
+  dependent PR instead of retargeting it (#226 was closed this way and had to be reopened).
+  After the base's squash, rebase the dependent `--onto origin/main <old base tip>` and gate
+  its merge on CI for the new head.
 - **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
   bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
