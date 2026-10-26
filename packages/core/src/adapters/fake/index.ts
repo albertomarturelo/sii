@@ -277,3 +277,25 @@ export class InMemorySecretStore implements SecretStore {
     this.entries.delete(account);
   }
 }
+
+/** One value of a synthetic inline-map page: a string renders double-quoted, a number bare, and
+ *  `{ formatMiles }` as the `formatMiles("<n>", ".")` call the BHE rows carry (observed
+ *  2026-10-26, #222). */
+export type InlineMapValue = string | number | { readonly formatMiles: string };
+
+/** A synthetic legacy-CGI page that declares each map (`name = new Array()`) and assigns its keys
+ *  as literal statements, the shape `readInlineMap` parses (BHE reports, #222). Synthetic only:
+ *  never a captured page. */
+export function inlineMapsPage(maps: Record<string, Record<string, InlineMapValue>>): string {
+  const render = (v: InlineMapValue): string =>
+    typeof v === 'number'
+      ? String(v)
+      : typeof v === 'string'
+        ? `"${v.replace(/["\\]/g, '\\$&')}"`
+        : `formatMiles("${v.formatMiles}", ".")`;
+  const lines = Object.entries(maps).flatMap(([name, entries]) => [
+    `var ${name} = new Array();`,
+    ...Object.entries(entries).map(([k, v]) => `${name}['${k}'] = ${render(v)};`),
+  ]);
+  return `<html><head><script language="JavaScript">\n${lines.join('\n')}\n</script></head><body></body></html>`;
+}

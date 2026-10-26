@@ -16,6 +16,13 @@ fields match the contract below. Caveat: the test account had **no recibidas and
 emitidas** — the **recibidas row fields are ported from Python, not TS-live-confirmed**
 (re-confirm against an account with recibidas).
 
+**HTTP pass (#222, 2026-10-26, prod, an EMPRESA session minted by the HTTP driver, no browser):**
+the session's cookies reach `loa.sii.cl` on a plain GET (HTTP 200), and the maps are **literal
+statements in the HTML**, so `bte list` parses them from a `requestText` GET instead of running
+the page (ADR-027 amendment). **Recibidas confirmed live** on 2026-07 (2 rows) and 2026-05 (one
+anulada): the row fields and the month's sums below. The probe printed structure only (key
+names, value kinds, counts); no value, RUT or name was recorded.
+
 ## Reach — spike #15 for BHE: SESSION-KEYED (answered)
 
 **BHE does NOT support a represented operating RUT (confirmed live #62).** The
@@ -32,25 +39,35 @@ empresa's BHE is reached by logging in AS the empresa (logout→login).
 BTE is **NOT** an `www4.sii.cl` SDI-JSON facade (RCV/F22/F29) and **NOT** a public
 HTML CGI (DTE). It is **legacy CGIs on `loa.sii.cl/cgi_IMT/`** that serve an HTML
 skeleton (`charset=iso-8859-1`) and **fill their tables client-side from inline JS
-global maps**. So the TS facade reads it through the **existing** `PortalSession`
-browser primitives — **no new seam** (contrast DTE's `requestPublic`):
+global maps**. The maps themselves are written as literal statements in the HTML
+(observed 2026-10-26, #222), so the TS facade reads them with the **existing**
+`PortalSession.requestText` primitive and no browser — **no new seam**:
 
 | Step | TS seam primitive |
 | --- | --- |
-| Navigate to the CGI (browser follows the SSO redirect; cookies carry) | `PortalSession.goto(url) → landedUrl` |
-| Auth check: `landedUrl` host is `zeusr.sii.cl` ⇒ session didn't carry | URL-based detection (ADR-009) → `NotAuthenticatedError` |
-| Read the inline JS map (NOT `page.content()` — cells still hold the filling JS) | `PortalSession.evaluate<T>(expr)` |
+| GET the CGI (the `.sii.cl` cookies carry to `loa.sii.cl`) | `PortalSession.requestText(url, { method: 'GET' })` |
+| Auth check: the final URL is on `zeusr.sii.cl` ⇒ the jar is dead | the driver's URL-based check → `SessionExpiredError` |
+| Read the maps from the HTML (NOT the DOM — cells still hold the filling JS) | `readInlineMap(html, name)` (`portal/inline-map.ts`) |
 
-**Do NOT scrape the DOM.** After `domcontentloaded` the table cells still hold the
-JS that fills them. Read the inline maps with:
+**The statements, as observed (2026-10-26, monthly recibidas):**
 
 ```js
-typeof xml_values !== 'undefined' ? Object.fromEntries(Object.entries(xml_values)) : null
+var xml_values = new Array();
+xml_values['total_boletas'] = "2";          // double-quoted strings
+xml_values['suma_honorarios'] = 0;          // the month's sums start at a bare 0 …
+var arr_informe_mensual = new Array();
+arr_informe_mensual['nroboleta_1'] = "…";
+arr_informe_mensual['totalhonorarios_1'] = formatMiles('<n>','.');  // row amounts
+xml_values['suma_honorarios'] += <n>;       // … and grow after each row
 ```
 
-The `Object.entries` wrapper is REQUIRED: both maps are JS `Array`s with **string
-keys**, which `JSON.stringify` / a bare `evaluate("xml_values")` would drop (→ empty).
-A non-report page leaves the var `undefined` → `evaluate` returns `null` → `BteError`.
+`readInlineMap` replays them in document order: a literal assignment sets the key (strings
+unquoted, `formatMiles`' raw integer, bare numbers), a numeric `+=` adds, and a statement it
+cannot evaluate (an expression) removes the key, so an unknown shape reads as **missing**,
+never as a guess. The month's sums leave the anuladas out (2026-05: one anulada, the sums equal
+the vigente rows). A non-report page declares neither map → `null` → `BteError`. Before #222
+the facade ran the page in the browser and read the maps with `evaluate` (the
+`Object.entries` wrapper was required: the maps are `Array`s with string keys).
 
 **Host (add to core config):** `https://loa.sii.cl/cgi_IMT` (Python `BHE_CGI`).
 Recibidas (receptor) = `…BheRec.cgi`; emitidas (emisor) = `…Bhe.cgi`.
@@ -104,15 +121,23 @@ Source: the global **`arr_informe_mensual`** map, keyed `arr_informe_mensual['<c
 (i = 1-based row index). Per-page metadata is in `xml_values`. **Monthly `xml_values` meta
 keys (TS live 2026-06-30):** `total_boletas`, `pagina_solicitada`, `mes_consulta`,
 `anio_consulta`, `porcentaje_retencion`, `suma_honorarios`, `suma_retencion_emisor`,
-`suma_retencion_receptor`, `suma_liquido` (the `suma_*` are **plain** digit strings, NOT
-dot-formatted) + the same `nombre_contribuyente`/`rut_arrastre`/`dv_arrastre` own-PII header.
-Row montos (`totalhonorarios`, `honorariosliquidos`, …) ARE **Chilean dot-formatted**
-(`"1.300.000"`) — parse es-CL (cf. F22). Observed row fields:
+`suma_retencion_receptor`, `suma_liquido` + the same
+`nombre_contribuyente`/`rut_arrastre`/`dv_arrastre` own-PII header. **Recibidas meta (HTTP,
+2026-10-26), 17 keys:** the header, `anio_consulta`, `mes_consulta`, `porcentaje_retencion`,
+`cant_boletas`, `total_boletas`, `pagina_solicitada`, `pagina_sig_codigo`,
+`pagina_med_codigo`, `pagina_ant_codigo`, `pagina_actual`, `pagina_lista` (an expression the
+parser skips), and `suma_honorarios`, `suma_retencion_receptor`, `suma_liquido` (a `0`, then
+`+=` per row). **No `suma_retencion_emisor` on recibidas.** In the HTML the row montos
+(`totalhonorarios`, `honorariosliquidos`, `retencion_receptor`) are `formatMiles('<n>', '.')`
+calls whose argument is the plain integer; the rendered page (and the old `evaluate` read)
+shows them dot-formatted (`"1.300.000"`). Observed row fields:
 
-- **Recibidas** row `_<i>`: `nroboleta`, `rutemisor`+`dvemisor`, `nombre_emisor`,
-  **`nombre_receptor`** (the RECEPTOR = self → own-identity PII, live BUG-1), `fecha_boleta`,
-  `totalhonorarios`, `honorariosliquidos`, `es_soc_profesional`, `retencion_receptor`,
-  `estado` (`S`/`N`), `fechaanulacion`, `cod_comuna`, `codigobarras`.
+- **Recibidas** row `_<i>` (HTTP, 2026-10-26, 13 fields): `nroboleta`, `rutemisor`+`dvemisor`,
+  `nombre_emisor`, `fecha_boleta`, `totalhonorarios`, `honorariosliquidos`,
+  `es_soc_profesional`, `cod_comuna`, `retencion_receptor`, `estado` (`S`/`N`; `S` seen
+  2026-05, with `fechaanulacion` set), `fechaanulacion`, `codigobarras`. **No
+  `nombre_receptor` and no `retencion_emisor`** on this account (the Python port listed
+  `nombre_receptor`, the BUG-1 field; the curated shape never reads it either way).
 - **Emitidas** row `_<i>`: `nroboleta`, **`usuemisor`** (the EMITTER = self → own-identity PII,
   live BUG-1), `fechaemision`, `rutreceptor`+`dvreceptor`, `nombrereceptor`, `fecha_boleta`,
   `totalhonorarios`, `es_soc_profesional`, `email_envio` (counterparty email), `retencion_emisor`,
@@ -121,8 +146,11 @@ Row montos (`totalhonorarios`, `honorariosliquidos`, …) ARE **Chilean dot-form
 Pagination: walk `pagina_solicitada` from 0; stop once `len(collected) >=
 xml_values.total_boletas`, OR a page adds no new rows (dedup by folio + counterparty
 RUT — guards a non-advancing loop), OR a `_MAX_PAGINAS` cap. **Pace via `Clock.sleep`**
-(ADR-004). **Open TBD (Python too):** behavior beyond page 0 unconfirmed — both test
-accounts had single-page months; a >page-size month is the case to confirm live.
+(ADR-004). **Open TBD (Python too):** behavior beyond page 0 unconfirmed — every test
+account had single-page months; a >page-size month is the case to confirm live. The meta's
+cursor keys (`pagina_sig_codigo`, `pagina_ant_codigo`, `pagina_actual`, `pagina_lista`,
+2026-10-26) suggest the page's own navigation. `total_boletas` equalled the row count on the
+two single-page months read; `cant_boletas` was not read.
 
 ## Error envelope
 
@@ -130,10 +158,10 @@ No JSON envelope — state read from the inline maps:
 
 | Condition | Signal |
 | --- | --- |
-| Report page | `xml_values` (and `arr_informe_mensual` for monthly) defined → `evaluate` returns the dict. |
-| Empty month | `arr_informe_mensual` 0 rows / `total_boletas == 0` → a legitimate empty result (annual: all-empty month rows), NOT an error. Confirmed live (#62). |
-| Non-report / cross-RUT page | requested var `undefined` → `evaluate` returns `null` → `BteError`. |
-| Session bounce | a GET landing on `zeusr.sii.cl` → `NotAuthenticatedError` (domain tasks never mint). |
+| Report page | the HTML declares `xml_values` (and `arr_informe_mensual` for monthly) → `readInlineMap` returns the map. |
+| Empty month | `arr_informe_mensual` 0 rows / `total_boletas == 0` → a legitimate empty result (annual: all-empty month rows), NOT an error. Confirmed live (#62; HTTP, emitidas, 2026-10-26). |
+| Non-report / cross-RUT page | neither map declared → `readInlineMap` returns `null` → `BteError`. |
+| Session bounce | a GET whose final URL is on `zeusr.sii.cl` (an HTTP redirect, or SII's JS-only login stub the driver recognises) → `SessionExpiredError` (domain tasks never mint). |
 
 ## Field semantics
 
@@ -271,8 +299,15 @@ JS (they render from the `<select cod_region>` HTML).
 ## Open / TBD (carry into Phase 2)
 
 - **Cookie carry + `evaluate` read: CONFIRMED TS-live (2026-06-30).** No longer open.
-- **Recibidas rows not TS-live-confirmed:** the test account had no recibidas → those row
-  fields stay ported-from-Python. Re-confirm against an account with recibidas data.
+- **Cookie carry on a plain GET + the literal maps: CONFIRMED HTTP-live (2026-10-26, #222).**
+- **Recibidas rows: CONFIRMED HTTP-live (2026-10-26)** on an empresa (13 fields, above).
+- **Emitidas rows over HTTP:** not yet seen (the 2026-10-26 account had none in 2026-07; that
+  empty month parsed cleanly). The emitidas row fields stay as TS-live-validated through `evaluate`
+  (2026-06-30); re-confirm on an account with emitidas.
+- **The annual report over HTTP:** 110 literal keys (the set above), but the month columns 1–3
+  are assigned twice and `tot1`…`tot7` / `sum<mes>` / `sumtot` are JS expressions, which
+  `readInlineMap` leaves out. Nothing reads the annual report today; a surface that does must
+  derive the totals from the month columns and confirm which of the two assignments wins.
 - **Monthly pagination > page 0:** page-size + whether `pagina_solicitada++` advances (vs a
   `pagina_sig_codigo` cursor) — still unconfirmed (the test month had `total_boletas=1`, a
   single page); the `total_boletas` target + no-new-rows dedup guard the common/degenerate
@@ -280,5 +315,5 @@ JS (they render from the `<select cod_region>` HTML).
 - **`porcentaje_retencion`** (monthly meta) — present; its exact semantics/encoding not yet
   pinned (observed once). Record but don't rely on it for the curated view; the per-boleta
   `retencion_emisor`/`retencion_receptor` carry the actual amounts.
-- Whether `estado` has values beyond `S`/`N` — observed `N` (vigente) live; extend the label
-  map + cite when an anulada (`S`) is seen.
+- Whether `estado` has values beyond `S`/`N` — observed `N` (vigente) and, on 2026-10-26,
+  `S` (anulada, with `fechaanulacion`) live.

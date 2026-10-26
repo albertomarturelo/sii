@@ -107,7 +107,8 @@ GET /cgi-bin/Portal001/mipeGenFacEx.cgi?PTDC_CODIGO=33&ES_BORR=TRUE&VALOR=<id>
 `EFXP_DIR_ORIGEN`, `EFXP_GIRO_EMIS`, `EFXP_ACTECO`, `EFXP_EMAIL_EMISOR`) and the whole detail
 grid are populated **client-side** by the page's JS (`datosArray`, `dibujaDetalles`). A cold
 `requestForm` GET therefore reads blanks — the form must be driven through
-`PortalSession.goto` + `evaluate`, like the BTE inline-JS-map facade (CONVENTIONS).
+`PortalSession.goto` + `evaluate`. (Unlike the BTE report, whose maps are literals in the HTML
+and are parsed without a browser since #222: here the page JS computes the values.)
 
 Form name: `VIEW_EFXP`. Its default action is `mipeDisplayPreView.cgi`.
 

@@ -214,9 +214,9 @@ confirmación explícita.
 
 > **Playwright** es la única dependencia con peso, y ya no es obligatoria
 > ([ADR-027](docs/decisions/027-http-portal-driver.md)). El login de la CLI y casi todas
-> las lecturas van por HTTP. Chromium solo hace falta para el login del MCP, `bte list`
-> y el Portal MIPYME (`sii dte`), donde debe correr el JS del propio SII. El paquete npm
-> no descarga navegadores automáticamente.
+> las lecturas van por HTTP, `bte list` incluido. Chromium solo hace falta para el login
+> del MCP y el Portal MIPYME (`sii dte`), donde debe correr el JS del propio SII. El paquete
+> npm no descarga navegadores automáticamente.
 
 ## Cómo funciona el login
 

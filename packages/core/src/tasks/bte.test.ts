@@ -4,6 +4,7 @@ import {
   FixedClock,
   InMemoryKeyValueStore,
   RecordingAuditSink,
+  inlineMapsPage,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
 import { BteError, NotAuthenticatedError } from '../errors/index.js';
@@ -29,24 +30,22 @@ const ARR = {
   rutreceptor_1: '12345670',
   dvreceptor_1: 'K',
   nombrereceptor_1: 'Cliente Uno SpA',
-  totalhonorarios_1: '300.000',
-  honorariosliquidos_1: '256.500',
-  retencion_receptor_1: '43.500',
+  totalhonorarios_1: { formatMiles: '300000' },
+  honorariosliquidos_1: { formatMiles: '256500' },
+  retencion_receptor_1: { formatMiles: '43500' },
   estado_1: 'N',
 };
 
-const evaluate = (expr: string): unknown =>
-  expr.includes('arr_informe_mensual') ? ARR : expr.includes('xml_values') ? META : null;
+const REPORT = inlineMapsPage({ xml_values: META, arr_informe_mensual: ARR });
 
 function makeRuntime(): Runtime {
   return {
     clock: new FixedClock(new Date('2026-06-30T12:00:00Z')),
     audit: new RecordingAuditSink(),
     store: new InMemoryKeyValueStore(),
-    // restore() backs withSession; the goto/evaluate facade reads the inline maps from `evaluate`.
-    portal: new FakePortalDriver({ restoreSession: { evaluate } }),
-    // bte list runs on the browser engine (reads SII's page JS maps, ADR-027).
-    browser: new FakePortalDriver({ restoreSession: { evaluate } }),
+    // restore() backs withSession; the facade parses the maps from the report's HTML. No
+    // `browser` engine: bte list runs on the HTTP driver alone (#222).
+    portal: new FakePortalDriver({ restoreSession: { requestText: () => REPORT } }),
   };
 }
 
@@ -105,10 +104,10 @@ describe('bte tasks (fakes, no SII)', () => {
   it('an empty month returns a clean 0-boleta result', async () => {
     const rt: Runtime = {
       ...makeRuntime(),
-      // bte list uses the browser engine, so the scripted maps go there (ADR-027).
-      browser: new FakePortalDriver({
+      portal: new FakePortalDriver({
         restoreSession: {
-          evaluate: (e: string) => (e.includes('xml_values') ? { total_boletas: '0' } : null),
+          requestText: () =>
+            inlineMapsPage({ xml_values: { total_boletas: '0' }, arr_informe_mensual: {} }),
         },
       }),
     };
