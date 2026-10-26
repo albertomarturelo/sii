@@ -61,6 +61,8 @@ const EXIT_CODES: Record<ErrorKind, number> = {
   sii_error: 1,
   // 1, not a new code: a consumer that predates the kind reads it as `unexpected`, which it was.
   network: 1,
+  // The CLI never passes a signal (ADR-031); a library consumer's cut, mapped for completeness.
+  aborted: 1,
   unexpected: 1,
 };
 

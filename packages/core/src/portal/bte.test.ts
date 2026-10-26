@@ -3,7 +3,12 @@ import { FakePortalSession, inlineMapsPage } from '../adapters/fake/index.js';
 import type { InlineMapValue } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
 import { Periodo } from '../periodo/index.js';
-import { BrowserRequiredError, BteError, SessionExpiredError } from '../errors/index.js';
+import {
+  AbortedError,
+  BrowserRequiredError,
+  BteError,
+  SessionExpiredError,
+} from '../errors/index.js';
 import { fetchBteMensual } from './bte.js';
 
 // Synthetic data only (no SII, no real PII): principal 11.111.111-1. The pages are written in
@@ -254,5 +259,106 @@ describe('BTE facade (fake session, synthetic report HTML, no SII)', () => {
     await expect(
       fetchBteMensual(session, { rut: RUT, periodo: PERIODO, side: 'EMITIDAS' }, noPace),
     ).rejects.toBeInstanceOf(BteError);
+  });
+});
+
+describe('BTE facade bounded by an AbortSignal (ADR-031, #230)', () => {
+  // A three-page month, one boleta per page: page i carries folio i + 1.
+  const page = (i: number): string =>
+    inlineMapsPage({
+      xml_values: { total_boletas: '3' },
+      arr_informe_mensual: {
+        nroboleta_1: String(i + 1),
+        rutreceptor_1: '77777777',
+        dvreceptor_1: '7',
+        totalhonorarios_1: miles('10000'),
+      },
+    });
+  const PARAMS = { rut: RUT, periodo: PERIODO, side: 'EMITIDAS' } as const;
+
+  /** Serves page N for `pagina_solicitada=N`; `onRequest(n)` runs while page n is in flight. */
+  function threePages(onRequest: (n: number) => void = () => undefined): {
+    session: FakePortalSession;
+    urls: string[];
+  } {
+    const urls: string[] = [];
+    const session = new FakePortalSession({
+      requestText: (url) => {
+        urls.push(url);
+        const n = Number(/pagina_solicitada=(\d+)/.exec(url)?.[1]);
+        onRequest(n);
+        return page(n);
+      },
+    });
+    return { session, urls };
+  }
+
+  it('without a signal, or with one that never fires, walks the month as before', async () => {
+    const plain = threePages();
+    const bounded = threePages();
+    let paginas = 0;
+    const a = await fetchBteMensual(plain.session, PARAMS, noPace);
+    const b = await fetchBteMensual(bounded.session, PARAMS, noPace, {
+      signal: new AbortController().signal,
+      onPagina: () => paginas++,
+    });
+    expect(b).toEqual(a);
+    expect(a.boletas.map((x) => x.folio)).toEqual([1, 2, 3]);
+    expect(bounded.urls).toEqual(plain.urls);
+    expect(paginas).toBe(3);
+  });
+
+  it('an already-aborted signal sends no request, and carries the reason as cause', async () => {
+    const { session, urls } = threePages();
+    const ctl = new AbortController();
+    const reason = new Error('deadline');
+    ctl.abort(reason);
+    const err = await fetchBteMensual(session, PARAMS, noPace, { signal: ctl.signal }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(AbortedError);
+    expect((err as AbortedError).cause).toBe(reason);
+    expect(urls).toHaveLength(0);
+  });
+
+  it('a signal fired during a pause sends no request for the next page', async () => {
+    const { session, urls } = threePages();
+    const ctl = new AbortController();
+    const pace = (): Promise<void> => {
+      ctl.abort();
+      return Promise.resolve();
+    };
+    await expect(
+      fetchBteMensual(session, PARAMS, pace, { signal: ctl.signal }),
+    ).rejects.toBeInstanceOf(AbortedError);
+    expect(urls).toHaveLength(1); // page 0 only
+  });
+
+  it('a signal fired while a page is in flight lets it complete, then stops before the pause', async () => {
+    const ctl = new AbortController();
+    const { session, urls } = threePages((n) => {
+      if (n === 1) ctl.abort();
+    });
+    let pauses = 0;
+    let paginas = 0;
+    const pace = (): Promise<void> => {
+      pauses++;
+      return Promise.resolve();
+    };
+    await expect(
+      fetchBteMensual(session, PARAMS, pace, { signal: ctl.signal, onPagina: () => paginas++ }),
+    ).rejects.toBeInstanceOf(AbortedError);
+    expect(urls).toHaveLength(2); // pages 0 and 1; page 1 was not cut
+    expect(paginas).toBe(2);
+    expect(pauses).toBe(1); // the pause before page 2 never started
+  });
+
+  it('a signal fired during the last page still returns the complete month', async () => {
+    const ctl = new AbortController();
+    const { session } = threePages((n) => {
+      if (n === 2) ctl.abort();
+    });
+    const res = await fetchBteMensual(session, PARAMS, noPace, { signal: ctl.signal });
+    expect(res.boletas.map((x) => x.folio)).toEqual([1, 2, 3]);
   });
 });

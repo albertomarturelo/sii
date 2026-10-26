@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  AbortedError,
   BrowserRequiredError,
   CarpetaError,
   CredentialNotFoundError,
@@ -69,6 +70,14 @@ describe('classifyError', () => {
   it('names a transport failure `network`, apart from a bug (#215)', () => {
     const e = new NetworkError('m', { host: 'misiir.sii.cl', causa: 'ECONNRESET' });
     expect(classifyError(e)).toEqual({ type: 'network' });
+  });
+
+  it('names a caller cut `aborted`, whatever the signal reason was (ADR-031)', () => {
+    expect(classifyError(new AbortedError('m', { cause: 'any value' }))).toEqual({
+      type: 'aborted',
+    });
+    // The bare reason a signal carries is not ours to classify: it stays `unexpected`.
+    expect(classifyError(new DOMException('m', 'TimeoutError'))).toEqual({ type: 'unexpected' });
   });
 
   it('calls anything that is not a domain error unexpected', () => {

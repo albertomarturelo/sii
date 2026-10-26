@@ -14,7 +14,7 @@
 // SESSION-KEYED (ADR-005): `rut_arrastre` is keyed to the session PRINCIPAL — a represented
 // RUT does NOT reach the empresa's data (confirmed live #62). The task reads self only.
 import { HOSTS } from '../config/index.js';
-import { BteError } from '../errors/index.js';
+import { BteError, checkAborted } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
 import { readInlineMap } from './inline-map.js';
 import type { Periodo } from '../periodo/index.js';
@@ -215,13 +215,19 @@ async function fetchPage(
  *  paced via `pace` (ADR-004), de-duping by folio+counterparty; stops at `total_boletas`, a
  *  no-new-rows page, or `MAX_PAGINAS`. An empty month is a clean 0-boleta result, NOT an error;
  *  a non-report / cross-RUT page (no `xml_values`) on page 0 is a `BteError`. `session` must be a
- *  live PortalSession acquired via `withSession`. */
+ *  live PortalSession acquired via `withSession`.
+ *
+ *  `signal` bounds the walk (ADR-031): checked before each request and before and after each
+ *  pause, never during a request, so the page in flight always completes; a cut throws
+ *  `AbortedError`, never a partial month. `onPagina` counts the pages read, for the receipt. */
 export async function fetchBteMensual(
   session: PortalSession,
   params: { rut: Rut; periodo: Periodo; side: BteSide },
   pace: () => Promise<void>,
+  opts: { signal?: AbortSignal | undefined; onPagina?: () => void } = {},
 ): Promise<BteMensual> {
   const { rut, periodo, side } = params;
+  const { signal } = opts;
   const boletas: BteBoleta[] = [];
   const seen = new Set<string>();
   let totalBoletas: number | null = null;
@@ -233,8 +239,13 @@ export async function fetchBteMensual(
   };
 
   for (let pagina = 0; pagina < MAX_PAGINAS; pagina++) {
-    if (pagina > 0) await pace(); // pace each extra page (ADR-004); the task binds the rps
+    if (pagina > 0) {
+      checkAborted(signal); // a cut never waits out the pause (ADR-031)
+      await pace(); // pace each extra page (ADR-004); the task binds the rps
+    }
+    checkAborted(signal);
     const { meta, rows } = await fetchPage(session, monthlyUrl(side, rut, periodo, pagina));
+    opts.onPagina?.();
     if (meta === null) {
       // No report on this page. On page 0 the (RUT, período) has no informe — a non-report /
       // cross-RUT page (BteError, ADR-004). On a later page it just means we walked past the end.

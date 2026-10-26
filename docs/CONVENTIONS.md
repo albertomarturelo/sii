@@ -363,6 +363,12 @@ Python `sii-cli`, adapted to TypeScript.
   multi-period/-year loop, a folio walk) sleeps `1000/rateLimitRps` ms between
   them through the `Clock` seam (the fake resolves instantly, so tests don't wait)
   — never hammer SII; never retry after a block. (ADR-004)
+- **A caller bounds a multi-call READ with `signal?: AbortSignal`, checked between SII calls
+  (ADR-031).** Check it before opening the session, before each pacing pause and after it;
+  never pass it into `PortalSession` (the request in flight completes). A cut throws
+  `AbortedError` (kind `aborted`, not a `SiiError`), never a partial result; the receipt says
+  `aborted` and how far the task got. Writes never take a signal. Tasks adopt it on demand
+  (`bteList` first, #230).
 - **Pass SII's Spanish error messages through unchanged.** The user knows the
   domain; opaque translations waste their time. A scraper that can't find its
   selector raises a "scraper broken" error — never retry silently.

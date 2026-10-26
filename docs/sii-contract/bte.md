@@ -152,6 +152,14 @@ cursor keys (`pagina_sig_codigo`, `pagina_ant_codigo`, `pagina_actual`, `pagina_
 2026-10-26) suggest the page's own navigation. `total_boletas` equalled the row count on the
 two single-page months read; `cant_boletas` was not read.
 
+**Bounding the walk (ADR-031, #230).** `bteList` takes an optional `signal` (an
+`AbortSignal`, library only: the CLI and the MCP pass none). It is checked before opening the
+session, before each page's GET, and before and after each pacing pause, never during a GET, so
+the page in flight always completes. A cut throws `AbortedError` (kind `aborted`) and returns no
+partial month; the receipt reads `result: "aborted"` with `paginas`, the pages read. The
+worst overrun past the deadline is one GET (≤ 30 s, the driver's timeout). Nothing on the wire
+changes, and the pagination TBD above stays open.
+
 ## Error envelope
 
 No JSON envelope — state read from the inline maps:
