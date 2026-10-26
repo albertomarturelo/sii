@@ -505,6 +505,14 @@ Python `sii-cli`, adapted to TypeScript.
 - **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
   bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
+- **Run `/review-pr` on a PR before asking for its merge, including your own.** A fresh review
+  found two correctness gaps in #223 and a wrong promise in ADR-031 (#232); #232 was offered
+  for merge before it ran, and the owner had to ask.
+- **When an issue's last criterion is a release, the PR says `Refs #N`, never `Closes`.** GitHub
+  closes the issue on ANY `Closes #N` in the body, even mid-sentence ("Closes #230 after
+  release"), so the issue would close before the version ships. Check
+  `gh pr view <n> --json closingIssuesReferences` is empty; close the issue by hand once npm
+  serves the release.
 - **A squash merge's subject must carry the PR number.** Every commit on `main` ends with
   `(#N)` — that is how a commit is traced back to its review. GitHub appends it automatically
   only when it composes the subject itself; passing `gh pr merge --squash --subject "…"`
