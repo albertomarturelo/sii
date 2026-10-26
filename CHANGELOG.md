@@ -23,6 +23,12 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **`bte list` no longer needs Chromium (#222).** The boletas de honorarios report is read from
+  its HTML over the same HTTP connection as every other read, so `sii bte list` and the MCP's
+  `bte_list` run on a machine without a browser. The result is unchanged.
+- **Added: `testing.inlineMapsPage` (#222).** For library consumers, a core test helper that
+  builds a synthetic legacy-CGI page with literal inline maps (and its `InlineMapValue` type), so
+  a fake `bte list` needs no browser engine. A new export: the next release is a minor.
 - **A `DatosCntrNow` field of an unexpected type no longer breaks the login (#214).** If Mi SII
   serves `fechaInicioActividades`, `fechaTerminoGiro` or `autorizadoDeclararDia20` as something
   other than text, `auth login`, `whoami` and `auth status --refresh` still read the identity,

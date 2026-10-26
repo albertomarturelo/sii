@@ -6,7 +6,8 @@
 // What it CANNOT do: `evaluate` (run page JS) and `interactiveLogin` (a human at SII's page).
 // Both throw BrowserRequiredError; a surface that needs them asks withSession for the
 // `browser` engine (the lazy Playwright driver), which is the only thing that still needs
-// Chromium (BTE inline maps, MIPYME `validaFacEx`). ADR-027.
+// Chromium (MIPYME's JS-built form and `validaFacEx`; BTE's maps are parsed from the HTML since
+// #222). ADR-027.
 //
 // Auth detection stays URL-based (sii-py ADR-009) with ONE documented exception: the login
 // POST itself answers 200 on `zeusr` for BOTH success and failure (observed 2026-10-17), so
@@ -166,8 +167,8 @@ class HttpPortalSession implements PortalSession {
   }
 
   evaluate<T>(_expression: string): Promise<T> {
-    // The HTTP driver cannot run page JS (ADR-027). A surface that needs it (BTE inline maps,
-    // MIPYME validaFacEx) must acquire the browser engine via withSession.
+    // The HTTP driver cannot run page JS (ADR-027). A surface that needs it (the MIPYME form and
+    // its validaFacEx) must acquire the browser engine via withSession.
     return Promise.reject(new BrowserRequiredError(BROWSER_ONLY));
   }
 

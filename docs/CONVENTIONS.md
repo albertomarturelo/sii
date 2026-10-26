@@ -48,8 +48,9 @@ Python `sii-cli`, adapted to TypeScript.
   `request*` primitive, and its `goto` is a redirect-following GET. Its `evaluate` throws
   `BrowserRequiredError`.
   - A surface may ask for the browser (`withSession(…, { engine: 'browser' })`) ONLY when
-    SII's own page JS must run: inline JS maps (BTE `list`) or an in-page validator
-    (MIPYME `validaFacEx`).
+    SII's own page JS must COMPUTE the data: a JS-built form or an in-page validator
+    (MIPYME `validaFacEx`). Data the page writes as literals is parsed from the HTML (the
+    next bullet, and the inline-JS-map rule below; ADR-027 amendment, #222).
   - In the CLI that browser is ALWAYS headless. **No CLI command may need a human at a
     browser window**, so the headed login and `--www2` are MCP-only.
   - If the data ships as a JSON literal in the HTML (e.g. `DatosCntrNow`), extract and
@@ -145,15 +146,18 @@ Python `sii-cli`, adapted to TypeScript.
   answered, so it is not SII's response and must not read as « no es JSON »: the HTTP driver
   raises it with the host and Node's cause, and it is not a `SiiError`, so a composite read
   aborts on it. Six facades relabelled it before this rule.
-- **Inline-JS-map facades (legacy CGIs) go through `PortalSession.goto` + `evaluate`,
-  NOT `requestJson`.** Some surfaces (BHE/BTE on `loa.sii.cl/cgi_IMT/`) serve an HTML
-  skeleton whose tables are filled client-side from global JS maps (`xml_values`,
-  `arr_informe_mensual`). Navigate with `goto` (the `.sii.cl` session cookie SSO-carries;
-  detect a dead jar by a `LOGIN_HOST` landing → `SessionExpiredError`) and read the map
-  with `evaluate("…Object.fromEntries(Object.entries(V))…")` — the `Object.entries`
-  wrapper is REQUIRED (the maps are JS Arrays with string keys a bare read would drop).
-  NEVER scrape the rendered DOM (the cells still hold the filling JS). Cite the CGI +
-  observation date; pace pagination via `Clock.sleep`. (ADR-003 / ADR-004)
+- **Inline-JS-map facades (legacy CGIs) GET the page with `requestText` and parse the map
+  statements with `readInlineMap`, NOT `requestJson`, never `evaluate`.** Some surfaces
+  (BHE/BTE on `loa.sii.cl/cgi_IMT/`) serve an HTML skeleton whose tables are filled
+  client-side from global JS maps (`xml_values`, `arr_informe_mensual`) that the HTML itself
+  writes as literal statements (`name['k'] = "v";`, `formatMiles('<n>', …)`, `+= <n>`;
+  observed 2026-10-26, #222). `readInlineMap` replays them in document order and drops a key
+  whose statement it cannot evaluate, so an unknown shape reads as missing, never as a guess.
+  The `.sii.cl` session cookie carries on a plain GET; a dead jar lands on `LOGIN_HOST` and
+  the driver raises `SessionExpiredError`. NEVER scrape the rendered DOM (the cells hold the
+  filling JS). Cite the CGI + observation date; pace pagination via `Clock.sleep`. A page
+  whose JS computes the values (expressions, not literals) is a browser surface: ask for
+  `engine: 'browser'` and say so in its contract. (ADR-003 / ADR-004 / ADR-027)
 - **An HTML table parser preserves blank cells, maps by POSITION, and fails loud on an
   unexpected cell count.** Never drop empty cells before indexing: SII renders a legitimately
   absent value as a blank cell (a `PRV` document has no folio), so filtering it slides every

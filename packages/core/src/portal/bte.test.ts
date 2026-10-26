@@ -1,40 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { FakePortalSession } from '../adapters/fake/index.js';
+import { FakePortalSession, inlineMapsPage } from '../adapters/fake/index.js';
+import type { InlineMapValue } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
 import { Periodo } from '../periodo/index.js';
-import { BteError, SessionExpiredError } from '../errors/index.js';
+import { BrowserRequiredError, BteError, SessionExpiredError } from '../errors/index.js';
 import { fetchBteMensual } from './bte.js';
 
-// Synthetic data only (no SII, no real PII): principal 11.111.111-1.
+// Synthetic data only (no SII, no real PII): principal 11.111.111-1. The pages are written in
+// the shape observed on the report CGIs (2026-10-26, #222): literal statements, row amounts as
+// `formatMiles("<n>")`, the month's sums as bare numbers.
 const RUT = Rut.parse('11111111-1');
 const PERIODO = Periodo.parse('2026-05');
 const noPace = (): Promise<void> => Promise.resolve();
+const miles = (n: string): InlineMapValue => ({ formatMiles: n });
 
 // Monthly meta (xml_values): carries OWN-identity PII (nombre_contribuyente/rut_arrastre) that
 // must NOT surface, plus the tax aggregates.
-const META = {
+const META: Record<string, InlineMapValue> = {
   total_boletas: '2',
-  suma_honorarios: '500000',
-  suma_retencion_emisor: '0',
-  suma_retencion_receptor: '72500',
-  suma_liquido: '427500',
+  suma_honorarios: 500000,
+  suma_retencion_emisor: 0,
+  suma_retencion_receptor: 72500,
+  suma_liquido: 427500,
   nombre_contribuyente: 'SYNTHETIC OWN NAME',
   rut_arrastre: '11111111',
   dv_arrastre: '1',
 };
-// Two emitidas rows (arr_informe_mensual). Montos are dot-formatted; one vigente (N) + one
-// anulada (S). `email_envio`/`usuemisor` are non-curated → must never surface (no `raw`).
-const ARR_EMITIDAS = {
+// Two emitidas rows (arr_informe_mensual): one vigente (N) + one anulada (S).
+// `email_envio`/`usuemisor` are non-curated → must never surface (no `raw`).
+const ARR_EMITIDAS: Record<string, InlineMapValue> = {
   nroboleta_1: '101',
   usuemisor_1: 'SYNTHETIC OWN EMITTER NAME', // own-identity (the emitter = self) — must NOT reach raw
   fechaemision_1: '15/05/2026',
   rutreceptor_1: '77777777',
   dvreceptor_1: '7',
   nombrereceptor_1: 'Cliente Uno SpA',
-  totalhonorarios_1: '300.000',
-  honorariosliquidos_1: '256.500',
-  retencion_emisor_1: '0',
-  retencion_receptor_1: '43.500',
+  totalhonorarios_1: miles('300000'),
+  honorariosliquidos_1: miles('256500'),
+  retencion_emisor_1: miles('0'),
+  retencion_receptor_1: miles('43500'),
   es_soc_profesional_1: 'NO',
   estado_1: 'N',
   fechaanulacion_1: '',
@@ -45,24 +49,37 @@ const ARR_EMITIDAS = {
   rutreceptor_2: '12345670',
   dvreceptor_2: 'K',
   nombrereceptor_2: 'Cliente Dos Ltda',
-  totalhonorarios_2: '200.000',
-  honorariosliquidos_2: '171.000',
-  retencion_emisor_2: '0',
-  retencion_receptor_2: '29.000',
+  totalhonorarios_2: miles('200000'),
+  honorariosliquidos_2: miles('171000'),
+  retencion_emisor_2: miles('0'),
+  retencion_receptor_2: miles('29000'),
   es_soc_profesional_2: 'NO',
   estado_2: 'S',
   fechaanulacion_2: '21/05/2026',
   codigobarras_2: 'DEF',
 };
 
-const isArr = (expr: string): boolean => expr.includes('arr_informe_mensual');
-const isMeta = (expr: string): boolean => expr.includes('xml_values');
+/** A session whose `requestText` serves `pages` in order (the last one repeats) and records
+ *  every URL; `evaluate` throws, as on the HTTP driver, so the facade must never need it. */
+function reportSession(...pages: string[]): { session: FakePortalSession; urls: string[] } {
+  const urls: string[] = [];
+  const session = new FakePortalSession({
+    requestText: (url) => {
+      urls.push(url);
+      return pages[Math.min(urls.length, pages.length) - 1];
+    },
+    evaluate: () => {
+      throw new BrowserRequiredError('evaluate needs a browser');
+    },
+  });
+  return { session, urls };
+}
 
-describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
-  it('parses curated boletas, exposes no raw / own-PII, sends the emitidas CGI + params', async () => {
-    const session = new FakePortalSession({
-      evaluate: (expr) => (isArr(expr) ? ARR_EMITIDAS : isMeta(expr) ? META : null),
-    });
+describe('BTE facade (fake session, synthetic report HTML, no SII)', () => {
+  it('parses curated boletas, exposes no raw / own-PII, GETs the emitidas CGI + params', async () => {
+    const { session, urls } = reportSession(
+      inlineMapsPage({ xml_values: META, arr_informe_mensual: ARR_EMITIDAS }),
+    );
 
     const res = await fetchBteMensual(
       session,
@@ -88,7 +105,7 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
       fecha: '15/05/2026',
       contraparteRut: '77777777-7',
       contraparteNombre: 'Cliente Uno SpA',
-      totalHonorarios: 300000, // dot-formatted "300.000" → 300000
+      totalHonorarios: 300000, // formatMiles("300000") → 300000
       honorariosLiquidos: 256500,
       retencionReceptor: 43500,
       estado: 'VIG', // N
@@ -107,33 +124,48 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
     expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN EMITTER NAME'); // usuemisor (own)
     expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN NAME'); // report-meta name
     expect(JSON.stringify(res)).not.toContain('cliente1@example.com'); // counterparty email (was raw-only)
-    // Navigated to the emitidas monthly CGI with the split RUT + período + page 0.
-    expect(session.gotos[0]).toContain('/TMBCOC_InformeMensualBhe.cgi');
-    expect(session.gotos[0]).toContain('cbanoinformemensual=2026&cbmesinformemensual=05');
-    expect(session.gotos[0]).toContain('rut_arrastre=11111111&dv_arrastre=1&pagina_solicitada=0');
+    // A GET of the emitidas monthly CGI with the split RUT + período + page 0.
+    expect(session.lastTextRequest?.options).toEqual({ method: 'GET' });
+    expect(urls[0]).toContain('/TMBCOC_InformeMensualBhe.cgi');
+    expect(urls[0]).toContain('cbanoinformemensual=2026&cbmesinformemensual=05');
+    expect(urls[0]).toContain('rut_arrastre=11111111&dv_arrastre=1&pagina_solicitada=0');
   });
 
   it('recibidas reads the rutemisor/nombre_emisor aliases + the …BheRec CGI', async () => {
-    const ARR_RECIBIDAS = {
+    // The 13 row fields observed on recibidas (2026-10-26), plus a defensive own-name field.
+    const ARR_RECIBIDAS: Record<string, InlineMapValue> = {
       nroboleta_1: '55',
       fecha_boleta_1: '10/05/2026',
       rutemisor_1: '20000042',
       dvemisor_1: '0',
       nombre_emisor_1: 'Proveedor Servicios EIRL',
       nombre_receptor_1: 'SYNTHETIC OWN RECEPTOR NAME', // own identity (self = receptor) — must NOT surface
-      totalhonorarios_1: '120.000',
-      honorariosliquidos_1: '102.600',
-      retencion_receptor_1: '17.400',
+      totalhonorarios_1: miles('120000'),
+      honorariosliquidos_1: miles('102600'),
+      retencion_receptor_1: miles('17400'),
       es_soc_profesional_1: 'NO',
       estado_1: 'N',
       fechaanulacion_1: '',
       cod_comuna_1: '13101',
       codigobarras_1: 'XYZ',
     };
-    const session = new FakePortalSession({
-      evaluate: (expr) =>
-        isArr(expr) ? ARR_RECIBIDAS : isMeta(expr) ? { ...META, total_boletas: '1' } : null,
-    });
+    // Recibidas meta has no suma_retencion_emisor, and its sums start at 0 and grow by one
+    // `+=` per row (observed 2026-10-26).
+    const { session, urls } = reportSession(
+      inlineMapsPage({
+        xml_values: {
+          total_boletas: '1',
+          nombre_contribuyente: 'SYNTHETIC OWN NAME',
+          suma_honorarios: 0,
+          suma_retencion_receptor: 0,
+          suma_liquido: 0,
+        },
+        arr_informe_mensual: ARR_RECIBIDAS,
+      }) +
+        "<script>xml_values['suma_honorarios'] += 120000;" +
+        "xml_values['suma_retencion_receptor'] += 17400;" +
+        "xml_values['suma_liquido'] += 102600;</script>",
+    );
 
     const res = await fetchBteMensual(
       session,
@@ -142,24 +174,32 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
     );
 
     expect(res.side).toBe('RECIBIDAS');
+    expect(res.totales).toEqual({
+      honorarios: 120000,
+      retencionEmisor: null,
+      retencionReceptor: 17400,
+      liquido: 102600,
+    });
     expect(res.boletas[0]).toMatchObject({
       folio: 55,
       fecha: '10/05/2026',
       contraparteRut: '20000042-0', // from rutemisor/dvemisor
       contraparteNombre: 'Proveedor Servicios EIRL',
       totalHonorarios: 120000,
+      retencionEmisor: null,
+      retencionReceptor: 17400,
     });
     // BUG-1: the RECIBIDAS self receptor-name never surfaces (no `raw`).
     expect(res.boletas[0]).not.toHaveProperty('raw');
     expect(JSON.stringify(res)).not.toContain('SYNTHETIC OWN RECEPTOR NAME');
-    expect(session.gotos[0]).toContain('/TMBCOC_InformeMensualBheRec.cgi');
+    expect(urls[0]).toContain('/TMBCOC_InformeMensualBheRec.cgi');
   });
 
   it('an empty month is a clean 0-boleta result, not an error', async () => {
-    const session = new FakePortalSession({
-      // Report page exists (meta defined, total 0) but no rows map.
-      evaluate: (expr) => (isMeta(expr) ? { total_boletas: '0' } : null),
-    });
+    // Report page exists (meta declared, total 0) but its rows map is empty.
+    const { session } = reportSession(
+      inlineMapsPage({ xml_values: { total_boletas: '0' }, arr_informe_mensual: {} }),
+    );
     const res = await fetchBteMensual(
       session,
       { rut: RUT, periodo: PERIODO, side: 'EMITIDAS' },
@@ -171,54 +211,46 @@ describe('BTE facade (fake session, synthetic inline maps, no SII)', () => {
 
   it('paginates and de-dupes until total_boletas is reached', async () => {
     // total=3: page 0 returns rows 1-2, page 1 returns row 3 (+ a duplicate of row 1).
-    const PAGE0 = {
-      nroboleta_1: '1',
-      rutreceptor_1: '77777777',
-      dvreceptor_1: '7',
-      totalhonorarios_1: '10.000',
-      nroboleta_2: '2',
-      rutreceptor_2: '77777777',
-      dvreceptor_2: '7',
-      totalhonorarios_2: '20.000',
-    };
-    const PAGE1 = {
-      nroboleta_1: '1',
-      rutreceptor_1: '77777777',
-      dvreceptor_1: '7',
-      totalhonorarios_1: '10.000', // dup
-      nroboleta_2: '3',
-      rutreceptor_2: '77777777',
-      dvreceptor_2: '7',
-      totalhonorarios_2: '30.000',
-    };
-    let arrCall = 0;
-    const session = new FakePortalSession({
-      evaluate: (expr) => {
-        if (isArr(expr)) {
-          arrCall++;
-          return arrCall === 1 ? PAGE0 : PAGE1;
-        }
-        return isMeta(expr) ? { total_boletas: '3' } : null;
-      },
+    const row = (i: number, folio: string, monto: string): Record<string, InlineMapValue> => ({
+      [`nroboleta_${i}`]: folio,
+      [`rutreceptor_${i}`]: '77777777',
+      [`dvreceptor_${i}`]: '7',
+      [`totalhonorarios_${i}`]: miles(monto),
     });
+    const meta = { total_boletas: '3' };
+    const { session, urls } = reportSession(
+      inlineMapsPage({
+        xml_values: meta,
+        arr_informe_mensual: { ...row(1, '1', '10000'), ...row(2, '2', '20000') },
+      }),
+      inlineMapsPage({
+        xml_values: meta,
+        arr_informe_mensual: { ...row(1, '1', '10000'), ...row(2, '3', '30000') }, // dup + new
+      }),
+    );
     const res = await fetchBteMensual(
       session,
       { rut: RUT, periodo: PERIODO, side: 'EMITIDAS' },
       noPace,
     );
     expect(res.boletas.map((b) => b.folio)).toEqual([1, 2, 3]); // dedup dropped the repeated folio 1
-    expect(session.gotos).toHaveLength(2); // walked two pages
+    expect(urls).toHaveLength(2); // walked two pages
+    expect(urls[1]).toContain('pagina_solicitada=1');
   });
 
-  it('a dead session (goto lands on the login host) raises SessionExpiredError', async () => {
-    const session = new FakePortalSession({ landingUrl: 'https://zeusr.sii.cl/AUT2000/x.html' });
+  it("a dead session (the driver's login-host landing) raises SessionExpiredError", async () => {
+    const session = new FakePortalSession({
+      requestText: () => {
+        throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+      },
+    });
     await expect(
       fetchBteMensual(session, { rut: RUT, periodo: PERIODO, side: 'EMITIDAS' }, noPace),
     ).rejects.toBeInstanceOf(SessionExpiredError);
   });
 
   it('a non-report page 0 (no xml_values) is a BteError', async () => {
-    const session = new FakePortalSession({ evaluate: () => null }); // xml_values undefined
+    const { session } = reportSession('<html><body>Servicio no disponible</body></html>');
     await expect(
       fetchBteMensual(session, { rut: RUT, periodo: PERIODO, side: 'EMITIDAS' }, noPace),
     ).rejects.toBeInstanceOf(BteError);

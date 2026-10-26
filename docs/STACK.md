@@ -26,8 +26,9 @@ These are intended choices; versions are pinned when first installed.
 - **`playwright`** `^1.49.0` (1.61.1 installed) — the JS engine, NO LONGER the default
   portal (ADR-027). `createNodeRuntime` defaults `portal` to the browser-free
   `HttpPortalDriver` (Node `fetch` + an in-house cookie jar) and wires Playwright as the
-  optional `Runtime.browser` engine, used only where SII's OWN page JS must run: BTE `list`
-  (inline maps), MIPYME (`validaFacEx`), and the headed / www2 logins (MCP-only). Backs
+  optional `Runtime.browser` engine, used only where SII's OWN page JS must run: MIPYME
+  (`validaFacEx`, the JS-built form) and the headed / www2 logins (MCP-only). BTE `list`
+  left it in #222 (its maps are literals in the HTML, ADR-027 amendment). Backs
   `adapters/node/portal.ts`; Chromium via
   `pnpm --filter @albertomarturelo/sii-core exec playwright install chromium`, needed only by
   those surfaces. **An OPTIONAL peer of `@albertomarturelo/sii-core` since ADR-016** (lazy-loaded;

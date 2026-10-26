@@ -17,7 +17,7 @@ all the legal/operational guardrails live in the core.
 
 ```bash
 npm i -g @albertomarturelo/sii-cli
-# only `bte list` and the MIPYME `dte` commands run SII's page JS and need Chromium once:
+# only the MIPYME `dte` commands run SII's page JS and need Chromium once:
 npx playwright install chromium
 ```
 

@@ -15,23 +15,23 @@ describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, n
       rutreceptor_1: '12345670',
       dvreceptor_1: 'K',
       nombrereceptor_1: 'Cliente Uno SpA',
-      totalhonorarios_1: '300.000',
-      honorariosliquidos_1: '256.500',
+      totalhonorarios_1: { formatMiles: '300000' },
+      honorariosliquidos_1: { formatMiles: '256500' },
       estado_1: 'N',
     };
-    // restoreSession.evaluate serves BOTH the login DatosCntrNow probe and the BTE inline maps.
-    const evaluate = (expr: string): unknown =>
-      expr.includes('arr_informe_mensual') ? ARR : expr.includes('xml_values') ? META : datos();
+    // The report CGI serves its maps as literals in the HTML; any other URL (the Mi SII identity
+    // read) falls through to the fake's DatosCntrNow synthesis. No browser engine (#222).
+    const REPORT = testing.inlineMapsPage({ xml_values: META, arr_informe_mensual: ARR });
     const runtime: Runtime = {
       clock: new testing.FixedClock(new Date('2026-06-30T12:00:00Z')),
       audit: new testing.RecordingAuditSink(),
       store: new testing.InMemoryKeyValueStore(),
       portal: new testing.FakePortalDriver({
-        restoreSession: { landingUrl: HOSTS.miSii, evaluate },
-      }),
-      // bte_list reads SII's inline JS maps, so it runs on the browser engine (ADR-027).
-      browser: new testing.FakePortalDriver({
-        restoreSession: { landingUrl: HOSTS.miSii, evaluate },
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          datos,
+          requestText: (url) => (url.includes('/TMBCOC_') ? REPORT : undefined),
+        },
       }),
     };
     const client = await connect(runtime);
