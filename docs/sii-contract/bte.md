@@ -19,8 +19,7 @@ emitidas** — the **recibidas row fields are ported from Python, not TS-live-co
 **HTTP pass (#222, 2026-10-26, prod, an EMPRESA session minted by the HTTP driver, no browser):**
 the session's cookies reach `loa.sii.cl` on a plain GET (HTTP 200), and the maps are **literal
 statements in the HTML**, so `bte list` parses them from a `requestText` GET instead of running
-the page (ADR-027 amendment). **Recibidas confirmed live** on 2026-07 (2 rows) and 2026-05 (one
-anulada): the row fields and the month's sums below. The probe printed structure only (key
+the page (ADR-027 amendment). **Recibidas confirmed live**, including an anulada: the row fields and the month's sums below. The probe printed structure only (key
 names, value kinds, counts); no value, RUT or name was recorded.
 
 ## Reach — spike #15 for BHE: SESSION-KEYED (answered)
@@ -65,7 +64,7 @@ xml_values['suma_honorarios'] += <n>;       // … and grow after each row
 `readInlineMap` replays them in document order: a literal assignment sets the key (strings
 unquoted, `formatMiles`' raw integer, bare numbers), a numeric `+=` adds, and a statement it
 cannot evaluate (an expression) removes the key, so an unknown shape reads as **missing**,
-never as a guess. The month's sums leave the anuladas out (2026-05: one anulada, the sums equal
+never as a guess. The month's sums leave the anuladas out (observed: the sums equal
 the vigente rows). A non-report page declares neither map → `null` → `BteError`. Before #222
 the facade ran the page in the browser and read the maps with `evaluate` (the
 `Object.entries` wrapper was required: the maps are `Array`s with string keys).
@@ -136,7 +135,7 @@ shows them dot-formatted (`"1.300.000"`). Observed row fields:
 - **Recibidas** row `_<i>` (HTTP, 2026-10-26, 13 fields): `nroboleta`, `rutemisor`+`dvemisor`,
   `nombre_emisor`, `fecha_boleta`, `totalhonorarios`, `honorariosliquidos`,
   `es_soc_profesional`, `cod_comuna`, `retencion_receptor`, `estado` (`S`/`N`; `S` seen
-  2026-05, with `fechaanulacion` set), `fechaanulacion`, `codigobarras`. **No
+  live, with `fechaanulacion` set), `fechaanulacion`, `codigobarras`. **No
   `nombre_receptor` and no `retencion_emisor`** on this account (the Python port listed
   `nombre_receptor`, the BUG-1 field; the curated shape never reads it either way).
 - **Emitidas** row `_<i>`: `nroboleta`, **`usuemisor`** (the EMITTER = self → own-identity PII,
@@ -302,8 +301,8 @@ JS (they render from the `<select cod_region>` HTML).
 - **Cookie carry + `evaluate` read: CONFIRMED TS-live (2026-06-30).** No longer open.
 - **Cookie carry on a plain GET + the literal maps: CONFIRMED HTTP-live (2026-10-26, #222).**
 - **Recibidas rows: CONFIRMED HTTP-live (2026-10-26)** on an empresa (13 fields, above).
-- **Emitidas rows over HTTP:** not yet seen (the 2026-10-26 account had none in 2026-07; that
-  empty month parsed cleanly). The emitidas row fields stay as TS-live-validated through `evaluate`
+- **Emitidas rows over HTTP:** not yet seen (only an empty month was read, and it parsed
+  cleanly). The emitidas row fields stay as TS-live-validated through `evaluate`
   (2026-06-30); re-confirm on an account with emitidas.
 - **The annual report over HTTP:** 110 literal keys (the set above), but the month columns 1–3
   are assigned twice and `tot1`…`tot7` / `sum<mes>` / `sumtot` are JS expressions, which
