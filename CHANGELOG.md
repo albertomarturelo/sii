@@ -23,11 +23,22 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Added: a deadline for `bteList` (#230, ADR-031).** For library consumers: `bteList` takes an
-  optional `signal` (`AbortSignal`), checked between SII calls and never during one, so a caller
-  with a time limit (a serverless worker) can stop a month's page walk. A cut throws the new
-  `AbortedError`, error kind `aborted`, and returns nothing partial. The CLI and the MCP are
-  unchanged.
+## 0.18.0 — 2026-10-26 — Con plazo
+
+A library consumer with a time limit can now stop a boletas read between SII calls.
+
+**A deadline for `bteList` (#230, ADR-031).** `bteList` takes an optional `signal`
+(`AbortSignal`). Pass `AbortSignal.timeout(ms)` and the month's page walk starts no SII call
+after the deadline: the signal is checked before opening the session, before each request and
+around each pacing pause, never during a request. A cut throws the new `AbortedError`, error
+kind `aborted`, and returns nothing partial, so a serverless worker never stores half a month.
+The worst overrun is the step in progress: one request or one pause. The audit receipt reads
+`aborted` with the pages read.
+
+The same shape is now the rule for any multi-call read (ADR-031); other tasks adopt it when a
+caller needs it. Writes never take a signal. The CLI and the MCP are unchanged.
+
+A MINOR: a new option, error class and error kind (ADR-021 amendment). Nothing breaks.
 
 ## 0.17.0 — 2026-10-26 — Boletas sin navegador
 

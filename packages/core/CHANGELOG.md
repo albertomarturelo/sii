@@ -4,6 +4,18 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.18.0 — 2026-10-26
+
+### Added
+
+- **`bteList(runtime, { periodo, side, signal })` (#230, ADR-031).** An optional `AbortSignal`,
+  checked before opening the session, before each page's request and before and after each
+  pacing pause, never during a request (it never reaches `PortalSession`). An already-aborted
+  signal opens no session. The audit receipt reads `result: "aborted"` with `paginas`.
+- **`AbortedError` and the error kind `aborted` (ADR-012 amendment).** Thrown when the signal
+  cuts a task; the signal's `reason` rides as `cause`. Not a `SiiError`: SII refused nothing.
+  `classifyError` maps it to `aborted`.
+
 ## 0.17.0 — 2026-10-26
 
 ### Added
