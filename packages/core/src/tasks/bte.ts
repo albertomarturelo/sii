@@ -12,7 +12,8 @@ import { recordAudit } from '../audit/index.js';
 import { readOperateState } from '../identity/index.js';
 import { Periodo } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
-import { BteError, ValidationError } from '../errors/index.js';
+import { AbortedError, BteError, ValidationError } from '../errors/index.js';
+import { checkAborted } from '../errors/abort.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
 import { fetchBteMensual } from '../portal/bte.js';
 import type { BteMensual, BteSide } from '../portal/bte.js';
@@ -56,15 +57,19 @@ async function assertSelfOperating(runtime: Runtime): Promise<void> {
 }
 
 /** One month's boletas de honorarios for the session principal (ADR-005), emitidas or recibidas.
- *  An empty month is a clean 0-boleta result, not an error. */
+ *  An empty month is a clean 0-boleta result, not an error. `signal` lets an embedder with a
+ *  deadline stop the page walk between SII calls (ADR-031): a cut throws `AbortedError`, and an
+ *  already-aborted signal throws before any session is opened. */
 export async function bteList(
   runtime: Runtime,
-  args: { periodo: string; side: BteSide },
+  args: { periodo: string; side: BteSide; signal?: AbortSignal | undefined },
 ): Promise<BteMensual> {
   const periodo = Periodo.parse(args.periodo); // fail fast on a bad período — no session opened
   await assertSelfOperating(runtime);
   const start = runtime.clock.now().getTime();
+  let paginas = 0;
   try {
+    checkAborted(args.signal); // before the session: an expired deadline costs SII nothing
     // The report's maps (xml_values / arr_informe_mensual) are literals in its HTML, so the
     // HTTP engine reads them, like bte emit's form-POSTs (ADR-027, amended #222).
     const res = await withSession(runtime, async (session, ctx) =>
@@ -72,6 +77,7 @@ export async function bteList(
         session,
         { rut: Rut.parse(ctx.sessionRut), periodo, side: args.side }, // session-keyed: the principal
         () => runtime.clock.sleep(pacingMs()),
+        { signal: args.signal, onPagina: () => paginas++ },
       ),
     );
     audit(runtime, 'bte_list', 'ok', {
@@ -82,7 +88,13 @@ export async function bteList(
     });
     return res;
   } catch (e) {
-    audit(runtime, 'bte_list', 'failed', { period: periodo.canonical, side: args.side });
+    // A cut is not a failure: the receipt says how far the walk got, never what it read.
+    const result = e instanceof AbortedError ? 'aborted' : 'failed';
+    audit(runtime, 'bte_list', result, {
+      period: periodo.canonical,
+      side: args.side,
+      ...(result === 'aborted' ? { paginas } : {}),
+    });
     throw e;
   }
 }

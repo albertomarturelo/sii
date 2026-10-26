@@ -23,6 +23,12 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added: a deadline for `bteList` (#230, ADR-031).** For library consumers: `bteList` takes an
+  optional `signal` (`AbortSignal`), checked between SII calls and never during one, so a caller
+  with a time limit (a serverless worker) can stop a month's page walk. A cut throws the new
+  `AbortedError`, error kind `aborted`, and returns nothing partial. The CLI and the MCP are
+  unchanged.
+
 ## 0.17.0 — 2026-10-26 — Boletas sin navegador
 
 The boletas de honorarios report no longer needs Chromium. Besides the MCP's headed login, only

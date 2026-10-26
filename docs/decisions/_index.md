@@ -16,7 +16,7 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 009 | [NodeNext module resolution for Node-runnable surface builds](009-nodenext-module-resolution.md) | Accepted | 2026-06-27 |
 | 010 | [CLI console login — headless form-fill to a cookies-only session](010-cli-console-login.md) | Accepted | 2026-06-28 |
 | 011 | [Adopt zod for MCP tool input schemas (and wire-boundary validation)](011-zod-validation.md) | Accepted | 2026-06-28 |
-| 012 | [JSON is the default output; `@altumstack/sii-core` is the JSON contract](012-json-default-output.md) | Accepted (amended: error kinds, `network`) | 2026-06-29 |
+| 012 | [JSON is the default output; `@altumstack/sii-core` is the JSON contract](012-json-default-output.md) | Accepted (amended: error kinds, `network`, `aborted`) | 2026-06-29 |
 | 013 | [F29 read surface — phased; robust SDI-JSON now, GWT-RPC presented form deferred](013-f29-phased-read-gwt-rpc-deferred.md) | Accepted | 2026-06-29 |
 | 014 | [Unauthenticated `PortalDriver.requestPublic` seam for public login-free consultas](014-public-consulta-seam.md) | Accepted | 2026-06-29 |
 | 015 | [Publish `@altumstack/sii-core` as a private package on GitHub Packages](015-publish-core-github-packages.md) | Accepted | 2026-06-30 |
@@ -35,3 +35,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 028 | [Non-interactive login — `--clave-env` / `--clave-stdin`, `--if-needed`, a rejection latch](028-non-interactive-login.md) | Accepted (amended: no `--if-needed`) | 2026-10-18 |
 | 029 | [F29 submit — send the propuesta as-is, declare only, return the payment link](029-f29-submit-propuesta.md) | Accepted (amended: transport, oracle) | 2026-10-18 |
 | 030 | [`alertas` — a session-keyed composite read with stable ids](030-alertas-composite-read.md) | Accepted (amended: regime obligation) | 2026-10-23 |
+| 031 | [A caller bounds a multi-call task with an `AbortSignal`, checked between SII calls](031-task-abort-signal.md) | Accepted | 2026-10-26 |

@@ -3,6 +3,7 @@
 // verbatim next to it. The kind names are a CONTRACT: a refactor may rename a class, never a
 // kind, and a kind is never reassigned to a different situation.
 import {
+  AbortedError,
   BrowserRequiredError,
   CredentialNotFoundError,
   LoginBlockedError,
@@ -34,6 +35,7 @@ export type ErrorKind =
   | 'unexpected_response'
   | 'sii_error'
   | 'network'
+  | 'aborted'
   | 'unexpected';
 
 /** `reason` / `codigo` ride on every `login_*` kind (`codigo` is `null` when SII printed
@@ -59,6 +61,7 @@ export function classifyError(error: unknown): ErrorInfo {
   if (error instanceof UnexpectedResponseError) return { type: 'unexpected_response' };
   if (error instanceof SiiError) return { type: 'sii_error' };
   if (error instanceof NetworkError) return { type: 'network' };
+  if (error instanceof AbortedError) return { type: 'aborted' };
   return { type: 'unexpected' };
 }
 

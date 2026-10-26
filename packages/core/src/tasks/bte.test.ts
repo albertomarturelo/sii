@@ -7,7 +7,7 @@ import {
   inlineMapsPage,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { BteError, NotAuthenticatedError } from '../errors/index.js';
+import { AbortedError, BteError, NotAuthenticatedError, classifyError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import { bteList } from './bte.js';
@@ -131,5 +131,55 @@ describe('bte tasks (fakes, no SII)', () => {
       NotAuthenticatedError,
     );
     expect(entries(rt).at(-1)).toMatchObject({ action: 'bte_list', result: 'failed' });
+  });
+
+  describe('bteList bounded by an AbortSignal (ADR-031, #230)', () => {
+    it('an already-aborted signal opens no session and audits `aborted` with 0 pages', async () => {
+      const rt = makeRuntime();
+      await seed(rt);
+      const ctl = new AbortController();
+      ctl.abort();
+      const err = await bteList(rt, {
+        periodo: '2026-05',
+        side: 'EMITIDAS',
+        signal: ctl.signal,
+      }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AbortedError);
+      expect(classifyError(err)).toEqual({ type: 'aborted' });
+      expect((rt.portal as FakePortalDriver).restoreCalls).toBe(0);
+      expect(entries(rt).at(-1)).toMatchObject({
+        action: 'bte_list',
+        result: 'aborted',
+        paginas: 0,
+      });
+    });
+
+    it('a cut after the first page audits the pages read and no boleta data', async () => {
+      // Two pages of one boleta each; the signal fires while page 0 is in flight.
+      const pageOf = (folio: string): string =>
+        inlineMapsPage({
+          xml_values: { total_boletas: '2' },
+          arr_informe_mensual: { nroboleta_1: folio, rutreceptor_1: '12345670', dvreceptor_1: 'K' },
+        });
+      const ctl = new AbortController();
+      const rt: Runtime = {
+        ...makeRuntime(),
+        portal: new FakePortalDriver({
+          restoreSession: {
+            requestText: (url: string) => {
+              ctl.abort();
+              return url.includes('pagina_solicitada=0') ? pageOf('101') : pageOf('102');
+            },
+          },
+        }),
+      };
+      await seed(rt);
+      await expect(
+        bteList(rt, { periodo: '2026-05', side: 'EMITIDAS', signal: ctl.signal }),
+      ).rejects.toBeInstanceOf(AbortedError);
+      const receipt = entries(rt).at(-1);
+      expect(receipt).toMatchObject({ action: 'bte_list', result: 'aborted', paginas: 1 });
+      expect(JSON.stringify(receipt)).not.toContain('101');
+    });
   });
 });

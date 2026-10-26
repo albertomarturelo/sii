@@ -102,6 +102,16 @@ export class NetworkError extends Error {
   }
 }
 
+/** The caller's `AbortSignal` cut a multi-call read between two SII calls (ADR-031): nothing
+ *  partial is returned. The signal's `reason` rides as `cause`, whatever value the caller gave
+ *  it, so the kind does not depend on it. NOT a SiiError: SII refused nothing. */
+export class AbortedError extends Error {
+  constructor(message: string, options: { cause: unknown }) {
+    super(message, options);
+    this.name = new.target.name;
+  }
+}
+
 /** SII rejected a portal/SDI facade request (error envelope or unparseable
  *  response). Carries SII's message verbatim — never translated (ADR-004). */
 export class RepresentacionError extends SiiError {}
