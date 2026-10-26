@@ -27,6 +27,10 @@ Every decision behind a release is recorded as an ADR under
   serves `fechaInicioActividades`, `fechaTerminoGiro` or `autorizadoDeclararDia20` as something
   other than text, `auth login`, `whoami` and `auth status --refresh` still read the identity,
   and `alertas` reads that field as unknown.
+- **Accents in SII's legacy pages no longer come back as `�` (#224).** The boletas de honorarios
+  pages declare their charset only inside the HTML, which the browser-free driver ignored, so a
+  name or an SII message with ñ or an accent came back garbled in `bte emit`. The driver now
+  reads that declaration, as a browser does.
 
 ## 0.16.0 — 2026-10-23 — Dónde se cortó la red
 

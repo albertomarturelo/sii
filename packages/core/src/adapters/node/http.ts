@@ -19,7 +19,7 @@ import { parseSiiLoginErrorDetail } from '../../auth/login-error.js';
 import { Rut } from '../../rut/index.js';
 import {
   LOGIN_STUB_MAX_BYTES,
-  charsetOf,
+  charsetOfBody,
   formLoginWallError,
   loginStubTarget,
   nonJsonResponseError,
@@ -138,7 +138,7 @@ function jsLoginWallUrl(
   if (status < 200 || status >= 300) return null;
   if (!(contentType ?? '').toLowerCase().includes('text/html')) return null;
   if (bytes.length > LOGIN_STUB_MAX_BYTES) return null;
-  return loginStubTarget(new TextDecoder(charsetOf(contentType)).decode(bytes));
+  return loginStubTarget(new TextDecoder(charsetOfBody(contentType, bytes)).decode(bytes));
 }
 
 function stripBodyHeaders(headers: Record<string, string>): Record<string, string> {
@@ -151,7 +151,7 @@ function stripBodyHeaders(headers: Record<string, string>): Record<string, strin
 }
 
 const decode = (r: RawResponse): string =>
-  new TextDecoder(charsetOf(r.contentType)).decode(r.bytes);
+  new TextDecoder(charsetOfBody(r.contentType, r.bytes)).decode(r.bytes);
 const landedOn = (url: string, host: string): boolean => new URL(url).hostname === host;
 
 class HttpPortalSession implements PortalSession {
@@ -330,7 +330,9 @@ export class HttpPortalDriver implements PortalDriver {
       }),
     );
     const buffer = await overNetwork(url, () => response.arrayBuffer());
-    const text = new TextDecoder(charsetOf(response.headers.get('content-type'))).decode(buffer);
+    const text = new TextDecoder(
+      charsetOfBody(response.headers.get('content-type'), new Uint8Array(buffer)),
+    ).decode(buffer);
     return { status: response.status, body: text };
   }
 }

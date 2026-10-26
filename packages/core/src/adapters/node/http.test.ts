@@ -303,6 +303,17 @@ describe('HttpPortalDriver — session primitives', () => {
     expect((await live.requestText(MI_SII, { method: 'GET' })).body).toBe(page);
   });
 
+  it('decodes a page by its <meta> charset when the header has none (the loa.sii.cl CGIs, GH-224)', async () => {
+    const html =
+      '<html><head><meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">' +
+      '</head><body><script>m[\'nombre_1\'] = "Muñoz";</script></body></html>';
+    const latin1 = Uint8Array.from(html, (c) => c.charCodeAt(0)); // ñ = the single byte 0xF1
+    const { impl } = fakeFetch(() => ({ headers: { 'content-type': 'text/html' }, body: latin1 }));
+    const session = await new HttpPortalDriver(impl).restore({ cookies: [] });
+    expect((await session.requestText(MI_SII, { method: 'GET' })).body).toBe(html);
+    expect((await session.requestForm(MI_SII, { form: {} })).body).toBe(html);
+  });
+
   it('evaluate and interactiveLogin require the browser engine', async () => {
     const driver = new HttpPortalDriver(okJson().impl);
     const session = await driver.restore({ cookies: [] });

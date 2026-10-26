@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  charsetOf,
+  charsetOfBody,
   formLoginWallError,
   loginStubTarget,
   nonJsonResponseError,
@@ -114,23 +114,61 @@ describe('formLoginWallError (authenticated form-POST login-wall, ADR-017)', () 
   });
 });
 
-describe('charsetOf (public-response charset for decoding)', () => {
+describe('charsetOfBody (the charset a response body is decoded with)', () => {
+  const NONE = new Uint8Array();
+  // A synthetic page encoded as ISO-8859-1: `ñ` is the single byte 0xF1.
+  const latin1Page = (head: string, text = 'Muñoz'): Uint8Array =>
+    Uint8Array.from(`<html><head>${head}</head><body>${text}</body></html>`, (c) =>
+      c.charCodeAt(0),
+    );
+  const decoded = (contentType: string | null, bytes: Uint8Array): string =>
+    new TextDecoder(charsetOfBody(contentType, bytes)).decode(bytes);
+
   it('reads the declared charset (the palena DTE report is ISO-8859-1)', () => {
-    expect(charsetOf('text/html; charset=ISO-8859-1')).toBe('ISO-8859-1');
+    expect(charsetOfBody('text/html; charset=ISO-8859-1', NONE)).toBe('ISO-8859-1');
   });
 
   it('is case/space/quote tolerant', () => {
-    expect(charsetOf('text/html;  CHARSET="utf-8"')).toBe('utf-8');
+    expect(charsetOfBody('text/html;  CHARSET="utf-8"', NONE)).toBe('utf-8');
   });
 
-  it('defaults to utf-8 when no charset is declared', () => {
-    expect(charsetOf('text/html')).toBe('utf-8');
-    expect(charsetOf(null)).toBe('utf-8');
-    expect(charsetOf(undefined)).toBe('utf-8');
+  it('defaults to utf-8 when nothing declares a charset', () => {
+    expect(charsetOfBody('text/html', NONE)).toBe('utf-8');
+    expect(charsetOfBody(null, NONE)).toBe('utf-8');
+    expect(charsetOfBody(undefined, NONE)).toBe('utf-8');
   });
 
   it('falls back to utf-8 for a label TextDecoder cannot accept', () => {
-    expect(charsetOf('text/html; charset=not-a-real-charset')).toBe('utf-8');
+    expect(charsetOfBody('text/html; charset=not-a-real-charset', NONE)).toBe('utf-8');
+    const page = latin1Page('<meta charset="not-a-real-charset">');
+    expect(charsetOfBody('text/html', page)).toBe('utf-8');
+  });
+
+  it('reads a <meta http-equiv> charset when the header has none (the loa.sii.cl CGIs, GH-224)', () => {
+    const page = latin1Page(
+      '<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">',
+    );
+    expect(decoded('text/html', page)).toContain('Muñoz');
+  });
+
+  it('reads a <meta charset> on an untyped body', () => {
+    expect(decoded(null, latin1Page("<meta charset='ISO-8859-1'>"))).toContain('Muñoz');
+  });
+
+  it('lets the header win over the <meta>', () => {
+    const page = latin1Page('<meta charset="utf-8">');
+    expect(charsetOfBody('text/html; charset=ISO-8859-1', page)).toBe('ISO-8859-1');
+  });
+
+  it('never sniffs a non-HTML body', () => {
+    const body = latin1Page('<meta charset="iso-8859-1">');
+    expect(charsetOfBody('application/json', body)).toBe('utf-8');
+    expect(charsetOfBody('text/x-gwt-rpc', body)).toBe('utf-8');
+  });
+
+  it('ignores a <meta> past the first 1024 bytes, like the HTML prescan', () => {
+    const page = latin1Page(`${' '.repeat(1100)}<meta charset="iso-8859-1">`);
+    expect(charsetOfBody('text/html', page)).toBe('utf-8');
   });
 });
 

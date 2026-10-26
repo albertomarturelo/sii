@@ -98,21 +98,40 @@ export function loginStubTarget(html: string): string | null {
   }
 }
 
-/** Extract the charset label from a `Content-Type` header for decoding a public
- *  (unauthenticated) response body (ADR-014). SII's palena reports declare
- *  `text/html; charset=ISO-8859-1`, so a UTF-8 decode would mangle accents (ó, é,
- *  °) — we honour the DECLARED charset and fall back to UTF-8 when it is absent or
- *  not a label `TextDecoder` accepts. Pure → unit-tested without launching fetch. */
-export function charsetOf(contentType: string | null | undefined): string {
+/** The charset to decode a response body with, so accents (ñ, ó, °) survive. The header's
+ *  charset wins when it declares one: SII's palena reports send `text/html; charset=ISO-8859-1`
+ *  (ADR-014). Without it, an HTML (or untyped) body is prescanned for a `<meta>` charset in its
+ *  first 1024 bytes, as a browser does: the legacy CGIs on `loa.sii.cl` answer `text/html` with
+ *  NO charset and declare `iso-8859-1` only there (observed 2026-10-26, GH-224). Anything else,
+ *  or a label `TextDecoder` rejects, falls back to UTF-8. Pure → unit-tested without fetch. */
+export function charsetOfBody(contentType: string | null | undefined, bytes: Uint8Array): string {
+  const header = declaredCharset(contentType);
+  if (header !== null) return header;
+  const type = (contentType ?? '').toLowerCase();
+  if (type !== '' && !type.includes('html')) return 'utf-8';
+  // latin1 maps every byte to one char, so an ASCII `<meta>` reads the same in any encoding.
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 1024));
+  for (const tag of head.match(/<meta\b[^>]*>/gi) ?? []) {
+    const label = validLabel(/\bcharset\s*=\s*["']?\s*([\w.:-]+)/i.exec(tag)?.[1] ?? '');
+    if (label !== null) return label;
+  }
+  return 'utf-8';
+}
+
+function declaredCharset(contentType: string | null | undefined): string | null {
   const label = /charset=([^;]+)/i
     .exec(contentType ?? '')?.[1]
     ?.trim()
     .replace(/^["']|["']$/g, '');
-  if (!label) return 'utf-8';
+  return validLabel(label ?? '');
+}
+
+function validLabel(label: string): string | null {
+  if (!label) return null;
   try {
     new TextDecoder(label); // validate the label; an unknown one throws RangeError
     return label;
   } catch {
-    return 'utf-8';
+    return null;
   }
 }
