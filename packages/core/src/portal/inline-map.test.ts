@@ -38,6 +38,21 @@ describe('readInlineMap (literal JS maps in legacy CGI HTML)', () => {
     expect(readInlineMap(html, 'xml_values')).toEqual({ es_sociedad_profesionales: 'NO' });
   });
 
+  it('drops a literal that only starts an expression instead of truncating it', () => {
+    const html = [
+      `var xml_values = new Array();`,
+      `xml_values['nombre'] = "Uno" + sufijo;`,
+      `xml_values['monto'] = formatMiles("100" + extra, ".");`,
+      `xml_values['suma'] = 0 + parcial;`,
+      `xml_values['sin_punto_y_coma'] = "ok"`,
+      `xml_values['miles_sin_separador'] = formatMiles('2500');`,
+    ].join('\n');
+    expect(readInlineMap(html, 'xml_values')).toEqual({
+      sin_punto_y_coma: 'ok', // ASI: a newline ends the statement
+      miles_sin_separador: '2500',
+    });
+  });
+
   it("replays `+= <n>` the way the month's sums are built (0, then one add per row)", () => {
     const html = [
       `var xml_values = new Array();`,

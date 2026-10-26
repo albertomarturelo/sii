@@ -6,18 +6,26 @@
 // with `xml_values['suma_…'] += <n>;` (observed 2026-10-26, recibidas, an empresa session on the
 // HTTP driver; docs/sii-contract/bte.md). Replaying those statements in order is what the page's
 // top-level script does, so the browser is not needed.
+//
+// This is a statement scan, not a JS parser: it would also replay an assignment inside a comment,
+// a string or a function that never runs. None was observed on these pages; a page that grows one
+// needs a narrower reader, not a looser regex.
 
 /** One `name['key'] = <rhs>` or `+= <rhs>` statement. `=(?!=)` keeps a comparison (`== 'SI'`)
  *  out. */
 const assignmentRe = (name: string): RegExp =>
   new RegExp(`\\b${name}\\s*\\[\\s*(['"])([^'"]*)\\1\\s*\\]\\s*(\\+?)=(?!=)\\s*`, 'g');
 
-// The literal right-hand sides the page writes (observed 2026-10-26). Anything else (an
-// expression such as the annual report's `Number(xml_values['…']) + …` totals) leaves the key
-// absent rather than holding a guess.
-const QUOTED = /^(['"])((?:\\.|(?!\1)[^\\])*)\1/;
-const FORMAT_MILES = /^formatMiles\(\s*(['"])(-?\d+)\1/;
-const BARE_NUMBER = /^(-?\d+(?:\.\d+)?)\s*(?:;|$|\n)/;
+// The literal right-hand sides the page writes (observed 2026-10-26). Each must END the statement
+// (`;`, or a newline by ASI): a literal that starts an expression (`"a" + x`, the annual report's
+// `Number(xml_values['…']) + …` totals) leaves the key absent rather than holding a guess.
+// `formatMiles`' second argument is only the thousands separator, so it is not read.
+const END = String.raw`[ \t]*(?:;|\r?\n|$)`;
+const QUOTED = new RegExp(String.raw`^(['"])((?:\\.|(?!\1)[^\\])*)\1` + END);
+const FORMAT_MILES = new RegExp(
+  String.raw`^formatMiles\(\s*(['"])(-?\d+)\1\s*(?:,[^()]*)?\)` + END,
+);
+const BARE_NUMBER = new RegExp(String.raw`^(-?\d+(?:\.\d+)?)` + END);
 
 const unescape = (s: string): string => s.replace(/\\(.)/g, '$1');
 
