@@ -108,7 +108,7 @@ HTTP driver, structure only, `TMBCOC_InformeMensualBheRec.cgi` and the annual re
 the maps are not computed by the page: the HTML declares `xml_values` / `arr_informe_mensual`
 as `new Array()` and writes every key as a literal statement, the row amounts as
 `formatMiles('<n>', …)`, and the month's sums as `0` plus `+= <n>` statements after the rows
-(their total leaves the annulled boletas out, 2026-05). The session's cookies reach
+(their total leaves the annulled boletas out). The session's cookies reach
 `loa.sii.cl` on a plain GET.
 
 **Decision.**
@@ -125,8 +125,8 @@ as `new Array()` and writes every key as a literal statement, the row amounts as
   part of this change.
 
 **Consequences.** Chromium is needed only for the MIPYME form flows and the MCP's headed /
-www2 logins. Validated live on 2026-10-26 with no browser installed: recibidas 2026-07 and
-2026-05 (an annulled boleta), every curated field and the month's totals; emitidas answered a
-clean empty month (its rows unvalidated, no account with emitidas at hand). Replaying the
+www2 logins. Validated live on 2026-10-26 with no browser installed: recibidas, every
+curated field, an annulled boleta and the month's totals; emitidas parsed an empty month (its
+rows unvalidated, no account with emitidas at hand). Replaying the
 statements is narrower than running JS: a page that starts computing its values with
 expressions loses those keys, which a live check shows as nulls, never as wrong numbers.
