@@ -4,6 +4,33 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.17.0 — 2026-10-26
+
+### Added
+
+- **`testing.inlineMapsPage` and its `InlineMapValue` type (#222).** Builds a synthetic
+  legacy-CGI page that declares inline JS maps and assigns their keys as literal statements, so
+  a fake `bteList` runs with no browser engine.
+
+### Changed
+
+- **`bteList` runs on the HTTP engine (#222).** `portal/bte.ts` GETs the report CGI with
+  `PortalSession.requestText` and replays its `xml_values` / `arr_informe_mensual` statements
+  with the new internal `readInlineMap` (literal strings, `formatMiles("<n>")`, bare numbers,
+  numeric `+=`, in document order; a statement it cannot evaluate removes the key). It used
+  `withBrowserSession` + `goto`/`evaluate`. `BteMensual` is unchanged.
+
+### Fixed
+
+- **The Node drivers decode a page by its `<meta>` charset when the header has none (#224).**
+  `loa.sii.cl` answers a bare `text/html` and declares `iso-8859-1` only in the HTML, so every
+  non-ASCII byte became U+FFFD (`bteEmitPreview` / `bteEmit` messages and names). The header's
+  charset still wins; a non-HTML body is never sniffed.
+- **An unexpected type in a `DatosCntrNow` window field no longer fails the identity read
+  (#214).** `fechaInicioActividades`, `fechaTerminoGiro` and `autorizadoDeclararDia20` carry
+  `.catch(null)`, so the login, `whoami` and `auth status --refresh` still parse, and `alertas`
+  reads the field as unknown.
+
 ## 0.16.0 — 2026-10-23
 
 ### Added
