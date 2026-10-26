@@ -90,7 +90,8 @@ and MIPYME (the JS-built form plus `validaFacEx()` on a DOM).
 
 - **Easier:** login, `whoami`, RCV, F22, F29 (+ PDFs), peticiones, `dte authorized`,
   `bte emit` and the MIPYME listings/PDFs run with no browser at all, on a bare Linux
-  VM. Chromium is needed only for BTE `list` and the MIPYME form flows, headless.
+  VM. Chromium is needed only for BTE `list` and the MIPYME form flows, headless
+  (BTE `list` left the browser on 2026-10-26: Amendment below).
 - **Harder:** the cookie jar and login-success detection are ours to keep correct.
   They're covered by fake-`fetch` tests on synthetic `Set-Cookie`/HTML fixtures.
 - **Risk:** the F5 WAF may start fingerprinting non-browser clients. That surfaces as a
@@ -98,3 +99,34 @@ and MIPYME (the JS-built form plus `validaFacEx()` on a DOM).
 - **Breaking:** a bare `sii auth login` no longer opens a browser; `--www2` is gone; and
   `sii carpeta instituciones` (shipped 0.10.0) leaves the CLI. Minor bump + release note.
 - **Obligations:** update `sii-contract/auth-login.md` (HTTP flow), `STACK.md`, `ROADMAP.md`.
+
+## Amendment (2026-10-26, #222)
+
+**Context.** BTE `list` was one of the two surfaces kept on the browser because its CGIs fill
+their tables from inline JS maps. A probe on 2026-10-26 (an empresa session minted by this
+HTTP driver, structure only, `TMBCOC_InformeMensualBheRec.cgi` and the annual report) found that
+the maps are not computed by the page: the HTML declares `xml_values` / `arr_informe_mensual`
+as `new Array()` and writes every key as a literal statement, the row amounts as
+`formatMiles('<n>', …)`, and the month's sums as `0` plus `+= <n>` statements after the rows
+(their total leaves the annulled boletas out, 2026-05). The session's cookies reach
+`loa.sii.cl` on a plain GET.
+
+**Decision.**
+
+- BTE `list` runs on the HTTP engine: `requestText` GET, then `readInlineMap`
+  (`portal/inline-map.ts`) replays the map statements in document order (literal assignments,
+  numeric `+=`). A statement it cannot evaluate removes the key rather than guess.
+- The browser rule narrows: a surface asks for `engine: 'browser'` only when the page JS
+  **computes** the data (MIPYME's JS-built form, `validaFacEx`). Data the page writes as
+  literals, whether a JSON literal (`DatosCntrNow`) or map statements (BTE), is parsed from
+  the HTML.
+- `bte emit` keeps its own key readers (first match) until its issue step is live-validated
+  (#62): its pages were captured once, and changing how a binding write reads them is not
+  part of this change.
+
+**Consequences.** Chromium is needed only for the MIPYME form flows and the MCP's headed /
+www2 logins. Validated live on 2026-10-26 with no browser installed: recibidas 2026-07 and
+2026-05 (an annulled boleta), every curated field and the month's totals; emitidas answered a
+clean empty month (its rows unvalidated, no account with emitidas at hand). Replaying the
+statements is narrower than running JS: a page that starts computing its values with
+expressions loses those keys, which a live check shows as nulls, never as wrong numbers.

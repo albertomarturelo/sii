@@ -4,17 +4,19 @@
 // contract is first-hand-observed, NOT a third-party library (ADR-004). See
 // docs/sii-contract/bte.md.
 //
-// DISTINCT from the SDI-JSON facades (RCV/F22/F29): these CGIs serve an HTML skeleton and
-// fill their tables from global JS maps, so we read those maps through the browser
-// primitives — `PortalSession.goto` (the .sii.cl session cookie SSO-carries to loa.sii.cl —
-// observed 2026-06-30) + `PortalSession.evaluate` — NOT `requestJson`. Do NOT scrape the DOM:
-// after domcontentloaded the cells still hold the filling JS (CONVENTIONS: prefer inline data).
+// DISTINCT from the SDI-JSON facades (RCV/F22/F29): these CGIs serve an HTML skeleton whose
+// tables the page JS fills from global JS maps. The maps themselves are literal statements in
+// the HTML (observed 2026-10-26, #222), so we GET the page with `requestText` (the .sii.cl
+// session cookie carries to loa.sii.cl, on the HTTP driver too) and parse the statements
+// (`readInlineMap`) — no browser, NOT `requestJson`, never the DOM (CONVENTIONS: prefer inline
+// data). A dead jar lands on the login host and the driver raises `SessionExpiredError`.
 //
 // SESSION-KEYED (ADR-005): `rut_arrastre` is keyed to the session PRINCIPAL — a represented
 // RUT does NOT reach the empresa's data (confirmed live #62). The task reads self only.
-import { HOSTS, LOGIN_HOST } from '../config/index.js';
-import { BteError, SessionExpiredError } from '../errors/index.js';
+import { HOSTS } from '../config/index.js';
+import { BteError } from '../errors/index.js';
 import { Rut } from '../rut/index.js';
+import { readInlineMap } from './inline-map.js';
 import type { Periodo } from '../periodo/index.js';
 import type { PortalSession } from '../seams/index.js';
 
@@ -104,8 +106,9 @@ const asStr = (v: unknown): string | null => {
   return s === '' ? null : s;
 };
 
-/** Parse a Chilean integer monto: row montos are dot-formatted (`"1.300.000"`), meta sums are
- *  plain (`"1300000"`) — strip thousands separators either way; non-numeric → null. */
+/** Parse a Chilean integer monto. Read from the HTML, row montos are `formatMiles`' raw
+ *  argument and meta sums bare numbers (both plain, `"1300000"`); a dot-formatted `"1.300.000"`
+ *  (what the rendered page shows) is accepted too. Non-numeric → null. */
 const asMonto = (v: unknown): number | null => {
   const s = asStr(v);
   if (s === null) return null;
@@ -132,13 +135,6 @@ const canonicalRut = (digits: unknown, dv: unknown): string | null => {
   if (digits === undefined || digits === null || dv === undefined || dv === null) return null;
   return Rut.tryParse(`${String(digits)}-${String(dv).trim()}`)?.canonical ?? null;
 };
-
-// Read an inline global JS map. The maps are JS Arrays with STRING keys, which a bare
-// `evaluate("xml_values")` / JSON.stringify would drop — `Object.fromEntries(Object.entries())`
-// preserves them (observed 2026-06-30). An undefined var (non-report page) → null.
-const evalExpr = (v: string): string =>
-  `(function(){ return typeof ${v} !== 'undefined' && ${v} !== null ` +
-  `? Object.fromEntries(Object.entries(${v})) : null; })()`;
 
 function monthlyUrl(side: BteSide, rut: Rut, periodo: Periodo, pagina: number): string {
   const anio = String(periodo.year).padStart(4, '0');
@@ -198,22 +194,21 @@ function parseTotales(meta: Record<string, unknown>): BteTotales {
   };
 }
 
-type InlineMap = Record<string, unknown> | null;
+type InlineMap = Record<string, string> | null;
 
-/** Navigate to a report CGI and read its inline maps. A GET that lands back on the login host
- *  means the cookies-only session is dead → `SessionExpiredError` (actionable, like the SDI
- *  seam); this first `goto` IS the liveness test (withSession does not pre-probe). */
+/** GET a report CGI and read its inline maps from the HTML. A GET that lands back on the login
+ *  host means the cookies-only session is dead: `requestText` raises `SessionExpiredError`
+ *  (the driver's URL-based check, ADR-027); this first GET IS the liveness test (withSession
+ *  does not pre-probe). */
 async function fetchPage(
   session: PortalSession,
   url: string,
 ): Promise<{ meta: InlineMap; rows: InlineMap }> {
-  const landed = await session.goto(url);
-  if (new URL(landed).hostname === LOGIN_HOST) {
-    throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
-  }
-  const meta = await session.evaluate<InlineMap>(evalExpr('xml_values'));
-  const rows = await session.evaluate<InlineMap>(evalExpr('arr_informe_mensual'));
-  return { meta, rows };
+  const { body } = await session.requestText(url, { method: 'GET' });
+  return {
+    meta: readInlineMap(body, 'xml_values'),
+    rows: readInlineMap(body, 'arr_informe_mensual'),
+  };
 }
 
 /** Monthly BHE detail for one (período, side), session-keyed. Walks `pagina_solicitada` from 0,
