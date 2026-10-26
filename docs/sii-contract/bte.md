@@ -38,8 +38,9 @@ empresa's BHE is reached by logging in AS the empresa (logout→login).
 
 BTE is **NOT** an `www4.sii.cl` SDI-JSON facade (RCV/F22/F29) and **NOT** a public
 HTML CGI (DTE). It is **legacy CGIs on `loa.sii.cl/cgi_IMT/`** that serve an HTML
-skeleton (`charset=iso-8859-1`) and **fill their tables client-side from inline JS
-global maps**. The maps themselves are written as literal statements in the HTML
+skeleton (`iso-8859-1`, declared ONLY in a `<meta>`: the header is a bare `text/html`, so
+the HTTP driver prescans the `<meta>` like a browser, #224, observed 2026-10-26) and **fill
+their tables client-side from inline JS global maps**. The maps themselves are written as literal statements in the HTML
 (observed 2026-10-26, #222), so the TS facade reads them with the **existing**
 `PortalSession.requestText` primitive and no browser — **no new seam**:
 
