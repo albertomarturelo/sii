@@ -375,10 +375,11 @@ export function verificarBorradorF29(
   return out.sort((a, b) => Number(a.codigo) - Number(b.codigo));
 }
 
-/** The recargo block of a filing past the due day, as the layout defines it (2026-10-19): 92 Más
- *  IPC, 93 Más intereses y multas, 795 / 922 / 915 the condonación, and 94 TOTAL A PAGAR CON
- *  RECARGO, whose formula (91 + 92 + 93 − 795) is the only one: SII fills the rest itself.
- *  In numeric order. */
+/** The recargo block of a filing past the due day (ADR-029 amendment, #235): 92 Más IPC, 93 Más
+ *  intereses y multas, 795 / 922 / 915 the condonación, and 94 TOTAL A PAGAR CON RECARGO, whose
+ *  formula (91 + 92 + 93 − 795) is the only one: SII fills the rest itself. Observed in the
+ *  layout `findVersionBorradorById` returns, permutation 543D42AD0EF9E262804F560CE81AF5A6,
+ *  2026-10-19. In numeric order. */
 const CODIGOS_RECARGO = ['92', '93', '94', '795', '915', '922'] as const;
 
 /** The recargo códigos SII's validated borrador declares. Non-empty means a late filing, which
