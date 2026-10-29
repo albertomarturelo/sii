@@ -274,6 +274,14 @@ Python `sii-cli`, adapted to TypeScript.
   or a dead session after the call was sent is UNCONFIRMED: read the state, and say so when it
   does not settle it. An error class shared by "SII said no" and "we could not read SII's
   answer" must not decide this (#193 review).
+- **Classify every item with a read before a batch of irreversible writes; never extrapolate
+  from a sample (#221).** A few períodos read « sin propuesta » and the rest were assumed alike;
+  most of them had a propuesta, and only the task's guard kept the first one from being filed
+  wrong. The full read can also change the question, not just the list: it may show the items
+  are not owed at all (a segunda categoría taxpayer owes no F29 sin movimiento, SII FAQ
+  001.130.1154). Read the whole set first, report it, and ask before the batch. A write route
+  that SII opens for any período checks the período itself (ended, previous month filed): SII
+  will not.
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
@@ -511,6 +519,11 @@ Python `sii-cli`, adapted to TypeScript.
   dependent PR instead of retargeting it (#226 was closed this way and had to be reopened).
   After the base's squash, rebase the dependent `--onto origin/main <old base tip>` and gate
   its merge on CI for the new head.
+  **Two sessions in one checkout move each other's HEAD.** A branch created while another
+  session had its own branch checked out started on that session's commit, and a later commit
+  landed on `main` (#244's work; caught before any push). Check `git branch --show-current`
+  right before committing whenever another session may be in the repo, or work in a separate
+  worktree (ask the owner before creating one).
 - **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
   bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
