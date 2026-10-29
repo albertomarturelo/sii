@@ -23,11 +23,24 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed: `f29 submit` and a text código (#235).** The preview no longer fails with « scraper
-  roto: el valor del código 922 »: SII's layout types 922 and 915 as text, and they are now read
-  as text, still under the safety rule. Both belong to the recargo block SII adds after the due
-  date, so a late período (92, 93, 94…) is now refused up front with that reason: the submit
-  files only within the plazo (filing late is #237).
+## 0.18.1 — 2026-10-28 — Dentro del plazo
+
+A patch for `f29 submit` (#235).
+
+**The preview no longer breaks on a text código.** It failed with « scraper roto: el valor del
+código 922 »: SII's validated borrador lists every declared código in the same kind of block,
+and the core read each value as an amount. SII's form defines 922 and 915 as text, so they are
+now read by the type SII gives each field, and still checked by the safety rule: a text SII adds
+or changes on its own blocks the submit, like any amount.
+
+**A late período is refused, with the reason.** 922 and 915 belong to the block SII adds to a
+filing past the due date: 92 (IPC), 93 (intereses y multas), 795 (condonación) and 94, the
+TOTAL A PAGAR CON RECARGO. `f29 submit` files only within the plazo, where the total you confirm
+is 91 (ADR-029 amendment), so when SII's validation carries that block, both the preview and
+`--confirm` stop before saving anything and tell you to file the período at SII. Filing late
+from the CLI is #237.
+
+A PATCH: a fix and a new refusal of an unsupported case. Nothing breaks, nothing is added.
 
 ## 0.18.0 — 2026-10-26 — Con plazo
 

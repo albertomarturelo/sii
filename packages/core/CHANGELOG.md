@@ -4,6 +4,21 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.18.1 — 2026-10-28
+
+### Fixed
+
+- **`f29SubmitPreview` / `f29Submit` read a text código as text (#235).** The validated
+  borrador's `D` values are read by their campo's layout type (`ENTERO*` / `DECIMAL*` as a
+  monto, anything else as text); 922 and 915 are `STRING`, and a value there was « scraper
+  roto ». `F29BorradorValidado` gains `textos`, `F29CampoValor` gains `numerico`, and
+  `verificarBorradorF29` takes an optional `textos` (a text SII adds is `sobra`, one it changes
+  `distinto`). These live in the portal layer, not the main barrel.
+- **A late filing is refused before saving (ADR-029 amendment).** When SII's validated borrador
+  declares any código of the recargo block (92, 93, 94, 795, 915, 922), both phases throw an
+  `F29Error` (kind `sii_error`, audited `refused`) instead of reporting `sobra`. Filing late is
+  #237.
+
 ## 0.18.0 — 2026-10-26
 
 ### Added
