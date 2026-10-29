@@ -75,6 +75,21 @@ jobs:
           done < <(grep -oE 'docs/decisions/[0-9]+-[a-zA-Z0-9-]+\.md' docs/decisions/_index.md | sort -u)
           exit $fail
 
+      - name: AGENTS.md alias (one index for every agent)
+        # Agents other than Claude Code read AGENTS.md, not CLAUDE.md (#125). A symlink
+        # keeps them on the same index; a copy would drift, and a checkout without
+        # core.symlinks turns the link into a one-line text file.
+        run: |
+          set -euo pipefail
+          if [ ! -e AGENTS.md ] && [ ! -L AGENTS.md ]; then
+            echo "::error file=AGENTS.md::AGENTS.md is missing. Restore it with: ln -s CLAUDE.md AGENTS.md"
+            exit 1
+          fi
+          if [ ! -L AGENTS.md ] || [ "$(readlink AGENTS.md)" != CLAUDE.md ]; then
+            echo "::error file=AGENTS.md::AGENTS.md must be a symlink to CLAUDE.md, not a copy or another target. Fix with: ln -sf CLAUDE.md AGENTS.md"
+            exit 1
+          fi
+
       - name: ADR completeness (5 mandatory sections)
         run: |
           set -euo pipefail

@@ -33,6 +33,13 @@ checklist with PASS / WARN / FAIL per item:
    reach-past — it bypasses the throttling / audit / credential rails.
 8. **Language check**: any `docs/**/*.md` file written in a non-English
    language? WARN per file.
+9. **`AGENTS.md` alias**: must be a symlink to `CLAUDE.md`
+   (`test -L AGENTS.md && [ "$(readlink AGENTS.md)" = CLAUDE.md ]`), so
+   agents other than Claude Code read the same index. FAIL if missing, or
+   if it is a regular file: a divergent copy, or a checkout without
+   `core.symlinks` that turned the link into a one-line text file. The CI
+   `validate-context` job fails on the same cases. Propose
+   `ln -sf CLAUDE.md AGENTS.md`.
 
 Output the checklist and propose concrete fixes for any failures.
 Do NOT auto-apply fixes — the user reviews first.
