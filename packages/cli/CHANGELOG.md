@@ -9,6 +9,16 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.19.0 — 2026-10-29
+
+### Added
+
+- **`sii f29 submit <periodo> --sin-movimiento`** (#221): preview, then `--sin-movimiento
+  --confirm 0` to file. Its help states that you assert the month had no movement, the
+  refusals, and that a multa for a late month is SII's.
+- **`sii bienes-raices list`** (#236): the predios and their unpaid cuotas, from Mi SII.
+  `sii alertas` gains the `bienes_raices` source (in the default set).
+
 ## 0.18.1 — 2026-10-28
 
 ### Fixed
