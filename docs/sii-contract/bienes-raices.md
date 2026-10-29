@@ -2,7 +2,9 @@
 
 First-hand observation, no third-party library (ADR-004). Located 2026-10-28 (spike #236): a
 headed browser to find the call, then browser-free probes over the HTTP driver with a
-cookies-only session. Decision: ADR-032. Every value below is **synthetic**: roles, comunas,
+cookies-only session. The public consulta and vica were mapped 2026-10-29 (spike #251) from their
+own client code, a guarded headed browser and a session-less Node probe. Decision: ADR-032 and its
+amendment. Every value below is **synthetic**: roles, comunas,
 addresses, names and amounts are taxpayer data and never land here.
 
 Surface: `@albertomarturelo/sii-core` `portal/bienes-raices-misii.ts`, called by the
@@ -75,8 +77,11 @@ The SDI service behind it is named in `metaData.namespace`:
   `propietario` says whether the RUT is the registered owner. `data: null` or `{}` = no predios.
 - The map key is `<RUT>-<rol>`: it carries the RUT, so the facade never exposes it.
 - `rol` is `<manzana>-<predio>` as SII prints it; the facade composes it when absent.
-- Not curated (meaning not observed): `pac`, `indExistencia`, `indHistorial`, `indBcovid`, the
-  `*CNP` triple, `agnoVigDesde` / `semestreVigDesde`. `nombrePropietario` is dropped as PII.
+- Not curated: `pac`, `indExistencia`, `indHistorial`, `indBcovid`, the `*CNP` triple,
+  `agnoVigDesde` / `semestreVigDesde`. `nombrePropietario` is dropped as PII. The public consulta
+  (below) returns the same row, and its client gives three of them a meaning: `indExistencia`
+  `"N"` = no predio under that rol, `tieneCuotas` = unpaid cuotas exist, `indHistorial` `1` =
+  payments made through SII's site exist (`buscaRolPagos.js`, read 2026-10-29).
 
 ### `cuotas` — the UNPAID cuotas
 
@@ -103,13 +108,88 @@ code is SII's error, surfaced with `glosaRespuesta` verbatim. A non-empty `metaD
 surfaced verbatim too. A body that is not JSON, or JSON without `data` / `metaData` /
 `codigoResp`, is "scraper roto".
 
-## Related, not used (ADR-032 alternatives)
+## Public consulta — the cuota breakdown (ADR-032 amendment, #251)
 
-`https://www2.sii.cl/vica/` (« Mis bienes raíces », from `sii.cl/servicios_online/1048-4544.html`)
-serves `/app/vica/<userId>/v1/…`: `mis-bbrr/obtener/cabecera` (GET), `mis-bbrr/obtener/por-rut`
-(GET, the predios **registered** to the RUT), and JSON POSTs taking
-`{comuna, manzana, predio}` such as `contribuciones/obtener/cuotas-contribuciones` (the semester's
-amounts: `montoCuotaNeta`, `montoAvaluoAfecto`, `montoAseoMunicipal`, `montoTotal`,
-`montoReajuste`, `montoInteresMultas`…, with `fechaVencimiento` / `fechaPago` null). Avalúo,
-exenciones and the ficha (`detalle-avaluo-bien-raiz`, `exenciones`) need more parameters from a
-`por-rut` row. That app sits on the www2 layer, reached with the classic session since #241.
+SII's « Pagar Contribuciones y obtener certificados… » app,
+`https://www4.sii.cl/cuotaanualbienesraicespubinternetui/` (AngularJS), looks a predio up by its
+rol with **no session**. Its own client marks these calls « Servicios no autenticados »
+(`comun/service/servicios.js`, read 2026-10-29).
+
+| | |
+| --- | --- |
+| endpoint | `POST https://www4.sii.cl/cuotaanualbienesraicespubinternetui/services/data/propiedadesService/buscarPropiedades` |
+| request | `application/json`, the SDI envelope below; no cookie |
+| response | `200 application/json`, the SDI envelope (`data` + `metaData`) |
+| seam | `PortalDriver.requestPublic` (ADR-014): session-less, browser-free |
+| observed | from Node `fetch`, no browser, no cookie: `200`, `metaData.errors: null` (2026-10-29) |
+
+```json
+{
+  "metaData": {
+    "namespace": "cl.sii.sdi.lob.bbrr.cuotaanualbienesraices.data.impl.PropiedadesApplicationService/buscarPropiedades",
+    "conversationId": "NC8SBU1K04Z76",
+    "transactionId": "<uuid v4>",
+    "page": null
+  },
+  "data": { "codigoComuna": "99001", "manzana": "123", "predio": "45" }
+}
+```
+
+`conversationId` is a constant written into SII's client (`createServiceOperation` in `js/utils.js`),
+not a session token. The three `data` values are strings, as the client reads them off its form.
+`codigoComuna` is a code from `facadeService/getComunas` (public, 347 rows observed).
+
+**Response.** `data` is an array of the same predio row Mi SII returns (above), here with
+`tieneCuotas` and `codigoTgr` too. A rol that does not exist answers `data: []` (observed
+2026-10-29); a predio without unpaid cuotas answers `tieneCuotas: 0` and `cuotas: {}` (observed).
+The client's messages (`buscaRolPagos.js`): `indExistencia == "N"` ⇒ « No existe una propiedad
+asociada a este Nro de Rol de Avalúo. »; `tieneCuotas == 0` ⇒ « Bien Raíz no registra cuotas de
+contribuciones no pagadas. »
+
+**Cuota fields.** SII's client copies, per unpaid cuota (`listarCuotas.js`, read 2026-10-29):
+
+| field | meaning (from the client) |
+| --- | --- |
+| `agno`, `cuota`, `fechaVencimiento`, `condicion` | as in Mi SII (`VIGENTE` / `VENCIDA`) |
+| `valor` | the cuota's amount within the plazo |
+| `contribucionNeta`, `sobretasa`, `avaluo0025`, `sobretasa00275`, `aseo` | the parts of `valor` |
+| `abonoTesoreria`, `condonacion` | credits applied |
+| `reajustes`, `intereses` | added once the cuota is overdue |
+| `origen` | carried, meaning not read |
+| `totalPago` | what is due today (the client sums it for « pago anual ») |
+
+Types and formats are **not observed yet**: no unpaid cuota has been seen in either source (#250).
+
+**Not used.**
+
+- `pagoService/getPagos` (same envelope and body) lists the payments made through SII's site
+  for any rol: `numeroTransaccion`, `fechaPago` (`DD/MM/YYYY`), `totalPagado`, `propiedad[]`
+  (`valorCuota`, `agnoCuota`, `numeroCuota`, `totalCuota`, `vigente`), and **`rutAutenticado` +
+  `dvAutenticado`, the payer's RUT**, to anyone who knows the rol (observed 2026-10-29). PII:
+  never curated.
+- The payment operations (`getUrlPago`, `getValidarTransaccion`, `getNumTransaccionByTrxBco`,
+  the PDF certificates) are never called: the project never pays (ADR-029).
+
+## vica (`www2.sii.cl/vica`) — observed, not used (#251)
+
+« Mis bienes raíces (información integrada) », a Vue SPA whose public bundle
+(`/vica/assets/index-<hash>.js`, read 2026-10-29) names every call. All of them hang off
+`/app/vica/<userId>/v1`, keyed by the `userId` of `/app/session/status`; axios GETs, and POSTs
+with a JSON body.
+
+| call | method · body |
+| --- | --- |
+| `mis-bbrr/obtener/cabecera` | GET · totals: `totalBienesRaices`, `solicitudesEnCurso`, `contribuciones`, `sobretasaModernizacion`, `beneficiosAdultoMayor`… |
+| `mis-bbrr/obtener/por-rut` | GET · the predios SII's rol registers **to the RUT**; `204` = none (« No se encontraron propiedades asociadas al Rut ») |
+| `mis-bbrr/obtener/detalle-bien-raiz`, `detalle-avaluo-bien-raiz`, `exenciones` | POST `{comunaCnp, manzanaCnp, predioCnp, ultimoEacAplicado}` (from a `por-rut` row) |
+| `contribuciones/obtener/cuotas-contribuciones` | POST `{comuna, manzana, predio}` · `montoCuotaNeta`, `montoReajuste`, `montoInteresMultas`, `montoAseoMunicipal`, `montoAvaluoAfecto`, `montoAbono`, `montoCondonaciones`, two sobretasas, `agnoPeriodo`, `semestrePeriodo` |
+| `periodo/get/rol` | GET · plain text, the current semester's label |
+
+Observed live (2026-10-29): every response is Spring's `ResponseEntity` serialized
+(`{headers, body, statusCode, statusCodeValue}`). The `por-rut` rows and the per-predio calls were
+not observed. From a browser with no cookies the app sends the user
+through the www2 OAuth login (`/app/session/login` → `oauthsii-v1` → `/app/session/create`,
+ADR-026), which leaves only the `X-SII-STATE-*` pair; the app also sets Queue-it waiting-room
+cookies (`QueueITAccepted-…_consultabbrr`, `salaespera.sii.cl`). In the other direction,
+`/app/session/legacy/bridge` (307) took that www2 session to Mi SII without a second login.
+Whether the classic HTTP session opens vica is #241.
