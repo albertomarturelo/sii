@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted — 2026-10-28
+Accepted — 2026-10-28 (amended 2026-10-29: the public cuota breakdown, #251)
 
 ## Context
 
@@ -60,6 +60,31 @@ the vencida / vigente count per predio, so that rule holds here.
 - **Live validation still pending:** the cuota's live types and date format. The parsers above are
   built to read an unexpected shape as `null`, and the first real cuota must be checked against
   them before the row is ticked ✅.
+
+## Amendment (2026-10-29, #251): the cuota breakdown from SII's public consulta; vica set aside
+
+Spike #251 looked for the avalúo, the exenciones and each cuota's amount within the plazo next to
+the total with interest. Wire detail: `sii-contract/bienes-raices.md`.
+
+- **vica is set aside.** It lists only the predios SII's rol registers to the RUT
+  (`por-rut` answers `204` otherwise), so a payer who is not the registered owner sees nothing,
+  and its rows were not observed. From a cold browser it needs the www2 OAuth login (reCAPTCHA,
+  ADR-026), and the way in from SII's menu passes a Queue-it waiting room (whether a direct call
+  meets it is untested). Avalúo, exenciones and ficha wait for an
+  account with a registered predio and for #241.
+- **The breakdown comes from SII's public consulta** (`www4.sii.cl/cuotaanualbienesraicespubinternetui`,
+  SDI `buscarPropiedades`). It takes `{codigoComuna, manzana, predio}`, needs no session and no
+  cookie (observed from Node), and returns the predio with its unpaid cuotas. Per cuota, SII's own
+  client reads `valor` (within the plazo), its parts, `reajustes`, `intereses`, `condonacion` and
+  `totalPago`. Transport: `PortalDriver.requestPublic` (ADR-014).
+- **How it joins `list`:** Mi SII stays the source of WHICH predios the RUT pays (session-keyed).
+  For each predio with unpaid cuotas, one paced public call adds the breakdown to its cuotas; a
+  failed call leaves that breakdown `null` and the result says so, and Mi SII's own cuota stays.
+  If the first real Mi SII cuota (#250) already carries these fields, read them there and drop the
+  public call. The build is its own issue.
+- **Not used:** `getPagos` (the payment history) returns, for any rol, the RUT of whoever paid.
+  The payment operations are never called (ADR-029: the project never pays).
+- Rejected for the breakdown: vica's `cuotas-contribuciones` (registered owners only, OAuth).
 
 ## Alternatives Considered
 
