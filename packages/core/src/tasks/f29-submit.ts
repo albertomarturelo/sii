@@ -9,8 +9,14 @@
 //     borrador), refuses on a total that is not the confirmed one or on any disagreement, then
 //     saves (guardarBorradorRfiValidado) and files (inyectarBorradorRfi) once, never retried.
 //
-// The audit records the RUT, the período, the duration and the folio. Never amounts or códigos.
+// `sinMovimiento` (#221, ADR-029 amendment 2026-10-29) takes SII's « Declarar sin movimiento »
+// route instead: no propuesta required (one refuses), every código SII validates must be zero.
+//
+// The audit records the RUT, the período, the route, the duration and the folio. Never amounts or
+// códigos.
 import { withSession } from '../auth/index.js';
+import { parseDatosCntrNow } from '../auth/datos-cntr.js';
+import { HOSTS } from '../config/index.js';
 import { recordAudit } from '../audit/index.js';
 import { F29Error, F29RechazoError, ValidationError } from '../errors/index.js';
 import { Periodo } from '../periodo/index.js';
@@ -19,6 +25,7 @@ import {
   fetchF29Estado,
   fetchF29Propuesta,
   iniciarFlujoPropuestaF29,
+  iniciarFlujoSinMovimientoF29,
   type DeclaracionEstadoF29,
   type F29Estado,
   type F29Propuesta,
@@ -33,7 +40,9 @@ import {
   verificarBorradorF29,
   type F29BorradorValidado,
   type F29Desacuerdo,
+  type F29Ruta,
 } from '../portal/f29-rfi.js';
+import { mesActual } from '../portal/f29-rfi-form.js';
 import type { Gwt7Node } from '../portal/gwt.js';
 import { F29_CODIGOS, glosaF29, type F29Grupo } from '../portal/f29-codigos.js';
 import type { AuditEntry, PortalSession, Runtime } from '../seams/index.js';
@@ -55,8 +64,9 @@ export interface F29SubmitPreview {
   readonly desacuerdos: readonly F29Desacuerdo[];
   /** True when nothing blocks the submit. */
   readonly listoParaPresentar: boolean;
-  /** Always true: the preview leaves a borrador "Guardada" at SII (non-filing). */
-  readonly borradorGuardado: true;
+  /** True on the propuesta route, whose handoff leaves a borrador "Guardada" at SII
+   *  (non-filing). The sin movimiento route saves nothing (run3, #221). */
+  readonly borradorGuardado: boolean;
 }
 
 /** A filed declaración. `pagoUrl` stays null until SII's payment link is observed (ADR-029
@@ -75,27 +85,41 @@ export interface F29SubmitResult {
 export interface F29SubmitChain {
   estado(session: PortalSession, p: { rut: Rut; periodo: Periodo }): Promise<F29Estado>;
   propuesta(session: PortalSession, p: { rut: Rut; periodo: Periodo }): Promise<F29Propuesta>;
-  /** The propuesta handoff, the form app and SII's validation. Writes a borrador "Guardada". */
+  /** The handoff of `ruta`, the form app and SII's validation. The propuesta route writes a
+   *  borrador "Guardada". */
   validar(
     session: PortalSession,
-    p: { rut: Rut; periodo: Periodo; hoy: Date },
+    p: { rut: Rut; periodo: Periodo; hoy: Date; ruta: F29Ruta },
   ): Promise<F29BorradorValidado>;
   /** Saves the validated borrador; does not file. */
-  guardar(session: PortalSession, borrador: Gwt7Node): Promise<Gwt7Node>;
+  guardar(session: PortalSession, borrador: Gwt7Node, ruta: F29Ruta): Promise<Gwt7Node>;
   /** FILES the declaración. */
   inyectar(session: PortalSession, guardado: Gwt7Node): Promise<void>;
+  /** The month of the account's inicio de actividades (Mi SII `DatosCntrNow`), null when SII
+   *  does not say. Read only on the sin movimiento route, for its first month. */
+  inicioActividades(session: PortalSession): Promise<Periodo | null>;
 }
 
 export const SII_F29_SUBMIT: F29SubmitChain = {
   estado: fetchF29Estado,
   propuesta: fetchF29Propuesta,
   async validar(session, p) {
-    const url = await iniciarFlujoPropuestaF29(session, p);
+    const url =
+      p.ruta === 'sinMovimiento'
+        ? await iniciarFlujoSinMovimientoF29(session, p)
+        : await iniciarFlujoPropuestaF29(session, p);
     await abrirFormularioF29(session, url);
     return validarBorradorF29(rfiCaller(session), p);
   },
-  guardar: (session, borrador) => guardarBorradorF29(rfiCaller(session), borrador),
+  guardar: (session, borrador, ruta) => guardarBorradorF29(rfiCaller(session), borrador, ruta),
   inyectar: (session, guardado) => inyectarBorradorF29(rfiCaller(session), guardado),
+  async inicioActividades(session) {
+    // The same read `alertas` makes (ADR-030 / #195): `"2022-09-26…"` (observed) ⇒ that month.
+    const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
+    const s = parseDatosCntrNow(body)?.contribuyente?.fechaInicioActividades;
+    const m = s ? /^(\d{4})-(\d{2})-\d{2}/.exec(s) : null;
+    return m ? Periodo.of(Number(m[1]), Number(m[2])) : null;
+  },
 };
 
 function audit(runtime: Runtime, action: string, result: string, extra: Partial<AuditEntry>): void {
@@ -123,7 +147,16 @@ async function preparar(
   rut: Rut,
   periodo: Periodo,
   hoy: Date,
+  ruta: F29Ruta,
 ): Promise<Preparado> {
+  if (ruta === 'sinMovimiento' && periodo.canonical >= mesActual(hoy)) {
+    // The customizado flow opens any período SII is asked for, this month's and future ones
+    // included, and nobody can assert that a month not yet over had no movement.
+    throw new Rehusado(
+      `El período ${periodo.formatted} todavía no termina: un mes se declara sin movimiento ` +
+        'una vez terminado.',
+    );
+  }
   const estado = await chain.estado(session, { rut, periodo });
   const vigente = estado.declaraciones.find(esVigente);
   if (vigente) {
@@ -133,15 +166,24 @@ async function preparar(
         'rectificatoria, que `sii f29 submit` no hace.',
     );
   }
+  if (ruta === 'sinMovimiento') await assertMesAnteriorPresentado(chain, session, rut, periodo);
   const propuesta = await chain.propuesta(session, { rut, periodo });
-  if (!propuesta.tienePropuesta) {
+  if (ruta === 'propuesta' && !propuesta.tienePropuesta) {
     throw new Rehusado(
       `SII no tiene una propuesta de F29 para ${periodo.formatted}, y \`sii f29 submit\` solo ` +
-        'presenta la propuesta de SII. Si el período no tuvo movimiento, igual hay que ' +
-        'declararlo: hazlo en SII.',
+        'presenta la propuesta de SII. Si el período no tuvo movimiento, decláralo con ' +
+        `\`sii f29 submit ${periodo.formatted} --sin-movimiento\`.`,
     );
   }
-  const validado = await chain.validar(session, { rut, periodo, hoy });
+  if (ruta === 'sinMovimiento' && propuesta.tienePropuesta) {
+    // The flag must never file zeros over SII's data.
+    throw new Rehusado(
+      `SII tiene una propuesta de F29 para ${periodo.formatted}: el período tuvo movimiento ` +
+        'según SII, o arrastra el remanente de crédito del mes anterior (504). Revísala con ' +
+        `\`sii f29 submit ${periodo.formatted}\`, sin --sin-movimiento.`,
+    );
+  }
+  const validado = await chain.validar(session, { rut, periodo, hoy, ruta });
   const recargos = recargosDeclarados(validado);
   if (recargos.length > 0) {
     throw new Rehusado(
@@ -157,8 +199,57 @@ async function preparar(
     validado.declarados,
     validado.textos,
   );
+  if (ruta === 'sinMovimiento') {
+    // Stricter than the propuesta's rule: a sin movimiento declaración is all zeros, so any
+    // código SII declares with a value blocks it, even one a formula explains.
+    const listados = new Set(desacuerdos.map((d) => d.codigo));
+    for (const codigo of [...validado.declarados.keys(), ...validado.textos.keys()]) {
+      if (!listados.has(codigo)) desacuerdos.push({ codigo, motivo: 'sobra' });
+    }
+    desacuerdos.sort((a, b) => Number(a.codigo) - Number(b.codigo));
+  }
   return { propuesta, validado, desacuerdos };
 }
+
+const mesAnterior = (p: Periodo): Periodo =>
+  p.month === 1 ? Periodo.of(p.year - 1, 12) : Periodo.of(p.year, p.month - 1);
+const antes = (a: Periodo, b: Periodo): boolean => a.canonical < b.canonical;
+
+/** A month sin movimiento follows the previous one (ADR-029 amendment, #221). SII's propuesta
+ *  carries the previous month's remanente de crédito as 504 (run5/run6), and that refuses the
+ *  flag; but SII only knows it once the previous month is filed. Declaring a month in zeros
+ *  before then would drop the remanente the earlier month may leave. So the previous month
+ *  must be Vigente, unless it falls before the account's inicio de actividades. */
+async function assertMesAnteriorPresentado(
+  chain: F29SubmitChain,
+  session: PortalSession,
+  rut: Rut,
+  periodo: Periodo,
+): Promise<void> {
+  const anterior = mesAnterior(periodo);
+  const estado = await chain.estado(session, { rut, periodo: anterior });
+  if (estado.declaraciones.some(esVigente)) return;
+  const inicio = await chain.inicioActividades(session);
+  if (inicio !== null && antes(periodo, inicio)) {
+    throw new Rehusado(
+      `${periodo.formatted} es anterior al inicio de actividades de la cuenta: no hay F29 que ` +
+        'declarar.',
+    );
+  }
+  if (inicio !== null && antes(anterior, inicio)) return; // the first month of activity
+  throw new Rehusado(
+    `El F29 de ${anterior.formatted} no está presentado. Un mes sin movimiento se declara ` +
+      `después del anterior: si ${anterior.formatted} deja remanente de crédito, ` +
+      `${periodo.formatted} lo arrastra (código 504) y ya no es sin movimiento. Presenta ` +
+      `${anterior.formatted} primero.`,
+  );
+}
+
+const rutaDe = (sinMovimiento: boolean | undefined): F29Ruta =>
+  sinMovimiento === true ? 'sinMovimiento' : 'propuesta';
+/** The route in the audit receipt, only when it is not the default. */
+const rutaAudit = (ruta: F29Ruta): Partial<AuditEntry> =>
+  ruta === 'sinMovimiento' ? { ruta } : {};
 
 function calculados(validado: F29BorradorValidado): LineaF29[] {
   const out: LineaF29[] = [];
@@ -178,9 +269,10 @@ const describirDesacuerdos = (ds: readonly F29Desacuerdo[]): string =>
 async function previewWith(
   chain: F29SubmitChain,
   runtime: Runtime,
-  args: { periodo: string },
+  args: { periodo: string; sinMovimiento?: boolean },
 ): Promise<F29SubmitPreview> {
   const periodo = Periodo.parse(args.periodo);
+  const ruta = rutaDe(args.sinMovimiento);
   await assertSelfOperating(runtime);
   const start = runtime.clock.now().getTime();
   let rut: string | undefined;
@@ -188,7 +280,7 @@ async function previewWith(
     const res = await withSession(runtime, async (session, ctx) => {
       const principal = Rut.parse(ctx.sessionRut);
       rut = principal.canonical;
-      const p = await preparar(chain, session, principal, periodo, runtime.clock.now());
+      const p = await preparar(chain, session, principal, periodo, runtime.clock.now(), ruta);
       const preview: F29SubmitPreview = {
         rut: principal.canonical,
         periodo: periodo.formatted,
@@ -197,13 +289,14 @@ async function previewWith(
         total: p.validado.total,
         desacuerdos: p.desacuerdos,
         listoParaPresentar: p.desacuerdos.length === 0,
-        borradorGuardado: true,
+        borradorGuardado: ruta === 'propuesta',
       };
       return preview;
     });
     audit(runtime, 'f29_submit_preview', 'ok', {
       rut: res.rut,
       period: periodo.canonical,
+      ...rutaAudit(ruta),
       durationMs: runtime.clock.now().getTime() - start,
     });
     return res;
@@ -211,6 +304,7 @@ async function previewWith(
     audit(runtime, 'f29_submit_preview', e instanceof Rehusado ? 'refused' : 'failed', {
       ...(rut ? { rut } : {}),
       period: periodo.canonical,
+      ...rutaAudit(ruta),
       durationMs: runtime.clock.now().getTime() - start,
     });
     throw e;
@@ -231,10 +325,11 @@ function parseTotal(total: number | string): number {
 async function submitWith(
   chain: F29SubmitChain,
   runtime: Runtime,
-  args: { periodo: string; total: number | string },
+  args: { periodo: string; total: number | string; sinMovimiento?: boolean },
 ): Promise<F29SubmitResult> {
   const periodo = Periodo.parse(args.periodo);
   const totalEcho = parseTotal(args.total);
+  const ruta = rutaDe(args.sinMovimiento);
   await assertSelfOperating(runtime);
   const start = runtime.clock.now().getTime();
   let rut: string | undefined;
@@ -244,7 +339,7 @@ async function submitWith(
     const res = await withSession(runtime, async (session, ctx) => {
       const principal = Rut.parse(ctx.sessionRut);
       rut = principal.canonical;
-      const p = await preparar(chain, session, principal, periodo, runtime.clock.now());
+      const p = await preparar(chain, session, principal, periodo, runtime.clock.now(), ruta);
       if (p.validado.total !== totalEcho) {
         result = 'refused';
         throw new ValidationError(
@@ -255,13 +350,16 @@ async function submitWith(
       }
       if (p.desacuerdos.length > 0) {
         throw new Rehusado(
-          'El borrador que SII validó no coincide con la propuesta en los códigos ' +
-            `${describirDesacuerdos(p.desacuerdos)}. No se presentó nada. Que SII diga ` +
-            '"no presenta errores" no basta: revisa la propuesta en SII.',
+          ruta === 'sinMovimiento'
+            ? `El borrador que SII validó para ${periodo.formatted} no es sin movimiento: declara ` +
+                `los códigos ${describirDesacuerdos(p.desacuerdos)}. No se presentó nada.`
+            : 'El borrador que SII validó no coincide con la propuesta en los códigos ' +
+                `${describirDesacuerdos(p.desacuerdos)}. No se presentó nada. Que SII diga ` +
+                '"no presenta errores" no basta: revisa la propuesta en SII.',
         );
       }
 
-      const guardado = await chain.guardar(session, p.validado.borrador);
+      const guardado = await chain.guardar(session, p.validado.borrador, ruta);
       try {
         await chain.inyectar(session, guardado);
       } catch (e) {
@@ -298,6 +396,7 @@ async function submitWith(
     audit(runtime, 'f29_submit', 'ok', {
       rut: res.rut,
       period: periodo.canonical,
+      ...rutaAudit(ruta),
       durationMs: runtime.clock.now().getTime() - start,
       ...(res.folio !== null ? { folio: res.folio } : {}),
     });
@@ -306,6 +405,7 @@ async function submitWith(
     audit(runtime, 'f29_submit', e instanceof Rehusado ? 'refused' : result, {
       ...(rut ? { rut } : {}),
       period: periodo.canonical,
+      ...rutaAudit(ruta),
       durationMs: runtime.clock.now().getTime() - start,
       ...(folio !== null ? { folio } : {}),
     });
@@ -316,10 +416,13 @@ async function submitWith(
 /** The two tasks over a given chain. Tests pass a fake one; the barrel exports only the pair
  *  bound to SII below, so no surface reaches the chain (ADR-003). */
 export function f29SubmitTasks(chain: F29SubmitChain): {
-  f29SubmitPreview: (runtime: Runtime, args: { periodo: string }) => Promise<F29SubmitPreview>;
+  f29SubmitPreview: (
+    runtime: Runtime,
+    args: { periodo: string; sinMovimiento?: boolean },
+  ) => Promise<F29SubmitPreview>;
   f29Submit: (
     runtime: Runtime,
-    args: { periodo: string; total: number | string },
+    args: { periodo: string; total: number | string; sinMovimiento?: boolean },
   ) => Promise<F29SubmitResult>;
 } {
   return {
@@ -329,20 +432,22 @@ export function f29SubmitTasks(chain: F29SubmitChain): {
 }
 
 /** The preview: SII's propuesta, what SII's formulas compute, SII's validated total and every
- *  disagreement. Files nothing; leaves a borrador "Guardada" at SII. */
+ *  disagreement. Files nothing; the propuesta route leaves a borrador "Guardada" at SII.
+ *  `sinMovimiento` takes SII's « Declarar sin movimiento » route (ADR-029 amendment, #221). */
 export function f29SubmitPreview(
   runtime: Runtime,
-  args: { periodo: string },
+  args: { periodo: string; sinMovimiento?: boolean },
 ): Promise<F29SubmitPreview> {
   return previewWith(SII_F29_SUBMIT, runtime, args);
 }
 
 /** FILE the declaración. Refuses, without saving or filing, when SII's total today is not
- *  `total`, or when the borrador SII validated disagrees with the propuesta. Then saves and
- *  files once. If the filing call fails, SII's state decides what happened; it is never resent. */
+ *  `total`, or when the borrador SII validated disagrees with the propuesta (with
+ *  `sinMovimiento`: when it declares anything). Then saves and files once. If the filing call
+ *  fails, SII's state decides what happened; it is never resent. */
 export function f29Submit(
   runtime: Runtime,
-  args: { periodo: string; total: number | string },
+  args: { periodo: string; total: number | string; sinMovimiento?: boolean },
 ): Promise<F29SubmitResult> {
   return submitWith(SII_F29_SUBMIT, runtime, args);
 }

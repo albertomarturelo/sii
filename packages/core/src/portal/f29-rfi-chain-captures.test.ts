@@ -10,6 +10,7 @@ import { Periodo } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
 import { Gwt7Codec, type Gwt7Call, type Gwt7Node, parseGwtPermutation } from './gwt.js';
 import {
+  type F29Ruta,
   type RfiCaller,
   guardarBorradorF29,
   inyectarBorradorF29,
@@ -27,6 +28,7 @@ const RETURNS: Record<string, string | null> = {
   findAllFormulario: '[Lcl.sii.sdi.dim.rfi.to.Formulario;',
   findPeriodoHabilitado: '[Lcl.sii.sdi.dim.rfi.to.Periodo;',
   findVersionBorradorById: 'cl.sii.sdi.difm.rcs.web.client.to.FormularioLayoutTO',
+  findVersionFormularioPrimitivaByPeriodo: 'cl.sii.sdi.difm.rcs.web.client.to.FormularioLayoutTO',
   crearHijoToken: null,
   getBorradorRfiValidado: 'cl.sii.sdi.dim.rfi.to.BorradorRfi',
   guardarBorradorRfiValidado: 'cl.sii.sdi.dim.rfi.to.Borrador',
@@ -93,21 +95,32 @@ describe.skipIf(!dir)('the F29 submit chain against a private capture', () => {
     const get = (k: string): string => String(pairs.find(([key]) => key === k)![1]);
     const rut = Rut.parse(`${get('rut')}-${get('dv')}`);
     const periodo = Periodo.parse(get('periodo'));
+    // run5/run6 are the propuesta route (2026-10-18); run3 of 2026-10-29 the sin movimiento one.
+    const ruta: F29Ruta = pairs.some(
+      ([k, v]) => k === 'accionPpta' && v === 'TKN_PPTA-F29-CUSTOMIZADO',
+    )
+      ? 'sinMovimiento'
+      : 'propuesta';
 
     const propuestaFile = files
       .filter((f) => f.endsWith('.res.txt') && parseInt(f) < hijoReq.id)
       .reverse()
       .find((f) => read(f).includes('"listCodPropuestos"'));
-    const propuesta = (
-      JSON.parse(read(propuestaFile!)) as {
-        data: { listCodPropuestos: { codigo: string; valor: string }[] };
-      }
-    ).data.listCodPropuestos.map((c) => ({ codigo: c.codigo, valor: Number(c.valor) }));
+    const propuesta = propuestaFile
+      ? ((
+          JSON.parse(read(propuestaFile)) as {
+            data: { listCodPropuestos: { codigo: string; valor: string }[] } | null;
+          }
+        ).data?.listCodPropuestos.map((c) => ({ codigo: c.codigo, valor: Number(c.valor) })) ?? [])
+      : [];
 
     const validado = await validarBorradorF29(call, {
       rut,
       periodo,
-      hoy: new Date('2026-10-18T21:00:00-03:00'),
+      hoy: new Date(
+        ruta === 'propuesta' ? '2026-10-18T21:00:00-03:00' : '2026-10-29T00:10:00-03:00',
+      ),
+      ruta,
     });
     expect(
       verificarBorradorF29(propuesta, validado.campos, validado.declarados, validado.textos),
@@ -115,7 +128,7 @@ describe.skipIf(!dir)('the F29 submit chain against a private capture', () => {
 
     // guardar was blocked in run5 and sent in run6; inyectar filed 2026-09 in run6.
     try {
-      const guardado = await guardarBorradorF29(call, validado.borrador);
+      const guardado = await guardarBorradorF29(call, validado.borrador, ruta);
       await inyectarBorradorF29(call, guardado);
     } catch (e) {
       if (!(e instanceof Blocked)) throw e;

@@ -44,14 +44,22 @@ describe.skipIf(!dir)('the F29 form interpreter against a private capture', () =
     expect(received, 'findVersionBorradorById response').toBeDefined();
     expect(validation, 'getBorradorRfiValidado request').toBeDefined();
 
-    // The browser filled it on 2026-10-18 (Chile); a rule reads the current month.
+    // The propuesta screen (run5/run6, filled 2026-10-18) or the customizado one of a sin
+    // movimiento filing (run3, 2026-10-29, #221); a rule reads the current month.
+    const customizado = files
+      .filter((f) => f.endsWith('.req.txt'))
+      .some((f) => read(f).includes('|findVersionFormularioPrimitivaByPeriodo|'));
     const { cambios, reglasFallidas } = fillF29Form(
       received!,
-      new Date('2026-10-18T21:00:00-03:00'),
+      new Date(customizado ? '2026-10-29T00:10:00-03:00' : '2026-10-18T21:00:00-03:00'),
+      customizado ? 'customizado' : 'propuesta',
     );
     expect(reglasFallidas).toEqual([]);
     expect(cambios.map((c) => c.codigo).sort()).toEqual(
-      ['537', '543', '547', '573', '598', '755', '77', '773', '774', '778'].sort(),
+      (customizado
+        ? ['543', '547', '573', '598', '755', '774', '8859']
+        : ['537', '543', '547', '573', '598', '755', '77', '773', '774', '778']
+      ).sort(),
     );
     const call = codec.decodeRequest(validation!);
     const rebuilt = codec.encodeRequest({

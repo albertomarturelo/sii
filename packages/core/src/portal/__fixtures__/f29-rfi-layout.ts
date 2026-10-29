@@ -26,7 +26,10 @@ export const op = (o: string, l: Gwt7Node, r: Gwt7Node | null = null, type = 0):
 
 export interface CampoSpec {
   codigo: string;
-  value?: string;
+  /** The stored value; null is a campo the layout brings without one. */
+  value?: string | null;
+  /** CampoMetadata `g`: 1 (default) when the user may type in it. */
+  editable?: 0 | 1;
   formula?: Gwt7Node;
   tipo?: string;
   maxLen?: number;
@@ -36,29 +39,30 @@ export interface CampoSpec {
 export function campo(c: CampoSpec): Gwt7Node {
   const md: Gwt7Value[] = new Array<Gwt7Value>(25).fill(null);
   md[4] = c.codigo;
+  md[5] = c.editable ?? 1;
   md[9] = c.formula ?? null;
   md[11] = `cod${c.codigo}`;
   md[13] = c.maxLen ?? 18;
   md[17] = c.decimales ?? 0;
   md[19] = c.tipo ?? 'ENTERO';
   md[23] = c.ceroVisible ?? '';
-  return n(`${P}instance.Campo`, [n(`${P}metadata.CampoMetadata`, md), null, c.value ?? '']);
-}
-// Cell: [b, c, d, e (ref), f (widget), g, i (id), j (visible), k, n (css), o (width)]
-export const cell = (ref: string, widget: string, id = '', width = '130px'): Gwt7Node =>
-  n(`${P}layout.Cell`, [
-    1,
-    1,
-    '',
-    ref,
-    widget,
-    '',
-    id,
-    widget === 'TEXTBOX' ? 'FALSE' : 'TRUE',
-    1,
-    'tabla_td_fixed_c_right',
-    width,
+  return n(`${P}instance.Campo`, [
+    n(`${P}metadata.CampoMetadata`, md),
+    null,
+    c.value === undefined ? '' : c.value,
   ]);
+}
+// Cell: [b, c, d (build condition), e (ref), f (widget), g, i (id), j (editable), k, n (css),
+// o (width)]. `j` defaults as in the propuesta view: FALSE for a TEXTBOX, TRUE otherwise.
+export const cell = (
+  ref: string,
+  widget: string,
+  id = '',
+  width = '130px',
+  j = widget === 'TEXTBOX' ? 'FALSE' : 'TRUE',
+  d = '',
+): Gwt7Node =>
+  n(`${P}layout.Cell`, [1, 1, d, ref, widget, '', id, j, 1, 'tabla_td_fixed_c_right', width]);
 // Regla: [b (expr), c (name), d (groups), e (message), f (kind)]
 export const regla = (
   expr: Gwt7Node,

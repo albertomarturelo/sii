@@ -12,6 +12,10 @@
 > **Amended 2026-10-28 (#235):** the submit files only within the plazo; a validated borrador
 > carrying SII's recargo block is refused before saving. See
 > [Amendment](#amendment-2026-10-28-235-within-the-plazo-only).
+>
+> **Amended 2026-10-29 (#221):** an opt-in `--sin-movimiento` files a período with no propuesta
+> through SII's customizado route, only when SII validates every código at zero. See
+> [Amendment](#amendment-2026-10-29-221-sin-movimiento).
 
 ## Status
 
@@ -227,6 +231,59 @@ and the safety rule would read SII's surcharges as `sobra`. So:
 
 Rejected: filing late with total 91 (the echo would not be what the user pays); dropping the
 recargo códigos from the safety rule (it would file what nobody reviewed).
+
+## Amendment (2026-10-29, #221): sin movimiento
+
+Decision 1 refuses a período with no propuesta, so a taxpayer without IVA movement could not file
+through the CLI. The route was captured live on 2026-10-29 in the guarded browser (both submit
+ops aborted; nothing filed). SII's « Declarar sin movimiento » is NOT the propuesta chain:
+
+| Step | Propuesta (this ADR) | Sin movimiento |
+| --- | --- | --- |
+| propuestaf29ui handoff | `guardarPropuesta` + `enviarDatosFlujo` | `enviarDatosFlujo` only, `tipo: "CUSTOMIZADO"` |
+| flow parameters | carry `idBorrador` | carry `accionPpta: TKN_PPTA-F29-CUSTOMIZADO`, no `idBorrador` |
+| layout | `findVersionBorradorById(…, idBorrador)` | `findVersionFormularioPrimitivaByPeriodo(…, "FMNINT")` |
+| Formulario flag / tipo, validation tipo | TRUE / 40, 40 | FALSE / 1, 1 |
+| client screen | `QRb` (773/778 FALSE) | `HMb`: campo 8859 = "3"; the user's cells stay editable |
+| save | validated Borrador, tipo 40 → 41 | validated Borrador unchanged (tipo 1) |
+| filing | `inyectarBorradorRfi` | the same op (its answer here is not observed yet) |
+
+The interpreter ports both screens from SII's code (`wM`'s editability, `HMb`), and the filled
+primitiva layout re-encodes byte for byte into the browser's validation request.
+
+- **Decided:** `sii f29 submit <periodo> --sin-movimiento` (MCP: `sinMovimiento` on both tools)
+  takes this route. Without the flag nothing changes.
+- **It requires the opposite precondition:** no declaración vigente and NO propuesta. When SII
+  has one, it refuses and points to plain `f29 submit`, so the flag never files zeros over SII's
+  data.
+- **The safety rule is stricter, not looser:** SII's validated borrador must declare no non-zero
+  monto and no text, with total 91 = 0. Anything else refuses before saving, the recargo códigos
+  included. The confirm echo is `--confirm 0`.
+- **The previous month must be filed (Vigente).** SII's propuesta carries the previous month's
+  remanente de crédito as 504 (run5/run6), and a propuesta refuses the flag, but SII only knows
+  that remanente once the previous month is filed. Declaring a month in zeros before then drops
+  the remanente the earlier month may leave, so the task refuses until the previous month is
+  Vigente. The exception is the account's first month (the previous one falls before the
+  inicio de actividades, read from Mi SII's `DatosCntrNow` as `alertas` does). A month before
+  the inicio is refused.
+- **Only a período that has ended.** The customizado flow opens any período it is asked for, the
+  current and future months included, so the task refuses one that is not over (the month in
+  America/Santiago, as SII's client computes it) before contacting SII.
+- **A late período is allowed on this route, unlike the propuesta's (#235 amendment).** That
+  refusal exists because a late propuesta pays 94, not the 91 the user confirms. A sin movimiento
+  declaración has nothing to surcharge, so the validated total is what is filed. A multa for the
+  late filing, if SII applies one, is SII's: computed and charged by SII, outside the
+  declaración. The CLI neither computes nor hides it, and its help says so. A taxpayer with
+  overdue nil months has to file them anyway.
+- **The caller asserts the month was nil.** An empty propuesta can also mean SII has not built it
+  yet, or that it misses documents outside the RCV, and the CLI cannot tell those apart. The
+  flag is that assertion, and the docs say so.
+- Everything else holds: run once, never resent; an ambiguous outcome is read with `f29 status`;
+  `pagoUrl` is `null` (nothing to pay). The first live filing by this route is its validation.
+
+Rejected: inferring « sin movimiento » from an empty propuesta (the case above); the « Formulario
+en Pantalla » or « Upload » options SII also offers (they let the user type values, which is
+#137's scope); the headless browser (the cold replay reproduces the client byte for byte).
 
 ## Alternatives Considered
 

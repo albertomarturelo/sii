@@ -170,7 +170,9 @@ rail, and the user did not hand you that job.
   prepare or send one. Tell the user it needs a human accountant's review.
 - When the propuesta is empty (`null`), SII has nothing to propose yet. Check again the next day.
   If the user has no IVA movement, the F29 still has to be filed "sin movimiento": ask the
-  user to confirm.
+  user to confirm that the month had no movement. An empty propuesta does not prove it (SII may
+  not have built it yet, or the month has documents outside the RCV). Only with that
+  confirmation, use `--sin-movimiento` (§ 6.2).
 
 ## 6. The F29 workflow
 
@@ -236,9 +238,21 @@ Rules around it:
 - **An error that says "No se pudo confirmar"** means the filing call was sent and its answer
   was lost. Do not resend: run `sii f29 status <periodo>` and report what SII shows.
 - The CLI refuses a período that is already `Vigente` and one without propuesta.
+- **A month without movement: `sii f29 submit <periodo> --sin-movimiento`**, then
+  `--sin-movimiento --confirm 0`, only after the user confirmed the month had no movement
+  (§ 5). It takes SII's « Declarar sin movimiento » route: the preview saves nothing at SII
+  (`borradorGuardado: false`), and the CLI refuses when SII has a propuesta for the período or
+  validates any código with a value (`desacuerdos`, `listoParaPresentar: false`). The same
+  approval protocol applies: the user approves the filing explicitly.
 - It also refuses a **late** período (`sii_error`, "SII agrega recargos a …"): after the due date
   SII adds reajuste and intereses (códigos 92, 93, 94), and the CLI only files within the
-  plazo. Tell the user to file it at SII themselves, before the end of the month.
+  plazo. Tell the user to file it at SII themselves, before the end of the month. A month
+  without movement has nothing to surcharge, so `--sin-movimiento` files a late month too (and
+  refuses only if SII adds them). Tell the user that SII may apply a multa for the late filing,
+  which SII computes and charges on its own; the CLI does not show it. `--sin-movimiento`
+  refuses a month that has not ended, and one whose previous month is not filed yet: overdue
+  months go in order, oldest first, because a month with IVA credit passes its remanente to the
+  next one.
 - The `--confirm` echo guards against a typo, **not** against you: only the user's explicit
   approval authorizes a filing.
 

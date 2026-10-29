@@ -137,12 +137,17 @@ describe('@albertomarturelo/sii-mcp f29 submit tools (in-memory client, fake run
           landingUrl: HOSTS.miSii,
           evaluate: datos,
           cookies: { TOKEN: 't' },
-          requestJson: (url) => {
+          requestJson: (url, req) => {
             urls.push(url.split('/').pop()!);
+            // 2026-09, the month before the one these tests file, is already filed.
+            const anterior = JSON.stringify(req ?? {}).includes('"mes":"09"');
             if (url.includes('getDeclaracionConEstados'))
               return {
                 metaData: { errors: null },
-                data: vigente ? [{ estadoDeclaracionId: 1, estado: 'Vigente', folio: 5 }] : [],
+                data:
+                  vigente || anterior
+                    ? [{ estadoDeclaracionId: 1, estado: 'Vigente', folio: 5 }]
+                    : [],
               };
             return {
               metaData: { errors: null },
@@ -182,6 +187,19 @@ describe('@albertomarturelo/sii-mcp f29 submit tools (in-memory client, fake run
     });
     expect(isError(res)).toBe(true);
     expect(urls).toEqual([]);
+  });
+
+  it('sinMovimiento refuses a período SII has a propuesta for (#221)', async () => {
+    const { runtime, urls } = submitRuntime();
+    const client = await connect(runtime);
+    await testing.seedSession(runtime);
+    const res = await client.callTool({
+      name: 'f29_submit_preview',
+      arguments: { periodo: '2026-10', sinMovimiento: true },
+    });
+    expect(isError(res)).toBe(true);
+    expect(toolText(res)).toContain('SII tiene una propuesta');
+    expect(urls).not.toContain('enviarDatosFlujo');
   });
 
   it('f29_submit refuses a período already Vigente, with a structured sii_error', async () => {

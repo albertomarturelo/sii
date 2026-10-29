@@ -23,6 +23,16 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added: `f29 submit --sin-movimiento` (#221, ADR-029 amendment).** Files a month without
+  movement through SII's « Declarar sin movimiento » route: no propuesta is needed (one makes it
+  refuse), every código SII validates must be zero, and the filing is confirmed with
+  `--confirm 0`. The caller asserts the month had no movement; an empty propuesta does not prove
+  it. A month that has not ended is refused, and so is one whose previous month is not filed
+  (its remanente de crédito would pass to this month); a late one can be filed, oldest first (a
+  multa, if SII applies one, is computed and charged by SII). MCP: `sinMovimiento` on `f29_submit_preview` and `f29_submit`. The preview result's
+  `borradorGuardado` is now `false` on this route, which saves nothing at SII (it was always
+  `true`).
+
 - **Added** `sii bienes-raices list` / MCP `bienes_raices_list` and an `alertas` source
   `bienes_raices` (#236, ADR-032): the predios whose contribuciones you pay, from Mi SII, with
   the unpaid cuotas (vencida or vigente, due date, total); `alertas` reports cuotas vencidas

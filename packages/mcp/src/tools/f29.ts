@@ -127,14 +127,27 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
         '(si hay alguno, no se puede presentar). NO presenta nada, pero ESCRIBE en SII: deja un ' +
         'borrador «Guardada» (sin efecto legal). La propuesta de SII puede estar incompleta (PPM, ' +
         'retenciones, documentos fuera del RCV): muéstrasela al usuario antes de presentar. ' +
+        'sinMovimiento=true toma la ruta «Declarar sin movimiento» de SII para un mes sin ' +
+        'propuesta: solo si el usuario afirma que el mes no tuvo movimiento (una propuesta vacía ' +
+        'no lo prueba); no guarda borrador, todo código validado con valor es un desacuerdo, y se ' +
+        'rechaza si el mes anterior no está presentado (los meses atrasados van en orden). ' +
         'Session-keyed: tu propio F29; para una empresa, inicia sesión como ella.',
-      inputSchema: { periodo: z.string() },
+      inputSchema: { periodo: z.string(), sinMovimiento: z.boolean().optional() },
       // It writes a borrador at SII (no readOnlyHint), but a reversible, legally inert one (no
       // destructiveHint) — ADR-029 amendment, ADR-023's line for borradores.
       annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
     },
-    ({ periodo }) =>
-      toolText(async () => JSON.stringify(await f29SubmitPreview(runtime, { periodo }), null, 2)),
+    ({ periodo, sinMovimiento }) =>
+      toolText(async () =>
+        JSON.stringify(
+          await f29SubmitPreview(runtime, {
+            periodo,
+            ...(sinMovimiento !== undefined ? { sinMovimiento } : {}),
+          }),
+          null,
+          2,
+        ),
+      ),
   );
 
   server.registerTool(
@@ -150,15 +163,28 @@ export function registerF29Tools(server: McpServer, runtime: Runtime): void {
         'total = el TOTAL A PAGAR de la vista previa; si SII calcula otro total o el borrador no ' +
         'coincide con la propuesta, se rechaza sin presentar. Nunca reintentes: si el resultado ' +
         'queda sin confirmar, revisa f29_status. No paga: devuelve folio, estado y total, y el ' +
-        'pago lo hace el usuario en SII. Session-keyed.',
+        'pago lo hace el usuario en SII. sinMovimiento=true presenta un mes sin movimiento (con ' +
+        'total 0), igual que en la vista previa, y solo con la afirmación del usuario de que el ' +
+        'mes no tuvo movimiento. Session-keyed.',
       inputSchema: {
         periodo: z.string(),
         confirmar: z.literal(true),
         total: z.number().int().nonnegative(),
+        sinMovimiento: z.boolean().optional(),
       },
       annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
     },
-    ({ periodo, total }) =>
-      toolText(async () => JSON.stringify(await f29Submit(runtime, { periodo, total }), null, 2)),
+    ({ periodo, total, sinMovimiento }) =>
+      toolText(async () =>
+        JSON.stringify(
+          await f29Submit(runtime, {
+            periodo,
+            total,
+            ...(sinMovimiento !== undefined ? { sinMovimiento } : {}),
+          }),
+          null,
+          2,
+        ),
+      ),
   );
 }

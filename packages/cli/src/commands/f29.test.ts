@@ -148,7 +148,9 @@ describe('sii f29 submit (fake runtime, no SII)', () => {
     metaData: { errors: null },
     data: { tipopropuesta: 40, listCodPropuestos: [{ codigo: '538', valor: '190000' }] },
   };
-  function submitRuntime(opts: { vigente?: boolean; flujo?: unknown } = {}) {
+  function submitRuntime(
+    opts: { vigente?: boolean; flujo?: unknown; sinPropuesta?: boolean } = {},
+  ) {
     const urls: string[] = [];
     const rt: Runtime = {
       clock: new testing.FixedClock(new Date('2026-11-05T12:00:00Z')),
@@ -160,14 +162,20 @@ describe('sii f29 submit (fake runtime, no SII)', () => {
           landingUrl: HOSTS.miSii,
           evaluate: datos,
           cookies: { TOKEN: 't' },
-          requestJson: (url) => {
+          requestJson: (url, req) => {
             urls.push(url.split('/').pop()!);
+            // 2026-09, the month before the one these tests file, is already filed.
+            const anterior = JSON.stringify(req ?? {}).includes('"mes":"09"');
             if (url.includes('getDeclaracionConEstados'))
               return {
                 metaData: { errors: null },
-                data: opts.vigente ? [{ estadoDeclaracionId: 1, estado: 'Vigente', folio: 5 }] : [],
+                data:
+                  opts.vigente || anterior
+                    ? [{ estadoDeclaracionId: 1, estado: 'Vigente', folio: 5 }]
+                    : [],
               };
-            if (url.includes('getDeclaracionConCondicionesYTipoPropuesta')) return PROPUESTA;
+            if (url.includes('getDeclaracionConCondicionesYTipoPropuesta'))
+              return opts.sinPropuesta ? { metaData: { errors: null }, data: null } : PROPUESTA;
             if (url.includes('guardarPropuesta')) return { metaData: { errors: null }, data: 1 };
             return (
               opts.flujo ?? {
@@ -193,6 +201,33 @@ describe('sii f29 submit (fake runtime, no SII)', () => {
       'getDeclaracionConCondicionesYTipoPropuesta',
       'guardarPropuesta',
       'enviarDatosFlujo',
+    ]);
+  });
+
+  it('--sin-movimiento hands off as CUSTOMIZADO, without saving the propuesta (#221)', async () => {
+    const { rt, urls } = submitRuntime({ sinPropuesta: true });
+    await seed(rt);
+    await expect(run(rt, 'f29', 'submit', '2026-10', '--sin-movimiento')).rejects.toThrow(
+      'Error en el flujo [mod-envdf-rfi3]',
+    );
+    expect(urls).toEqual([
+      'getDeclaracionConEstados',
+      'getDeclaracionConEstados', // the previous month must be filed
+      'getDeclaracionConCondicionesYTipoPropuesta',
+      'enviarDatosFlujo',
+    ]);
+  });
+
+  it('--sin-movimiento refuses a período SII has a propuesta for', async () => {
+    const { rt, urls } = submitRuntime();
+    await seed(rt);
+    await expect(run(rt, 'f29', 'submit', '2026-10', '--sin-movimiento')).rejects.toThrow(
+      'SII tiene una propuesta de F29 para 2026-10',
+    );
+    expect(urls).toEqual([
+      'getDeclaracionConEstados',
+      'getDeclaracionConEstados',
+      'getDeclaracionConCondicionesYTipoPropuesta',
     ]);
   });
 
@@ -223,5 +258,7 @@ describe('sii f29 submit (fake runtime, no SII)', () => {
     expect(help).toContain('borrador «Guardada»');
     expect(help).toContain('puede estar incompleta');
     expect(help).toContain('No paga');
+    expect(help).toContain('--sin-movimiento');
+    expect(help).toContain('una propuesta vacía no lo prueba');
   });
 });
