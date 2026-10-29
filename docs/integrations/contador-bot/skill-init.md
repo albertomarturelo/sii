@@ -41,7 +41,7 @@ For each account, ask for and confirm:
 | `alias` | `personal`, `mi-empresa` | How the user will refer to it |
 | `tipo` | `persona` / `empresa` | Confirmed later by `sii whoami` |
 | `f29Vencimiento` | `20` or `12` | `20` if it issues electronic invoices and declares online, else `12` (skill-sii § 5) |
-| `ivaHabitual` | `sí` / `no` | Whether the account normally has IVA movement (otherwise F29 "sin movimiento") |
+| `ivaHabitual` | `sí` / `no` | Whether the account normally has IVA movement (otherwise F29 "sin movimiento", filed with `f29 submit --sin-movimiento` once the user confirms each month) |
 | `recordatorios` | `[5, 2, 0]` | Days before the due date to remind; default `[5, 2, 0]` |
 | `canal` | this conversation | Where reminders go; never a group chat (amounts and RUTs are private) |
 

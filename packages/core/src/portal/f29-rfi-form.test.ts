@@ -189,7 +189,8 @@ describe('fillF29Form', () => {
         { codigo: '504', value: '1200' },
         // the propuesta's remanente: 537 = 504 and 77 = 537 (shown, computed, were empty)
         { codigo: '537', formula: op('+', ref('504'), int('0')) },
-        { codigo: '77', formula: ref('537') },
+        // brought without a stored value: wM's read-only TextBox, which takes the default width
+        { codigo: '77', value: null, formula: ref('537') },
         // a stale value whose formula is now zero: stored as '' (B is not "0")
         { codigo: '543', value: '999', formula: op('-', ref('504'), ref('504')) },
         // same, but B = "0" keeps the zero
@@ -222,11 +223,111 @@ describe('fillF29Form', () => {
     expect(value(get('778'))).toBe('FALSE');
     expect(cambios.map((c) => c.codigo).sort()).toEqual(['537', '543', '544', '77', '773', '778']);
     expect(reglasFallidas).toEqual([]);
-    // the read-only TEXTBOX cells become hidden-value fields; an empty width gets the default
+    // read-only TEXTBOX cells are hidden; one with no stored value gets the default width
     const cells = (root.values[1] as Gwt7Node).values[0] as Gwt7Node[];
     expect(cells[1]!.values.slice(7)).toEqual(['FALSE', 1, 'fw-campoOculto', '125px']);
     expect(cells[0]!.values[9]).toBe('fw-campoOculto');
     expect(cells[4]!.values[9]).toBe('tabla_td_fixed_c_right'); // a LABEL is left alone
+  });
+
+  it("hides only what wM makes read-only: the cell's j, then the campo's editable flag", () => {
+    const { root } = layout(
+      [
+        { codigo: '1', value: '' },
+        { codigo: '2', value: '', editable: 0 },
+        { codigo: '3', value: '' },
+        { codigo: '4', value: '', editable: 0 },
+        { codigo: '5', value: '' },
+        { codigo: '6', value: 'TRUE', tipo: 'BOOLEAN' },
+        { codigo: '7', value: '' },
+        { codigo: '8', value: '', tipo: 'BOOLEAN', editable: 0 },
+        { codigo: '9', value: 'FALSE', tipo: 'BOOLEAN' },
+        { codigo: '8859', tipo: 'STRING' },
+      ],
+      {
+        cells: [
+          cell('$cod1', 'TEXTBOX', '', '', 'TRUE'), // editable: left alone
+          cell('$cod2', 'TEXTBOX', '', '', 'TRUE'), // the campo is not editable: hidden
+          cell('$cod3', 'TEXTBOX', '', '', '#EDITABLE_3#'), // a placeholder is not TRUE: hidden
+          cell('$cod4', 'TEXTBOX', '', '', '$cod4.editable'), // reads 4's editable flag
+          cell('$cod5', 'TEXTBOX', '', '', '$cod6'), // reads 6's value (TRUE)
+          cell('$cod7', 'DAY_PICKER', '', '', 'FALSE'), // read-only, width left alone
+          cell('$cod8', 'CHECKBOX', '', '', 'TRUE'), // not editable: j FALSE, css kept
+          cell('$cod1', 'TEXTBOX', '', '', 'TRUE', '$cod9'), // not built while 9 is FALSE
+        ],
+      },
+    );
+    fillF29Form(root, HOY, 'customizado');
+    const cells = (root.values[1] as Gwt7Node).values[0] as Gwt7Node[];
+    const jn = (k: number): unknown[] => [
+      cells[k]!.values[7],
+      cells[k]!.values[9],
+      cells[k]!.values[10],
+    ];
+    const ok = 'tabla_td_fixed_c_right';
+    expect(jn(0)).toEqual(['TRUE', ok, '']);
+    // z was TRUE, so wM builds the read-only TextBox, which takes the default width
+    expect(jn(1)).toEqual(['FALSE', 'fw-campoOculto', '125px']);
+    // z was FALSE with a stored value: the hidden HN, which leaves the width alone
+    expect(jn(2)).toEqual(['FALSE', 'fw-campoOculto', '']);
+    expect(jn(3)).toEqual(['FALSE', 'fw-campoOculto', '']);
+    expect(jn(4)).toEqual(['$cod6', ok, '']); // editable: its j stays as it came
+    expect(jn(5)).toEqual(['FALSE', 'fw-campoOculto', '']);
+    expect(jn(6)).toEqual(['FALSE', ok, '']);
+    expect(jn(7)).toEqual(['TRUE', ok, '']);
+  });
+
+  it('on the propuesta screen too: a widget not built stores nothing, a stored value keeps its width', () => {
+    const { root, get } = layout(
+      [
+        { codigo: '1', value: '', formula: int('5') }, // shown: stored through its TEXTBOX
+        { codigo: '2', value: '9', formula: int('5') }, // its only cell is not built: keeps 9
+        { codigo: '3', value: 'FALSE', tipo: 'BOOLEAN' },
+      ],
+      {
+        cells: [
+          cell('$cod1', 'TEXTBOX', '', ''),
+          cell('$cod2', 'TEXTBOX', '', '', 'FALSE', '$cod3'),
+        ],
+      },
+    );
+    fillF29Form(root, HOY);
+    expect(value(get('1'))).toBe('5');
+    expect(value(get('2'))).toBe('9');
+    const cells = (root.values[1] as Gwt7Node).values[0] as Gwt7Node[];
+    // stored '' (not null) under j FALSE: the hidden HN, which leaves an empty width empty
+    expect(cells[0]!.values.slice(7)).toEqual(['FALSE', 1, 'fw-campoOculto', '']);
+    expect(cells[1]!.values[9]).toBe('tabla_td_fixed_c_right'); // not built: untouched
+  });
+
+  it('the customizado screen stores 3 in 8859 and leaves the 773/778 checkboxes alone', () => {
+    const { root, get } = layout(
+      [
+        { codigo: '8859', tipo: 'STRING' },
+        { codigo: '773', tipo: 'BOOLEAN' },
+      ],
+      { cells: [cell('$cod773', 'CHECKBOX', 'celdaCod773_1')] },
+    );
+    const { cambios } = fillF29Form(root, HOY, 'customizado');
+    expect(value(get('8859'))).toBe('3');
+    expect(value(get('773'))).toBe('');
+    expect(cambios.map((c) => c.codigo)).toEqual(['8859']);
+    const propuesta = layout([{ codigo: '8859', tipo: 'STRING' }]);
+    fillF29Form(propuesta.root, HOY);
+    expect(value(propuesta.get('8859'))).toBe('');
+  });
+
+  it('refuses a DAY_PICKER under a formula, a shape no capture shows', () => {
+    const { root } = layout(
+      [
+        { codigo: '915', formula: int('1'), tipo: 'STRING' },
+        { codigo: '8859', tipo: 'STRING' },
+      ],
+      {
+        cells: [cell('$cod915', 'DAY_PICKER')],
+      },
+    );
+    expect(() => fillF29Form(root, HOY, 'customizado')).toThrow(/DAY_PICKER con fórmula en cod915/);
   });
 
   it('formats a result by the campo type: ENTERO rounds half up, DECIMAL keeps its decimals', () => {

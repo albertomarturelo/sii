@@ -227,6 +227,11 @@ Python `sii-cli`, adapted to TypeScript.
   negatives wrap in its subtraction), and say so in a comment. The proof is a byte-for-byte
   equality against the browser's real request, checked locally from a capture: matching values
   alone missed three rules (store-through-widget, zero as `''`, String identity).
+  **Port the branch, not the effect you observed (#221).** Two captures of one screen can agree
+  with a rule that is only a special case of SII's: every propuesta cell arrived read-only, so
+  "hide every widget" matched both byte for byte, and a second screen (the customizado form)
+  broke it. Read the condition in the client (`wM`'s `z`) and port it, then prove it on a
+  capture of each screen the code drives.
 - **Document downloads go through `PortalSession.requestBinary` + the `FileSink` seam, and a
   task returns a DESCRIPTOR, never bytes (ADR-022).** A surface that produces a file (first:
   `f29 pdf`) takes the response body UNDECODED (`requestBinary` — running a PDF through

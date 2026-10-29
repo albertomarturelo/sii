@@ -5,8 +5,8 @@
 //   - overview <desde> [hasta] | <año> : posición por mes (estado/folio/total) en un rango.
 //   - status <periodo> : el estado crudo de las declaraciones del mes.
 //   - pdf <periodo> : descarga el/los PDF de la declaración presentada (ADR-022).
-//   - submit <periodo> [--confirm <total>] : PRESENTA la propuesta tal cual (ADR-029); por
-//     defecto solo la vista previa.
+//   - submit <periodo> [--sin-movimiento] [--confirm <total>] : PRESENTA la propuesta tal cual
+//     (ADR-029), o un mes sin movimiento por la ruta de SII (#221); por defecto, la vista previa.
 import { join } from 'node:path';
 import type { Command } from 'commander';
 import {
@@ -158,17 +158,28 @@ export function registerF29(program: Command, runtime: Runtime): void {
         'PRESENTA el F29 del período con la propuesta de SII tal cual (acto legal). Por defecto ' +
         'solo muestra la vista previa, que deja un borrador «Guardada» en SII sin presentarlo; ' +
         'usa --confirm <total> para presentar. La propuesta de SII puede estar incompleta (PPM, ' +
-        'retenciones, documentos fuera del RCV): revísala antes. No paga: si hay total a pagar, ' +
-        'pagas en SII.',
+        'retenciones, documentos fuera del RCV): revísala antes. Con --sin-movimiento declara un ' +
+        'mes sin movimiento por la ruta «Declarar sin movimiento» de SII: tú afirmas que el mes ' +
+        'no tuvo movimiento (una propuesta vacía no lo prueba); se rechaza si SII tiene propuesta ' +
+        'o valida algún código con valor, y si el mes anterior no está presentado (su remanente ' +
+        'de crédito pasaría a este mes); se confirma con --confirm 0. Un mes atrasado se puede ' +
+        'declarar así; si SII aplica una multa por presentarlo tarde, la calcula y cobra SII. No ' +
+        'paga: si hay total a pagar, pagas en SII.',
     )
     .argument('<periodo>', 'Período tributario (YYYYMM o YYYY-MM).')
+    .option(
+      '--sin-movimiento',
+      'Declara el mes sin movimiento (ruta «Declarar sin movimiento» de SII; todo en cero).',
+    )
     .option(
       '--confirm <total>',
       'PRESENTA el F29. Debe repetir el TOTAL A PAGAR (código 91) de la vista previa.',
     )
-    .action(async (periodoArg: string, opts: { confirm?: string }) => {
+    .action(async (periodoArg: string, opts: { confirm?: string; sinMovimiento?: boolean }) => {
+      const sinMovimiento = opts.sinMovimiento === true;
+      const flag = sinMovimiento ? ' --sin-movimiento' : '';
       if (opts.confirm === undefined) {
-        const p = await f29SubmitPreview(runtime, { periodo: periodoArg });
+        const p = await f29SubmitPreview(runtime, { periodo: periodoArg, sinMovimiento });
         emit(p, () => {
           out(`F29 ${p.periodo} — ${fmtRut(p.rut)} (vista previa de la presentación)`);
           for (const g of GROUP_ORDER) {
@@ -182,21 +193,35 @@ export function registerF29(program: Command, runtime: Runtime): void {
             printLineas(p.calculados);
           }
           out(`TOTAL A PAGAR (91): ${money(p.total)}`);
-          out('Se dejó un borrador «Guardada» en SII; no se presentó nada.');
+          out(
+            p.borradorGuardado
+              ? 'Se dejó un borrador «Guardada» en SII; no se presentó nada.'
+              : 'No se presentó ni se guardó nada en SII.',
+          );
           if (p.desacuerdos.length > 0) {
-            out('NO se puede presentar: el borrador de SII no coincide con la propuesta en:');
+            out(
+              sinMovimiento
+                ? 'NO se puede presentar sin movimiento: SII valida con valor los códigos:'
+                : 'NO se puede presentar: el borrador de SII no coincide con la propuesta en:',
+            );
             for (const d of p.desacuerdos) out(`  ${d.codigo.padStart(4)}  ${d.motivo}`);
             return;
           }
           out(
-            'La propuesta de SII puede estar incompleta (PPM, retenciones, documentos fuera del ' +
-              'RCV). Si está bien, presenta con:',
+            sinMovimiento
+              ? 'Se declarará el mes sin movimiento (todo en cero). Si es así, presenta con:'
+              : 'La propuesta de SII puede estar incompleta (PPM, retenciones, documentos fuera ' +
+                  'del RCV). Si está bien, presenta con:',
           );
-          out(`  sii f29 submit ${p.periodo} --confirm ${p.total}`);
+          out(`  sii f29 submit ${p.periodo}${flag} --confirm ${p.total}`);
         });
         return;
       }
-      const r = await f29Submit(runtime, { periodo: periodoArg, total: opts.confirm });
+      const r = await f29Submit(runtime, {
+        periodo: periodoArg,
+        total: opts.confirm,
+        sinMovimiento,
+      });
       emit(r, () => {
         out(`F29 ${r.periodo} PRESENTADO — ${fmtRut(r.rut)}`);
         out(`  Folio: ${r.folio ?? '—'} · estado: ${r.estado ?? '—'}`);

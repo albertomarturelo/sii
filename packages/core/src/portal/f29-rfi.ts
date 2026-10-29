@@ -19,7 +19,12 @@ import { RFI_READ_LAYOUT, RFI_WRITE_LAYOUT } from './rfi-schema.js';
 import type { Periodo } from '../periodo/index.js';
 import type { Rut } from '../rut/index.js';
 import { type CodigoF29, F29_TIPO_PROPUESTA } from './f29.js';
-import { type F29CampoValor, f29CampoValores, fillF29Form } from './f29-rfi-form.js';
+import {
+  type F29CampoValor,
+  type F29Pantalla,
+  f29CampoValores,
+  fillF29Form,
+} from './f29-rfi-form.js';
 
 /** rfiInternet's module and the form service's entry point (observed 2026-10-19). */
 export const RFI_FORMULARIO: GwtModuleRef = {
@@ -116,6 +121,29 @@ const BORRADOR = { xml: 9, tipo: 27 } as const;
 /** `guardarBorradorRfiValidado` takes the validated borrador with its tipo 40 → 41. */
 const TIPO_GUARDAR = 41;
 
+/** Which of SII's two F29 routes the chain follows (ADR-029 amendments). `propuesta` files SII's
+ *  propuesta (mode PPTA-F29-COMPLETA); `sinMovimiento` is SII's « Declarar sin movimiento »
+ *  (`enviarDatosFlujo` tipo CUSTOMIZADO, the primitiva layout; run3, observed 2026-10-29, #221). */
+export type F29Ruta = 'propuesta' | 'sinMovimiento';
+const RUTAS: Record<
+  F29Ruta,
+  { tipo: number; flag: 0 | 1; pantalla: F29Pantalla; guardarTipo: number | null }
+> = {
+  propuesta: {
+    tipo: F29_TIPO_PROPUESTA,
+    flag: 1,
+    pantalla: 'propuesta',
+    guardarTipo: TIPO_GUARDAR,
+  },
+  // The Formulario keeps its FALSE flag and takes tipo 1, the validation tipo too, and the
+  // validated Borrador is saved as SII answered it (tipo 1, no change).
+  sinMovimiento: { tipo: 1, flag: 0, pantalla: 'customizado', guardarTipo: null },
+};
+/** The flow parameter that marks the customizado flow (`consultarHijoToken`, run3). */
+const ACCION_CUSTOMIZADO = 'TKN_PPTA-F29-CUSTOMIZADO';
+/** The last argument of `findVersionFormularioPrimitivaByPeriodo` (run3). */
+const PRIMITIVA_FMNINT = 'FMNINT';
+
 const box = (cls: string, v: number): Gwt7Node => ({ cls, values: [v] });
 const roto = (what: string): F29Error =>
   new F29Error(`No se pudo interpretar el formulario de SII (scraper roto): ${what}.`);
@@ -171,14 +199,16 @@ export interface F29BorradorValidado {
   readonly campos: readonly F29CampoValor[];
 }
 
-/** Run the form app from the handoff to SII's validation, as the browser does in mode
- *  PPTA-F29-COMPLETA. It stops BEFORE `guardarBorradorRfiValidado`: nothing is filed or saved
- *  past the propuesta's borrador. `hoy` is the moment of the fill (the `Clock`'s now). */
+/** Run the form app from the handoff to SII's validation, as the browser does on `ruta`. It stops
+ *  BEFORE `guardarBorradorRfiValidado`: nothing is filed or saved past the handoff's borrador.
+ *  `hoy` is the moment of the fill (the `Clock`'s now). */
 export async function validarBorradorF29(
   call: RfiCaller,
-  params: { rut: Rut; periodo: Periodo; hoy: Date },
+  params: { rut: Rut; periodo: Periodo; hoy: Date; ruta?: F29Ruta },
 ): Promise<F29BorradorValidado> {
   const { rut, periodo, hoy } = params;
+  const ruta = params.ruta ?? 'propuesta';
+  const r = RUTAS[ruta];
   const periodoYm = `${periodo.year}${String(periodo.month).padStart(2, '0')}`;
 
   // The flow's parameters, stored by the handoff. idBorrador is new for every flow.
@@ -192,8 +222,19 @@ export async function validarBorradorF29(
         'Vuelve a intentarlo desde `sii f29 submit`.',
     );
   }
+  // The propuesta flow names its borrador; the customizado one says it is customizado and has none.
+  // A flow of the other kind means the handoff did not open what we asked for: stop.
+  const customizado = hijo.get('accionPpta') === ACCION_CUSTOMIZADO;
+  if (customizado !== (ruta === 'sinMovimiento')) {
+    throw new F29Error(
+      'SII abrió el formulario en otro modo del que se pidió; no se continuó. ' +
+        'Vuelve a intentarlo desde `sii f29 submit`.',
+    );
+  }
   const idBorrador = Number(hijo.get('idBorrador'));
-  if (!Number.isSafeInteger(idBorrador) || idBorrador <= 0) throw roto('idBorrador');
+  if (ruta === 'propuesta' && (!Number.isSafeInteger(idBorrador) || idBorrador <= 0)) {
+    throw roto('idBorrador');
+  }
 
   const resultado = nodeOf(
     await call('getContribuyente', [
@@ -212,35 +253,52 @@ export async function validarBorradorF29(
   ).find((f) => f.values[FORMULARIO.codigo] === F29_CODIGO);
   if (formulario === undefined) throw roto('SII no ofrece el Formulario 29');
 
-  const periodoRfi = arrayOf(
+  const habilitados = arrayOf(
     await call('findPeriodoHabilitado', [{ type: CLS.formulario, value: formulario }]),
     CLS.periodo,
     'findPeriodoHabilitado',
-  ).find(
-    (p) =>
-      boxed(p.values[PERIODO.anno]) === periodo.year &&
-      boxed(p.values[PERIODO.mes]) === periodo.month,
   );
+  // SII enables only the previous month for the propuesta route. The customizado flow declares
+  // the período it was opened for, which the client builds from the flow's own parameter (run3:
+  // SII listed another month, and the browser sent [año, mes] of the flow, checked above).
+  const periodoRfi =
+    ruta === 'sinMovimiento'
+      ? {
+          cls: CLS.periodo,
+          values: [box(CLS.integer, periodo.year), box(CLS.integer, periodo.month)],
+        }
+      : habilitados.find(
+          (p) =>
+            boxed(p.values[PERIODO.anno]) === periodo.year &&
+            boxed(p.values[PERIODO.mes]) === periodo.month,
+        );
   if (periodoRfi === undefined) {
     throw new F29Error(`SII no habilita el período ${periodo.formatted} para declarar.`);
   }
 
-  // The client marks the Formulario before it reads the borrador (both captures).
-  formulario.values[FORMULARIO.flag] = box(CLS.boolean, 1);
-  formulario.values[FORMULARIO.tipo] = F29_TIPO_PROPUESTA;
+  // The client marks the Formulario before it reads the layout (every capture).
+  formulario.values[FORMULARIO.flag] = box(CLS.boolean, r.flag);
+  formulario.values[FORMULARIO.tipo] = r.tipo;
+  const base = [
+    { type: CLS.formulario, value: formulario },
+    { type: CLS.periodo, value: periodoRfi },
+    { type: CLS.contribuyente, value: contribuyente },
+    { type: CLS.contribuyente, value: contribuyente },
+  ];
+  const metodo =
+    ruta === 'propuesta' ? 'findVersionBorradorById' : 'findVersionFormularioPrimitivaByPeriodo';
   const layout = nodeOf(
-    await call('findVersionBorradorById', [
-      { type: CLS.formulario, value: formulario },
-      { type: CLS.periodo, value: periodoRfi },
-      { type: CLS.contribuyente, value: contribuyente },
-      { type: CLS.contribuyente, value: contribuyente },
-      { type: CLS.integer, value: box(CLS.integer, idBorrador) },
+    await call(metodo, [
+      ...base,
+      ruta === 'propuesta'
+        ? { type: CLS.integer, value: box(CLS.integer, idBorrador) }
+        : { type: CLS.string, value: PRIMITIVA_FMNINT },
     ]),
     CLS.layout,
-    'findVersionBorradorById',
+    metodo,
   );
 
-  const { reglasFallidas } = fillF29Form(layout, hoy);
+  const { reglasFallidas } = fillF29Form(layout, hoy, r.pantalla);
   if (reglasFallidas.length > 0) {
     // SII's client stops here and shows its rules' messages; so do we, verbatim, before
     // validating anything.
@@ -267,7 +325,7 @@ export async function validarBorradorF29(
 
   const validado = nodeOf(
     await call('getBorradorRfiValidado', [
-      { type: CLS.integer, value: box(CLS.integer, F29_TIPO_PROPUESTA) },
+      { type: CLS.integer, value: box(CLS.integer, r.tipo) },
       { type: CLS.formulario, value: formulario },
       { type: CLS.periodo, value: periodoRfi },
       { type: CLS.contribuyente, value: contribuyente },
@@ -390,10 +448,16 @@ export function recargosDeclarados(
   return CODIGOS_RECARGO.filter((c) => v.declarados.has(c) || v.textos.has(c));
 }
 
-/** Submit, call 1: save the validated borrador with tipo 41. Saves, does NOT file. Returns the
- *  `Borrador` SII answers, which call 2 sends unchanged. */
-export async function guardarBorradorF29(call: RfiCaller, borrador: Gwt7Node): Promise<Gwt7Node> {
-  borrador.values[BORRADOR.tipo] = box(CLS.integer, TIPO_GUARDAR);
+/** Submit, call 1: save the validated borrador, with tipo 41 on the propuesta route and as SII
+ *  validated it on the sin movimiento one. Saves, does NOT file. Returns the `Borrador` SII
+ *  answers, which call 2 sends unchanged. */
+export async function guardarBorradorF29(
+  call: RfiCaller,
+  borrador: Gwt7Node,
+  ruta: F29Ruta = 'propuesta',
+): Promise<Gwt7Node> {
+  const tipo = RUTAS[ruta].guardarTipo;
+  if (tipo !== null) borrador.values[BORRADOR.tipo] = box(CLS.integer, tipo);
   return nodeOf(
     await call('guardarBorradorRfiValidado', [{ type: CLS.borrador, value: borrador }]),
     CLS.borrador,

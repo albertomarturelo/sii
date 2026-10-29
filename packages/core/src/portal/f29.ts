@@ -370,6 +370,35 @@ export async function iniciarFlujoPropuestaF29(
     },
     'mod-envdf-rfi3',
   );
+  return entradaRfi(env);
+}
+
+/** « Declarar sin movimiento » (ADR-029 amendment, #221): SII's client sends `enviarDatosFlujo`
+ *  alone, with `tipo: "CUSTOMIZADO"` and no `guardarPropuesta` (run3, observed 2026-10-29). It
+ *  answers the same rfiInternet entry, with `accionPpta=PPTA-F29-CUSTOMIZADO`. Saves nothing. */
+export async function iniciarFlujoSinMovimientoF29(
+  session: PortalSession,
+  params: { rut: Rut; periodo: Periodo },
+): Promise<string> {
+  const { rut, periodo } = params;
+  const { mes, anno } = mesAnno(periodo);
+  const env = await handoffStep(
+    session,
+    'enviarDatosFlujo',
+    {
+      rut: String(rut.body),
+      dv: rut.dv,
+      periodo: `${anno}${mes}`,
+      form: FORM_NUMERO,
+      tipo: 'CUSTOMIZADO',
+    },
+    'mod-envdf-rfi3',
+  );
+  return entradaRfi(env);
+}
+
+/** The rfiInternet entry URL `enviarDatosFlujo` answered. */
+function entradaRfi(env: Envelope): string {
   // Observed: `data` is `https://www4.sii.cl/rfiInternet?origen=PROPUESTA&accionPpta=…`. Follow
   // it only when it leads to the form app on SII's own host.
   const url = env.data;

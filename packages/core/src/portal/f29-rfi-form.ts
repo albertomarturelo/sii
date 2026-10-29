@@ -130,11 +130,12 @@ export function formatSiiNumber(x: SiiNumber): string {
 }
 
 // ── Layout access (positions read from the deserializers, 2026-10-19) ──────────
-// CampoMetadata: c=1 a long TC resets, f=4 código, n=9 formula, p=11 key, r=13 max length, v=17 decimals, x=19 type,
-// B=23 ("0" keeps a computed zero visible).
+// CampoMetadata: c=1 a long TC resets, f=4 código, g=5 editable (1/0), n=9 formula, p=11 key,
+// r=13 max length, v=17 decimals, x=19 type, B=23 ("0" keeps a computed zero visible).
 const MD = {
   c: 1,
   codigo: 4,
+  editable: 5,
   formula: 9,
   key: 11,
   maxLen: 13,
@@ -151,8 +152,10 @@ const EXPR = { op: 1, left: 2, right: 3, type: 4 } as const;
 const REGLA = { expr: 0, nombre: 1, grupos: 2, mensaje: 3, tipo: 4 } as const;
 const FORM = { campos: 2, meta: 17, params: 21, multivalor: 31 } as const;
 const FORM_META_RULES = 5;
-// layout.Cell: e=3 bound reference, f=4 widget, i=6 id, j=7 visible, n=9 css class, o=10 width.
-const CELL = { ref: 3, widget: 4, id: 6, visible: 7, css: 9, width: 10 } as const;
+// layout.Cell: d=2 a "$cod…" condition to build the widget at all, e=3 bound reference, f=4 widget,
+// i=6 id, j=7 editable ("TRUE"/"FALSE", a "$cod…[.editable]" reference, or a "#…#" placeholder),
+// n=9 css class, o=10 width.
+const CELL = { cond: 2, ref: 3, widget: 4, id: 6, editable: 7, css: 9, width: 10 } as const;
 
 const CLS = {
   formulario: 'cl.sii.sdi.difm.rcs.web.client.formulario.instance.Formulario',
@@ -218,9 +221,11 @@ const isStrType = (f: number): boolean => f === 4 || f === 68;
 const isBoolType = (f: number): boolean => f === 8 || f === 72 || f === 128;
 const isDateType = (f: number): boolean => f === 16 || f === 32 || f === 80 || f === 96;
 
-// The widgets whose refresh stores the campo's value (observed: TEXTBOX `jL`, CHECKBOX `GK`/`QL`).
-// A cell bound to a campo with any other widget is a shape we have not observed: scraper roto.
-const WIDGETS = new Set(['TEXTBOX', 'CHECKBOX']);
+// The widgets whose refresh stores the campo's value (observed: TEXTBOX `jL`, CHECKBOX `GK`/`QL`),
+// plus DAY_PICKER (915 in the primitiva layout of a sin movimiento filing, #221), which `wM`
+// builds read-only as a hidden field. A cell bound to a campo with any other widget is a shape
+// we have not observed: scraper roto.
+const WIDGETS = new Set(['TEXTBOX', 'CHECKBOX', 'DAY_PICKER']);
 const UNBOUND_WIDGETS = new Set(['LABEL', 'IMAGE']);
 
 /** `TNf`: trims only when the string starts or ends with whitespace. */
@@ -284,6 +289,27 @@ class F29Form {
     } finally {
       this.computing.delete(campo);
     }
+  }
+  /** `wM`'s `t`: a cell whose `d` is a bare "$cod…" builds its widget only while that campo
+   *  reads TRUE. */
+  cellBuilt(cell: Gwt7Node): boolean {
+    const d = str(cell.values[CELL.cond]!) ?? '';
+    if (!d.startsWith('$') || d.includes('.')) return true;
+    return this.value(this.campo(d.slice(1))) === TRUE;
+  }
+  /** `wM`'s `z` before the widget's own check: `j` as "$cod….editable" reads that campo's
+   *  editable flag, as "$cod…" that campo's value, otherwise it is the literal TRUE. */
+  cellEditable(cell: Gwt7Node): boolean {
+    const j = str(cell.values[CELL.editable]!) ?? '';
+    if (!j.startsWith('$')) return j === TRUE;
+    const dot = j.indexOf('.');
+    const name = dot === -1 ? j.slice(1) : j.slice(1, dot);
+    if (dot !== -1 && j.slice(dot + 1) === 'editable') return this.campoEditable(this.campo(name));
+    return this.value(this.campo(name)) === TRUE;
+  }
+  /** CampoMetadata `g`: whether the form lets the user type in the campo. */
+  campoEditable(campo: Gwt7Node): boolean {
+    return num(this.meta(campo).values[MD.editable]!, 'editable') === 1;
   }
   code(campo: Gwt7Node): string {
     return str(this.meta(campo).values[MD.codigo]!) ?? '?';
@@ -509,8 +535,8 @@ class F29Form {
 }
 
 /** `FECHA_MES_ACTUAL`: the client builds YYYYMM from the browser's clock; SII's users are in
- *  Chile, so the month is taken in America/Santiago. */
-function mesActual(hoy: Date): string {
+ *  Chile, so the month is taken in America/Santiago. Also the submit's "has the período ended". */
+export function mesActual(hoy: Date): string {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Santiago',
     year: 'numeric',
@@ -529,6 +555,10 @@ function shiftPeriodo(p: string, months: number): string {
   const total = y * 12 + (m - 1) + months;
   return `${Math.floor(total / 12)}${String((total % 12) + 1).padStart(2, '0')}`;
 }
+
+/** The client screen whose fill this reproduces: the propuesta view (mode PPTA-F29-COMPLETA,
+ *  `QRb`) or the customizado one a sin movimiento filing opens (`HMb`, #221). */
+export type F29Pantalla = 'propuesta' | 'customizado';
 
 /** A rule whose expression did not evaluate to TRUE (SII's own client-side validation). */
 export interface F29ReglaFallida {
@@ -552,30 +582,46 @@ export interface F29FormFill {
  *  go to FALSE, then every campo with a formula takes its formula's value. Returns what changed
  *  and the rules that fail. `hoy` is the moment of the fill (a few rules read the current
  *  month); pass the `Clock`'s now. The values are taxpayer data: never log them. */
-export function fillF29Form(layout: Gwt7Node, hoy: Date): F29FormFill {
+export function fillF29Form(
+  layout: Gwt7Node,
+  hoy: Date,
+  pantalla: F29Pantalla = 'propuesta',
+): F29FormFill {
   const form = new F29Form(theFormulario(layout), hoy);
   const before = new Map<Gwt7Node, string>();
   for (const [, c] of form.campos) before.set(c, form.stored(c));
   const after = (c: Gwt7Node): string => form.stored(c);
 
-  // QRb: the propuesta screen sets these checkboxes to FALSE when it shows them.
   const cells = findAll(layout, CLS.cell);
-  const cellIds = new Set(cells.map((c) => c.values[CELL.id]));
-  for (const [codigo, cell] of [
-    ['773', 'celdaCod773_1'],
-    ['778', 'celdaCod778_1'],
-  ] as const) {
-    if (!cellIds.has(cell)) continue;
-    const c = form.campo(`cod${codigo}`);
-    form.set(c, FALSE);
-    // TC also resets the metadata's long `c` to 0 (base64 "A" on the wire).
-    form.meta(c).values[MD.c] = 'A';
+  if (pantalla === 'propuesta') {
+    // QRb: the propuesta screen sets these checkboxes to FALSE when it shows them.
+    const cellIds = new Set(cells.map((c) => c.values[CELL.id]));
+    for (const [codigo, cell] of [
+      ['773', 'celdaCod773_1'],
+      ['778', 'celdaCod778_1'],
+    ] as const) {
+      if (!cellIds.has(cell)) continue;
+      const c = form.campo(`cod${codigo}`);
+      form.set(c, FALSE);
+      // TC also resets the metadata's long `c` to 0 (base64 "A" on the wire).
+      form.meta(c).values[MD.c] = 'A';
+    }
+  } else {
+    // HMb, the customizado screen ("INGRESO DE DECLARACION MENSUAL…"): `eMb(b, '3')` stores 3 in
+    // campo 8859 (run3, 2026-10-29). The propuesta screen leaves it '' (run5, run6).
+    form.set(form.campo('cod8859'), '3');
   }
 
   // The serializer sends a campo's STORED value. The client stores a formula's result only
   // through the widget that shows the campo: its refresh (`jL` TEXTBOX, `GK`/`QL` CHECKBOX)
   // writes the getter's value, and a numeric zero is stored as '' unless the metadata's B is "0".
   // A formula campo no cell shows keeps what the layout brought.
+  //
+  // Which cells the client hides is `wM`'s, ported branch by branch: `z` (may the user edit the
+  // cell) comes from the cell's `j`, then each widget ANDs it with the campo's own editable flag.
+  // A read-only widget is rebuilt as a hidden-value field: `j` FALSE, css `fw-campoOculto`. In
+  // the propuesta view every cell arrives with `j` FALSE (run5/run6); the primitiva layout of a
+  // sin movimiento filing keeps the user's cells editable (run3, #221).
   const shown = new Set<Gwt7Node>();
   for (const cell of cells) {
     const ref = cell.values[CELL.ref];
@@ -584,12 +630,32 @@ export function fillF29Form(layout: Gwt7Node, hoy: Date): F29FormFill {
     const widget = String(cell.values[CELL.widget]);
     if (UNBOUND_WIDGETS.has(widget)) continue;
     if (!WIDGETS.has(widget)) throw roto(`widget desconocido ${widget} en ${m[1]}`);
-    shown.add(form.campo(m[1]!));
-    if (widget === 'TEXTBOX') {
-      // wM builds a read-only TEXTBOX (the propuesta view) as a hidden-value field.
-      cell.values[CELL.visible] = FALSE;
+    if (!form.cellBuilt(cell)) continue;
+    const campo = form.campo(m[1]!);
+    shown.add(campo);
+    let z = form.cellEditable(cell);
+    const hide = (): void => {
+      cell.values[CELL.editable] = FALSE;
       cell.values[CELL.css] = 'fw-campoOculto';
-      if (cell.values[CELL.width] === '') cell.values[CELL.width] = '125px';
+    };
+    if (widget === 'TEXTBOX') {
+      if (!z && campo.values[CAMPO.value] !== null) {
+        hide(); // the hidden HN, which leaves the width alone
+        continue;
+      }
+      z = z && form.campoEditable(campo);
+      if (!z) {
+        hide(); // the read-only TextBox
+        if (cell.values[CELL.width] === '') cell.values[CELL.width] = '125px';
+      }
+    } else if (widget === 'CHECKBOX') {
+      if (!(z && form.campoEditable(campo))) cell.values[CELL.editable] = FALSE;
+    } else {
+      // DAY_PICKER: its value goes through `VM`, which no capture shows under a formula.
+      if (isNode(form.meta(campo).values[MD.formula])) {
+        throw roto(`DAY_PICKER con fórmula en ${m[1]}`);
+      }
+      if (!(z && form.campoEditable(campo))) hide();
     }
   }
   const values = new Map<Gwt7Node, string>();

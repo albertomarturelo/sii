@@ -450,6 +450,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii f29 status <periodo>` | Estado del F29 de un mes |
 | `sii f29 pdf <periodo> [--tipo] [--out]` | Descarga el PDF del F29 presentado (y su comprobante de pago) |
 | `sii f29 submit <periodo>` (`--confirm <total>`) | Presenta el F29 con la propuesta del SII — por defecto vista previa (deja un borrador «Guardada»); la presentación real exige `--confirm` con el TOTAL A PAGAR |
+| `sii f29 submit <periodo> --sin-movimiento` (`--confirm 0`) | Declara un mes sin movimiento por la ruta « Declarar sin movimiento » del SII: sin propuesta, todo en cero; tú afirmas que el mes no tuvo movimiento. La vista previa no guarda nada |
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |

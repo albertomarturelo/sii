@@ -16,17 +16,21 @@ import {
   ValidationError,
 } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
+import { Periodo } from '../periodo/index.js';
 import type { F29Estado, F29Propuesta } from '../portal/f29.js';
 import type { F29BorradorValidado } from '../portal/f29-rfi.js';
 import type { Gwt7Node } from '../portal/gwt.js';
 import type { Runtime } from '../seams/index.js';
 import { type F29SubmitChain, f29SubmitTasks } from './f29-submit.js';
 
-const f29SubmitPreview = (rt: Runtime, args: { periodo: string }, chain: F29SubmitChain) =>
-  f29SubmitTasks(chain).f29SubmitPreview(rt, args);
+const f29SubmitPreview = (
+  rt: Runtime,
+  args: { periodo: string; sinMovimiento?: boolean },
+  chain: F29SubmitChain,
+) => f29SubmitTasks(chain).f29SubmitPreview(rt, args);
 const f29Submit = (
   rt: Runtime,
-  args: { periodo: string; total: number | string },
+  args: { periodo: string; total: number | string; sinMovimiento?: boolean },
   chain: F29SubmitChain,
 ) => f29SubmitTasks(chain).f29Submit(rt, args);
 
@@ -87,8 +91,13 @@ function fakeChain(over: Partial<F29SubmitChain> = {}): { chain: F29SubmitChain;
   const steps: Step[] = [];
   let filed = false;
   const base: F29SubmitChain = {
-    estado: () =>
-      Promise.resolve(filed ? estado([{ estadoId: 1, estado: 'Vigente', folio: 9001 }]) : estado()),
+    // The months before 2026-10 are already filed (the sin movimiento route reads the previous).
+    estado: (_s, p) =>
+      Promise.resolve(
+        filed || p.periodo.formatted !== '2026-10'
+          ? estado([{ estadoId: 1, estado: 'Vigente', folio: 9001 }])
+          : estado(),
+      ),
     propuesta: () => Promise.resolve(propuesta()),
     validar: () => Promise.resolve(validado()),
     guardar: () => Promise.resolve(BORRADOR),
@@ -96,6 +105,7 @@ function fakeChain(over: Partial<F29SubmitChain> = {}): { chain: F29SubmitChain;
       filed = true;
       return Promise.resolve();
     },
+    inicioActividades: () => Promise.resolve(null),
   };
   const merged = { ...base, ...over };
   const chain = Object.fromEntries(
@@ -222,6 +232,136 @@ describe('f29SubmitPreview', () => {
       'session-keyed',
     );
     expect(steps).toEqual([]);
+  });
+});
+
+describe('sin movimiento (#221)', () => {
+  // SYNTHETIC: SII validates every código at zero (the shape of run3, 2026-10-29).
+  const nada = (): Promise<F29BorradorValidado> =>
+    Promise.resolve(
+      validado({
+        declarados: new Map(),
+        total: 0,
+        campos: [{ codigo: '89', valor: '', formula: true, numerico: true }],
+      }),
+    );
+  const sinMov = (over: Partial<F29SubmitChain> = {}) =>
+    fakeChain({ propuesta: () => Promise.resolve(propuesta(false)), validar: nada, ...over });
+
+  it('previews a período with no propuesta through the sin movimiento route', async () => {
+    const rt = await makeRuntime();
+    const rutas: string[] = [];
+    const { chain, steps } = sinMov({
+      validar: (_s, p) => {
+        rutas.push(p.ruta);
+        return nada();
+      },
+    });
+    const p = await f29SubmitPreview(rt, { periodo: '2026-10', sinMovimiento: true }, chain);
+    expect(p).toMatchObject({ total: 0, desacuerdos: [], listoParaPresentar: true });
+    expect(rutas).toEqual(['sinMovimiento']);
+    expect(steps).toEqual(['estado', 'estado', 'propuesta', 'validar']); // this month, the last
+    expect(audits(rt).at(-1)).toMatchObject({
+      action: 'f29_submit_preview',
+      result: 'ok',
+      ruta: 'sinMovimiento',
+    });
+  });
+
+  it('refuses a período that has not ended, before any SII call', async () => {
+    const rt = await makeRuntime(); // its clock reads 2026-11-05
+    for (const periodo of ['2026-11', '2027-01']) {
+      const { chain, steps } = sinMov();
+      await expect(f29SubmitPreview(rt, { periodo, sinMovimiento: true }, chain)).rejects.toThrow(
+        'todavía no termina',
+      );
+      expect(steps).toEqual([]);
+    }
+    expect(audits(rt).at(-1)).toMatchObject({ result: 'refused', ruta: 'sinMovimiento' });
+  });
+
+  it('requires the previous month filed, so no remanente is dropped', async () => {
+    const rt = await makeRuntime();
+    const sinAnterior = (inicio: string | null) =>
+      sinMov({
+        estado: () => Promise.resolve(estado()), // nothing filed, this month or the last
+        inicioActividades: () => Promise.resolve(inicio === null ? null : Periodo.parse(inicio)),
+      });
+    // the previous month pending: refused before the propuesta is even read
+    const pendiente = sinAnterior(null);
+    await expect(
+      f29SubmitPreview(rt, { periodo: '2026-10', sinMovimiento: true }, pendiente.chain),
+    ).rejects.toThrow('El F29 de 2026-09 no está presentado');
+    expect(pendiente.steps).toEqual(['estado', 'estado', 'inicioActividades']);
+    // the first month of activity has no previous one to wait for
+    const primero = sinAnterior('2026-10');
+    await expect(
+      f29SubmitPreview(rt, { periodo: '2026-10', sinMovimiento: true }, primero.chain),
+    ).resolves.toMatchObject({ listoParaPresentar: true });
+    // a month before the activity started has no F29 at all
+    const antes = sinAnterior('2026-11');
+    await expect(
+      f29SubmitPreview(rt, { periodo: '2026-10', sinMovimiento: true }, antes.chain),
+    ).rejects.toThrow('anterior al inicio de actividades');
+  });
+
+  it('refuses when SII has a propuesta, and points the plain route to the flag', async () => {
+    const rt = await makeRuntime();
+    const conPropuesta = fakeChain();
+    await expect(
+      f29SubmitPreview(rt, { periodo: '2026-10', sinMovimiento: true }, conPropuesta.chain),
+    ).rejects.toThrow('SII tiene una propuesta de F29 para 2026-10');
+    expect(conPropuesta.steps).not.toContain('validar');
+    const vacio = fakeChain({ propuesta: () => Promise.resolve(propuesta(false)) });
+    await expect(f29SubmitPreview(rt, { periodo: '2026-10' }, vacio.chain)).rejects.toThrow(
+      '`sii f29 submit 2026-10 --sin-movimiento`',
+    );
+  });
+
+  it('blocks any código SII declares with a value, even one a formula explains', async () => {
+    const rt = await makeRuntime();
+    const { chain } = sinMov({
+      validar: () =>
+        Promise.resolve(
+          validado({
+            declarados: new Map([['537', 65000]]),
+            total: 0,
+            campos: [{ codigo: '537', valor: '65000', formula: true, numerico: true }],
+          }),
+        ),
+    });
+    const p = await f29SubmitPreview(rt, { periodo: '2026-10', sinMovimiento: true }, chain);
+    expect(p.desacuerdos).toEqual([{ codigo: '537', motivo: 'sobra' }]);
+    expect(p.listoParaPresentar).toBe(false);
+    const submit = sinMov({ validar: chain.validar });
+    await expect(
+      f29Submit(rt, { periodo: '2026-10', total: 0, sinMovimiento: true }, submit.chain),
+    ).rejects.toThrow('no es sin movimiento');
+    expect(submit.steps).not.toContain('guardar');
+  });
+
+  it('files with --confirm 0, saving on the sin movimiento route', async () => {
+    const rt = await makeRuntime();
+    const rutas: string[] = [];
+    const { chain, steps } = sinMov({
+      guardar: (_s, b, ruta) => {
+        rutas.push(ruta);
+        return Promise.resolve(b);
+      },
+    });
+    const r = await f29Submit(rt, { periodo: '2026-10', total: 0, sinMovimiento: true }, chain);
+    expect(r).toMatchObject({ total: 0, folio: 9001, estado: 'Vigente', pagoUrl: null });
+    expect(rutas).toEqual(['sinMovimiento']);
+    expect(steps).toEqual([
+      'estado',
+      'estado',
+      'propuesta',
+      'validar',
+      'guardar',
+      'inyectar',
+      'estado',
+    ]);
+    expect(audits(rt).at(-1)).toMatchObject({ result: 'ok', ruta: 'sinMovimiento', folio: 9001 });
   });
 });
 

@@ -234,6 +234,68 @@ describe('validarBorradorF29', () => {
     expect(recargosDeclarados(v)).toEqual(['922']);
   });
 
+  it('takes the sin movimiento route: primitiva layout, tipo 1, its own Periodo (#221)', async () => {
+    // SYNTHETIC: the shape of run3 (2026-10-29); SII's enabled list need not hold the período.
+    const sinMov = (): Gwt7Node => {
+      const { root } = layout([{ codigo: '504' }, { codigo: '8859', tipo: 'STRING' }]);
+      return { ...root, cls: 'cl.sii.sdi.difm.rcs.web.client.to.FormularioLayoutTO' };
+    };
+    const { call, calls } = fakeCaller({
+      consultarHijoToken: () =>
+        map([
+          ['rut', s('20000042')],
+          ['dv', s('0')],
+          ['periodo', s('202610')],
+          ['accionPpta', s('TKN_PPTA-F29-CUSTOMIZADO')],
+        ]),
+      findPeriodoHabilitado: () =>
+        node(`[L${TO}Periodo;`, [node(`${TO}Periodo`, [integer(2026), integer(9)])]),
+      findVersionFormularioPrimitivaByPeriodo: () => sinMov(),
+      getBorradorRfiValidado: () =>
+        node(`${TO}BorradorRfi`, [
+          borrador(xmlFormulario([xmlCodigo('D', '89', '0'), xmlCodigo('R', '91', '0')])),
+          null,
+        ]),
+    });
+    const v = await validarBorradorF29(call, {
+      rut: RUT,
+      periodo: PERIODO,
+      hoy: HOY,
+      ruta: 'sinMovimiento',
+    });
+    expect(methods(calls)).toContain('findVersionFormularioPrimitivaByPeriodo');
+    expect(methods(calls)).not.toContain('findVersionBorradorById');
+    const layoutCall = calls.find((c) => c.method === 'findVersionFormularioPrimitivaByPeriodo')!;
+    const form = layoutCall.params[0]!.value as Gwt7Node;
+    expect(form.values[0]).toEqual({ cls: 'java.lang.Boolean', values: [0] });
+    expect(form.values[27]).toBe(1);
+    // The Periodo is the flow's, built by the client, not one of SII's enabled months.
+    expect((layoutCall.params[1]!.value as Gwt7Node).values).toEqual([integer(2026), integer(10)]);
+    expect(layoutCall.params[4]).toEqual({ type: 'java.lang.String', value: 'FMNINT' });
+    const validation = calls.find((c) => c.method === 'getBorradorRfiValidado')!;
+    expect(validation.params[0]!.value).toEqual(integer(1));
+    expect(v.total).toBe(0);
+    expect(v.declarados.size).toBe(0);
+  });
+
+  it('refuses a flow whose mode is not the one asked for', async () => {
+    const { call } = fakeCaller(); // a propuesta flow (it names its idBorrador)
+    await expect(
+      validarBorradorF29(call, { rut: RUT, periodo: PERIODO, hoy: HOY, ruta: 'sinMovimiento' }),
+    ).rejects.toThrow('otro modo');
+    const custom = fakeCaller({
+      consultarHijoToken: () =>
+        map([
+          ['rut', s('20000042')],
+          ['periodo', s('202610')],
+          ['accionPpta', s('TKN_PPTA-F29-CUSTOMIZADO')],
+        ]),
+    });
+    await expect(
+      validarBorradorF29(custom.call, { rut: RUT, periodo: PERIODO, hoy: HOY }),
+    ).rejects.toThrow('otro modo');
+  });
+
   it('refuses when SII opened the flow for another período', async () => {
     const { call, calls } = fakeCaller({
       consultarHijoToken: () =>
@@ -434,6 +496,14 @@ describe('guardarBorradorF29 / inyectarBorradorF29', () => {
       method: 'inyectarBorradorRfi',
       params: [{ type: `${TO}Borrador`, value: guardado }],
     });
+  });
+
+  it('saves a sin movimiento borrador as SII validated it, tipo unchanged', async () => {
+    const { call, calls } = fakeCaller({ guardarBorradorRfiValidado: () => borrador(XML_OK) });
+    const b = borrador(XML_OK);
+    b.values[27] = integer(1);
+    await guardarBorradorF29(call, b, 'sinMovimiento');
+    expect((calls[0]!.params[0]!.value as Gwt7Node).values[27]).toEqual(integer(1));
   });
 
   it('a filing SII does not confirm is an error', async () => {
