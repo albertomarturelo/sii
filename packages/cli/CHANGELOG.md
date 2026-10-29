@@ -9,6 +9,13 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.18.1 — 2026-10-28
+
+### Fixed
+
+- **`sii f29 submit` no longer breaks on código 922, and refuses a late período with the
+  reason (#235).** The fix is the core's; the command's flags and output are unchanged.
+
 ## 0.18.0 — 2026-10-26
 
 ### Changed
