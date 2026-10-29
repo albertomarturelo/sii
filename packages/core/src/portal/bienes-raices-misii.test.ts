@@ -181,9 +181,21 @@ describe('fetchPredios (Mi SII opc=34; fakes, synthetic data)', () => {
     });
     await expect(fetchPredios(dead.s)).rejects.toBeInstanceOf(SessionExpiredError);
     const net = session(() => {
-      throw new NetworkError('sin red (sintético)', { host: 'misiir.sii.cl', causa: 'ECONNRESET' });
+      throw new NetworkError('sin red (sintético)', {
+        host: new URL(HOSTS.miSiiCarta).host,
+        causa: 'ECONNRESET',
+      });
     });
     await expect(fetchPredios(net.s)).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it("wraps any other seam failure as BienesRaicesError, keeping the seam's message", async () => {
+    const odd = session(() => {
+      throw new Error('respuesta inesperada (sintético)');
+    });
+    const err = await fetchPredios(odd.s).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(BienesRaicesError);
+    expect((err as Error).message).toContain('respuesta inesperada (sintético)');
   });
 
   it('reads an unexpected cuota shape as null, never as a guess', async () => {

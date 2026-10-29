@@ -119,7 +119,11 @@ Python `sii-cli`, adapted to TypeScript.
   with a page that only runs `location.replace(<zeusr login URL>)` (observed 2026-10-18,
   GH-139). The HTTP driver treats that page as a landing on `LOGIN_HOST`, so URL-based
   detection holds on every primitive. Keep the match narrow: the page holds nothing else,
-  and the target is `LOGIN_HOST`. **"Alive" needs positive proof.** A probe that decides
+  and the target is `LOGIN_HOST`. **A JSON CGI can answer a dead jar with a `200` body, no
+  bounce at all (#236).** Mi SII's `CViewCarta.cgi` returns `{"codigoResp":-2,
+  "glosaRespuesta":"Error: Autenticacion"}` (observed 2026-10-28). Its facade maps that code to
+  `SessionExpiredError`: read as "no data", a dead session would pass for an empty list. Before
+  wiring another such CGI, POST it without cookies and see what it says. **"Alive" needs positive proof.** A probe that decides
   whether to skip a login confirms the session by reading the principal's identity, never
   by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
   "dead" costs one login. **"Closed" needs proof too (#135).** Over HTTP, SII's
