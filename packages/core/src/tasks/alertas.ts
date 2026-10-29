@@ -231,8 +231,10 @@ function obligadoDesde(
 // category in the `SGPE` atributo's `valor`, observed 2026-10-23 on a honorarios-only persona as
 // « Tipo contribuyente=1 y Categoría Contribuyente = 2 ». Only that exact category counts: « = 1 y
 // 2 » or any other text is unknown and keeps the activity rule. `valor` is read for SGPE only:
-// under NOTI it is the email.
-const SEGUNDA_CATEGORIA = /Categor[ií]a\s+Contribuyente\s*=\s*2\s*$/i;
+// under NOTI it is the email. Over the HTTP driver the « í » arrives as three U+001A and the
+// « y » after two spaces (observed 2026-10-29, live #245), so whatever stands for the accent is
+// accepted; the anchor on « = 2 » at the end is what keeps « = 1 y 2 » out.
+const SEGUNDA_CATEGORIA = /Categor\S*a\s+Contribuyente\s*=\s*2\s*$/i;
 
 function segundaCategoria(atributos: NonNullable<DatosCntr['atributos']>): boolean {
   const activos = atributos.filter(activo);

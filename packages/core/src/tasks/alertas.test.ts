@@ -551,6 +551,17 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     }
   });
 
+  it('segunda categoría as SII sends it over HTTP: the accent as three U+001A (#245)', async () => {
+    // Observed live 2026-10-29: « Categor\u001a\u001a\u001aa », and two spaces before the « y ».
+    const http = atributo('SGPE', {
+      valor: 'Tipo contribuyente=1  y Categor\u001a\u001a\u001aa Contribuyente = 2',
+    });
+    expect(await f29De({ regimen: ANTIGUA, atributos: [http], bte: { '2026-09': 1000 } })).toEqual({
+      estado: 'ok',
+      sinDeclarar: ['2026-09'],
+    });
+  });
+
   it('only the exact segunda categoría counts; a primera-categoría regime wins (#245)', async () => {
     // « = 1 y 2 » or no valor is unknown: the activity rule stays, no BTE read.
     const ambas = atributo('SGPE', {
