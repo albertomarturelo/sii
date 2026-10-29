@@ -3,7 +3,7 @@
 **MCP (Model Context Protocol) server** — over stdio — that exposes Chile's **SII**
 (Servicio de Impuestos Internos) to **Claude Desktop** and **Claude Code**.
 Authenticated **reads** — RCV, F22, F29, boletas de honorarios (BHE),
-DTE-authorized (public), peticiones administrativas, whoami — as `readOnly` tools,
+DTE-authorized (public), peticiones administrativas, bienes raíces, whoami — as `readOnly` tools,
 plus a `destructive`, confirm-gated BHE **emit**. A thin surface over
 [`@albertomarturelo/sii-core`](https://www.npmjs.com/package/@albertomarturelo/sii-core);
 all the guardrails live in the core, and **no tool ever receives your password**

@@ -98,6 +98,8 @@ interface Script {
   /** A non-SII error escapes a facade (a bug in our code). Peticiones' facade does not wrap
    *  seam errors (F22's turns any into an F22Error), so it is injected there. */
   bug?: boolean;
+  /** Mi SII `opc=34` body (bienes raíces); default: no predios. */
+  predios?: string;
 }
 
 function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
@@ -135,6 +137,11 @@ function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
           }
           return { metaData: {}, data: null };
         },
+        requestForm: (url: string) => {
+          if (s.dead) throw new NotAuthenticatedError('Sesión expirada (sintético).');
+          if (url.includes('CViewCarta')) calls.push('bienes_raices');
+          return s.predios ?? JSON.stringify({ data: null, metaData: { errors: null } });
+        },
         requestText: (url: string) => {
           if (!url.endsWith('/peticion')) {
             // Mi SII: the fake synthesises DatosCntrNow, unless the page lost it.
@@ -168,7 +175,7 @@ const byId = (as: readonly Alerta[]) => new Map(as.map((a) => [a.id, a]));
 const entries = (rt: Runtime) => (rt.audit as RecordingAuditSink).entries;
 
 describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
-  it('reads the three sources in one session and maps each alerta', async () => {
+  it('reads the four sources in one session and maps each alerta', async () => {
     const { rt } = makeRuntime();
     await seed(rt);
     const res = await alertas(rt);
@@ -178,6 +185,7 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
       { origen: 'f22', estado: 'ok' },
       { origen: 'f29', estado: 'ok' },
       { origen: 'peticiones', estado: 'ok' },
+      { origen: 'bienes_raices', estado: 'ok' },
     ]);
     const ids = byId(res.alertas);
     // F22: the last 3 años tributarios (2026, 2025, 2024), one alerta per observación código.
@@ -463,6 +471,7 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
       { origen: 'f22', estado: 'ok' },
       { origen: 'f29', estado: 'omitida' },
       { origen: 'peticiones', estado: 'ok' },
+      { origen: 'bienes_raices', estado: 'omitida' },
     ]);
     expect((await alertas(rt, { fuentes: ['f29'] })).fuentes[1]).toEqual({
       origen: 'f29',
@@ -502,7 +511,7 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
       estado: 'error',
       error: { type: 'sii_error', error: 'Servicio no disponible (sintético).' },
     });
-    expect(res.fuentes.slice(1).map((f) => f.estado)).toEqual(['ok', 'ok']);
+    expect(res.fuentes.slice(1).map((f) => f.estado)).toEqual(['ok', 'ok', 'ok']);
     expect(res.alertas.some((a) => a.origen === 'f29')).toBe(true);
     expect(entries(rt).find((e) => e.action === 'alertas')).toMatchObject({ result: 'partial' });
   });
@@ -569,6 +578,119 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     });
     const blob = JSON.stringify(e);
     for (const text of ['ganancia de capital', 'Antecedentes', 'documento sintético', 'Guardada']) {
+      expect(blob).not.toContain(text);
+    }
+  });
+});
+
+describe('alertas — source bienes_raices (ADR-032; fakes, synthetic data, no SII)', () => {
+  // "Today" is 2026-10-23 (makeRuntime's default): por vencer = due on or before 2026-11-22.
+  const cuota = (n: number, condicion: string, fechaVencimiento: unknown, totalPago: unknown) => ({
+    condicion,
+    fechaVencimiento,
+    agno: 2026,
+    semestre: n <= 2 ? 1 : 2,
+    cuota: n,
+    totalPago,
+  });
+  const PREDIOS = JSON.stringify({
+    data: {
+      k: {
+        descripcionComuna: 'COMUNA SINTETICA',
+        comuna: 99001,
+        manzana: 123,
+        predio: 45,
+        direccion: 'CALLE FALSA 123',
+        destino: 'HABITACIONAL',
+        propietario: false,
+        rol: '123-45',
+        cuotas: {
+          a: cuota(2, 'VENCIDA', '30-06-2026', 45678),
+          b: cuota(3, 'VIGENTE', '2026-11-22', '$ 41.234'), // the window's last day
+          c: cuota(4, 'VIGENTE', '2026-11-23', 41234), // one day past it
+          d: cuota(1, 'VIGENTE', 'sin fecha', null), // unreadable date: shown
+        },
+      },
+    },
+    metaData: { errors: null },
+  });
+
+  it('turns vencidas and cuotas due within 30 days into alertas with stable ids', async () => {
+    const { rt, calls } = makeRuntime({ predios: PREDIOS });
+    await seed(rt);
+    const res = await alertas(rt, { fuentes: 'bienes_raices' });
+    expect(calls).toEqual(['bienes_raices']);
+    expect(res.fuentes.find((f) => f.origen === 'bienes_raices')).toEqual({
+      origen: 'bienes_raices',
+      estado: 'ok',
+    });
+    expect(res.alertas.map((a) => a.id)).toEqual([
+      'bienes_raices:99001-123-45:2026-1-2:vencida',
+      'bienes_raices:99001-123-45:2026-2-3:por_vencer',
+      'bienes_raices:99001-123-45:2026-1-1:por_vencer',
+    ]);
+    expect(res.alertas[0]).toEqual({
+      id: 'bienes_raices:99001-123-45:2026-1-2:vencida',
+      tipo: 'contribuciones_vencida',
+      origen: 'bienes_raices',
+      periodo: null,
+      anio: null,
+      folio: null,
+      peticion: null,
+      codigo: null,
+      estado: 'VENCIDA',
+      mensaje: null,
+      url: null,
+      fecha: '2026-06-30',
+      contribucion: { rol: '123-45', comuna: 'COMUNA SINTETICA', cuota: '2026-2', monto: 45678 },
+    });
+    expect(res.alertas[1]).toMatchObject({
+      tipo: 'contribuciones_por_vencer',
+      fecha: '2026-11-22',
+      contribucion: { monto: 41234 },
+    });
+    expect(res.alertas[2]).toMatchObject({ tipo: 'contribuciones_por_vencer', fecha: null });
+  });
+
+  it('keeps the same ids on a second run, and --desde keeps future due dates', async () => {
+    const { rt } = makeRuntime({ predios: PREDIOS });
+    await seed(rt);
+    const a = await alertas(rt, { fuentes: 'bienes_raices' });
+    const b = await alertas(rt, { fuentes: 'bienes_raices', desde: '2026-10-01' });
+    expect(b.alertas.map((x) => x.id)).toEqual(
+      a.alertas.filter((x) => x.tipo === 'contribuciones_por_vencer').map((x) => x.id),
+    );
+  });
+
+  it("records SII's error for this source and still returns the others", async () => {
+    const { rt } = makeRuntime({
+      predios: '{"codigoResp":-9,"glosaRespuesta":"Servicio no disponible (sintético)"}',
+    });
+    await seed(rt);
+    const res = await alertas(rt);
+    expect(res.incompleto).toBe(true);
+    expect(res.fuentes[3]).toEqual({
+      origen: 'bienes_raices',
+      estado: 'error',
+      error: { type: 'sii_error', error: 'Servicio no disponible (sintético)' },
+    });
+    expect(res.alertas.some((x) => x.origen === 'f29')).toBe(true);
+  });
+
+  it("aborts the whole read on Mi SII's missing-session answer", async () => {
+    const { rt } = makeRuntime({
+      predios: '{"codigoResp":-2, "glosaRespuesta":"Error: Autenticacion"}',
+    });
+    await seed(rt);
+    await expect(alertas(rt)).rejects.toBeInstanceOf(NotAuthenticatedError);
+  });
+
+  it('keeps the rol, address and amounts out of the audit', async () => {
+    const { rt } = makeRuntime({ predios: PREDIOS });
+    await seed(rt);
+    await alertas(rt, { fuentes: 'bienes_raices' });
+    const blob = JSON.stringify(entries(rt));
+    for (const text of ['123-45', 'CALLE FALSA', 'COMUNA SINTETICA', '45678', '99001']) {
       expect(blob).not.toContain(text);
     }
   });

@@ -33,6 +33,7 @@ import { registerBteTools } from './tools/bte.js';
 import { registerPeticionesTools } from './tools/peticiones.js';
 import { registerCarpetaTools } from './tools/carpeta.js';
 import { registerAlertasTools } from './tools/alertas.js';
+import { registerBienesRaicesTools } from './tools/bienes-raices.js';
 
 const jsonResource = (uri: URL, value: unknown) => ({
   contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(value, null, 2) }],
@@ -196,6 +197,7 @@ export function buildServer(runtime: Runtime): McpServer {
   registerPeticionesTools(server, runtime);
   registerCarpetaTools(server, runtime);
   registerAlertasTools(server, runtime);
+  registerBienesRaicesTools(server, runtime);
 
   return server;
 }

@@ -23,6 +23,12 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added** `sii bienes-raices list` / MCP `bienes_raices_list` and an `alertas` source
+  `bienes_raices` (#236, ADR-032): the predios whose contribuciones you pay, from Mi SII, with
+  the unpaid cuotas (vencida or vigente, due date, total); `alertas` reports cuotas vencidas
+  and due within 30 days (optional `contribucion` field). Core: `bienesRaicesList`,
+  `BienesRaicesError`.
+
 ## 0.18.1 — 2026-10-28 — Dentro del plazo
 
 A patch for `f29 submit` (#235).

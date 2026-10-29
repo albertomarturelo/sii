@@ -59,7 +59,7 @@ describe('sii alertas command (fake runtime, no SII)', () => {
       'f29:2026-08:guardada',
       'f29:2026-09:sin_declarar',
     ]);
-    expect(json.fuentes.map((f) => f.estado)).toEqual(['omitida', 'ok', 'omitida']);
+    expect(json.fuentes.map((f) => f.estado)).toEqual(['omitida', 'ok', 'omitida', 'omitida']);
     expect(json.incompleto).toBe(false);
   });
 
