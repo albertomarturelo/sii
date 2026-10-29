@@ -109,7 +109,9 @@ describe.skipIf(!dir)('the F29 submit chain against a private capture', () => {
       periodo,
       hoy: new Date('2026-10-18T21:00:00-03:00'),
     });
-    expect(verificarBorradorF29(propuesta, validado.campos, validado.declarados)).toEqual([]);
+    expect(
+      verificarBorradorF29(propuesta, validado.campos, validado.declarados, validado.textos),
+    ).toEqual([]);
 
     // guardar was blocked in run5 and sent in run6; inyectar filed 2026-09 in run6.
     try {

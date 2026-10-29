@@ -630,13 +630,19 @@ export function fillF29Form(layout: Gwt7Node, hoy: Date): F29FormFill {
   return { cambios, reglasFallidas };
 }
 
-/** One campo of a filled layout: its código, the value the serializer will send, and whether a
- *  formula computes it. Taxpayer data: never log the values. */
+/** One campo of a filled layout: its código, the value the serializer will send, whether a
+ *  formula computes it, and whether its type is a number. Taxpayer data: never log the values. */
 export interface F29CampoValor {
   readonly codigo: string;
   readonly valor: string;
   readonly formula: boolean;
+  /** ENTERO* / DECIMAL*. Not every código is a monto: 922 and 915, in the recargo block, are
+   *  STRING (observed in the layout, 2026-10-19). */
+  readonly numerico: boolean;
 }
+
+/** SII's numeric campo types, as its client tests them (`jC`, `jL`). */
+const esTipoNumerico = (tipo: string): boolean => /^(ENTERO|DECIMAL)[01]?$/.test(tipo);
 
 /** Every campo's stored value after `fillF29Form`. The submit's safety rule (ADR-029 amendment)
  *  compares SII's validated borrador against these and the propuesta. */
@@ -646,6 +652,7 @@ export function f29CampoValores(layout: Gwt7Node, hoy: Date): F29CampoValor[] {
     codigo: form.code(c),
     valor: form.stored(c),
     formula: isNode(form.meta(c).values[MD.formula]),
+    numerico: esTipoNumerico(str(form.meta(c).values[MD.tipo]!) ?? ''),
   }));
 }
 

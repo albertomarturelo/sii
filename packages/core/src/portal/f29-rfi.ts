@@ -161,8 +161,10 @@ export async function abrirFormularioF29(session: PortalSession, url: string): P
 export interface F29BorradorValidado {
   /** The validated `Borrador`, sent back by the submit. Taxpayer data. */
   readonly borrador: Gwt7Node;
-  /** The declared códigos (`tipo` D and R) with a non-zero value, by código. */
+  /** The declared numeric códigos (`tipo` D and R) with a non-zero value, by código. */
   readonly declarados: ReadonlyMap<string, number>;
+  /** The declared códigos whose campo is not a number (922, 915), with a non-empty value. */
+  readonly textos: ReadonlyMap<string, string>;
   /** Código 91, TOTAL A PAGAR DENTRO DEL PLAZO, as SII validated it (0 when absent). */
   readonly total: number;
   /** Every campo of the filled form (the interpreter's output). */
@@ -247,6 +249,11 @@ export async function validarBorradorF29(
     );
   }
   const campos = f29CampoValores(layout, hoy);
+  const textuales = new Set(
+    campos
+      .filter((c) => !c.numerico && /^\d+$/.test(c.codigo))
+      .map((c) => String(Number(c.codigo))),
+  );
 
   // The client sets these two flow parameters right before it validates (both captures).
   await call('crearHijoToken', [
@@ -274,28 +281,41 @@ export async function validarBorradorF29(
   const borrador = nodeOf(validado.values[0], CLS.borrador, 'BorradorRfi');
   const xml = borrador.values[BORRADOR.xml];
   if (typeof xml !== 'string') throw roto('el borrador no trae el formulario');
-  const declarados = codigosDeclarados(xml);
-  return { borrador, declarados, total: declarados.get('91') ?? 0, campos };
+  const { montos: declarados, textos } = codigosDeclarados(xml, textuales);
+  return { borrador, declarados, textos, total: declarados.get('91') ?? 0, campos };
 }
 
 /** The FormularioRfi XML's declared códigos: `<Codigos tipo="D|R"><Codigo>…<Valor>…`. Only D
  *  (montos) and R (the result, 91) are read; E (the header: nombre, RUT, dirección) and N
- *  (SII-internal) are never read. Observed in the validated borrador, 2026-10-19. */
-export function codigosDeclarados(xml: string): Map<string, number> {
-  const out = new Map<string, number>();
+ *  (SII-internal) are never read. Observed in the validated borrador, 2026-10-19.
+ *
+ *  A D block is not always a monto: the layout types 922 and 915 as STRING (#235, where a value
+ *  there read as "scraper roto"). `textuales` are the códigos whose campo is not numeric in the
+ *  layout; their value is kept as text. Any other non-numeric value is still "scraper roto". */
+export function codigosDeclarados(
+  xml: string,
+  textuales: ReadonlySet<string> = new Set(),
+): { montos: Map<string, number>; textos: Map<string, string> } {
+  const montos = new Map<string, number>();
+  const textos = new Map<string, string>();
   const bloques = [...xml.matchAll(/<Codigos\b([^>]*)>([\s\S]*?)<\/Codigos>/g)];
   if (bloques.length === 0) throw roto('el borrador no trae códigos');
   for (const m of bloques) {
     const tipo = /\btipo="([A-Z])"/.exec(m[1]!)?.[1];
     if (tipo !== 'D' && tipo !== 'R') continue;
-    const codigo = /<Codigo>\s*(\d+)\s*<\/Codigo>/.exec(m[2]!)?.[1];
+    const digitos = /<Codigo>\s*(\d+)\s*<\/Codigo>/.exec(m[2]!)?.[1];
     const valor = /<Valor>\s*([^<]*?)\s*<\/Valor>/.exec(m[2]!)?.[1] ?? '';
-    if (codigo === undefined) throw roto('un código sin número');
+    if (digitos === undefined) throw roto('un código sin número');
+    const codigo = String(Number(digitos));
+    if (textuales.has(codigo)) {
+      if (valor !== '') textos.set(codigo, valor);
+      continue;
+    }
     const n = valor === '' ? 0 : Number(valor);
-    if (!Number.isFinite(n)) throw roto(`el valor del código ${Number(codigo)}`);
-    if (n !== 0) out.set(String(Number(codigo)), n);
+    if (!Number.isFinite(n)) throw roto(`el valor del código ${codigo}`);
+    if (n !== 0) montos.set(codigo, n);
   }
-  return out;
+  return { montos, textos };
 }
 
 /** Why a código of SII's validated borrador disagrees with what the propuesta implies. */
@@ -311,16 +331,24 @@ export interface F29Desacuerdo {
 
 /** ADR-029's safety rule: SII's "no presenta errores" is not proof of completeness. Compare the
  *  códigos SII validated against the propuesta and the formulas' results. Any entry refuses the
- *  submit. Amounts never leave this function. */
+ *  submit. Amounts never leave this function.
+ *
+ *  A textual código (`textos`) must hold exactly what the filled form holds: one SII adds on its
+ *  own is `sobra`, one it changes is `distinto`. Nothing in the propuesta is text, so a textual
+ *  campo the borrador leaves out is not checked: the rule guards against what SII adds. */
 export function verificarBorradorF29(
   propuesta: readonly CodigoF29[],
   campos: readonly F29CampoValor[],
   declarados: ReadonlyMap<string, number>,
+  textos: ReadonlyMap<string, string> = new Map(),
 ): F29Desacuerdo[] {
   const out: F29Desacuerdo[] = [];
   const esperado = new Map<string, number>();
+  const enFormulario = new Map<string, string>();
   for (const c of campos) {
-    if (!c.formula || !/^\d+$/.test(c.codigo) || c.valor.trim() === '') continue;
+    if (!/^\d+$/.test(c.codigo)) continue;
+    if (!c.numerico) enFormulario.set(String(Number(c.codigo)), c.valor.trim());
+    if (!c.numerico || !c.formula || c.valor.trim() === '') continue;
     const v = Number(c.valor);
     if (Number.isFinite(v) && v !== 0) esperado.set(String(Number(c.codigo)), v);
   }
@@ -339,7 +367,26 @@ export function verificarBorradorF29(
   for (const codigo of declarados.keys()) {
     if (!esperado.has(codigo)) out.push({ codigo, motivo: 'sobra' });
   }
+  for (const [codigo, v] of textos) {
+    const f = enFormulario.get(codigo) ?? '';
+    if (f === '') out.push({ codigo, motivo: 'sobra' });
+    else if (f !== v.trim()) out.push({ codigo, motivo: 'distinto' });
+  }
   return out.sort((a, b) => Number(a.codigo) - Number(b.codigo));
+}
+
+/** The recargo block of a filing past the due day, as the layout defines it (2026-10-19): 92 Más
+ *  IPC, 93 Más intereses y multas, 795 / 922 / 915 the condonación, and 94 TOTAL A PAGAR CON
+ *  RECARGO, whose formula (91 + 92 + 93 − 795) is the only one: SII fills the rest itself.
+ *  In numeric order. */
+const CODIGOS_RECARGO = ['92', '93', '94', '795', '915', '922'] as const;
+
+/** The recargo códigos SII's validated borrador declares. Non-empty means a late filing, which
+ *  `f29 submit` does not file: its total is 91, and the late one pays 94 (#237). */
+export function recargosDeclarados(
+  v: Pick<F29BorradorValidado, 'declarados' | 'textos'>,
+): string[] {
+  return CODIGOS_RECARGO.filter((c) => v.declarados.has(c) || v.textos.has(c));
 }
 
 /** Submit, call 1: save the validated borrador with tipo 41. Saves, does NOT file. Returns the

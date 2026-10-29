@@ -27,6 +27,7 @@ import {
   abrirFormularioF29,
   guardarBorradorF29,
   inyectarBorradorF29,
+  recargosDeclarados,
   rfiCaller,
   validarBorradorF29,
   verificarBorradorF29,
@@ -141,7 +142,21 @@ async function preparar(
     );
   }
   const validado = await chain.validar(session, { rut, periodo, hoy });
-  const desacuerdos = verificarBorradorF29(propuesta.codigos, validado.campos, validado.declarados);
+  const recargos = recargosDeclarados(validado);
+  if (recargos.length > 0) {
+    throw new Rehusado(
+      `SII agrega recargos a ${periodo.formatted} (códigos ${recargos.join(', ')}): el plazo ` +
+        'legal para declararlo venció. `sii f29 submit` solo presenta dentro del plazo, con el ' +
+        'total 91; fuera de plazo se paga el 94, con recargo. Declara este período en SII. ' +
+        'No se presentó nada.',
+    );
+  }
+  const desacuerdos = verificarBorradorF29(
+    propuesta.codigos,
+    validado.campos,
+    validado.declarados,
+    validado.textos,
+  );
   return { propuesta, validado, desacuerdos };
 }
 

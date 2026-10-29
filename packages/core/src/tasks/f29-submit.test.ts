@@ -73,11 +73,12 @@ const validado = (over: Partial<F29BorradorValidado> = {}): F29BorradorValidado 
   ]),
   total: TOTAL,
   campos: [
-    { codigo: '538', valor: '190000', formula: false },
-    { codigo: '511', valor: '65000', formula: false },
-    { codigo: '537', valor: '65000', formula: true },
-    { codigo: '91', valor: '125000', formula: true },
+    { codigo: '538', valor: '190000', formula: false, numerico: true },
+    { codigo: '511', valor: '65000', formula: false, numerico: true },
+    { codigo: '537', valor: '65000', formula: true, numerico: true },
+    { codigo: '91', valor: '125000', formula: true, numerico: true },
   ],
+  textos: new Map(),
   ...over,
 });
 
@@ -165,6 +166,35 @@ describe('f29SubmitPreview', () => {
       { codigo: '511', motivo: 'falta' },
       { codigo: '537', motivo: 'falta' },
     ]);
+  });
+
+  it('refuses a late filing, where SII adds the recargo block, before saving (#235)', async () => {
+    const rt = await makeRuntime();
+    const late = (): Promise<F29BorradorValidado> =>
+      Promise.resolve(
+        validado({
+          declarados: new Map([
+            ['538', 190000],
+            ['511', 65000],
+            ['537', 65000],
+            ['91', TOTAL],
+            ['92', 1000],
+            ['94', TOTAL + 1000],
+          ]),
+          textos: new Map([['922', 'X']]),
+        }),
+      );
+    const preview = fakeChain({ validar: late });
+    await expect(f29SubmitPreview(rt, { periodo: '2026-10' }, preview.chain)).rejects.toThrow(
+      'SII agrega recargos a 2026-10 (códigos 92, 94, 922)',
+    );
+    expect(audits(rt).at(-1)).toMatchObject({ action: 'f29_submit_preview', result: 'refused' });
+    const submit = fakeChain({ validar: late });
+    await expect(f29Submit(rt, { periodo: '2026-10', total: TOTAL }, submit.chain)).rejects.toThrow(
+      'el plazo legal para declararlo venció',
+    );
+    expect(submit.steps).not.toContain('guardar');
+    expect(submit.steps).not.toContain('inyectar');
   });
 
   it('refuses a período with no propuesta, and one already Vigente', async () => {
