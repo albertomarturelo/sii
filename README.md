@@ -58,7 +58,8 @@ el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuand
 período fue pagado, **su comprobante de pago**— y el Certificado de Declaración.
 
 Superficies de **escritura**: `bte emit` (emisión de Boletas de Honorarios Electrónicas) y
-`f29 submit` (presentar el F29 con la propuesta del SII; solo declara, nunca paga —
+`f29 submit` (presentar el F29 con la propuesta del SII, o un mes sin movimiento con
+`--sin-movimiento`; solo declara, nunca paga —
 [ADR-029](docs/decisions/029-f29-submit-propuesta.md)). Las dos parten por una vista previa y
 exigen repetir el monto para el paso irreversible.
 
@@ -113,10 +114,30 @@ decidió y por qué: [Decisiones de 0.11.0](#decisiones-de-0110).
   - No paga. Una respuesta perdida tras el envío se informa como sin confirmar y nunca se
     reenvía, porque un segundo envío es una rectificatoria.
   - Verificado byte a byte contra el navegador en capturas reales; la primera presentación en
-    vivo por la CLI está pendiente (#162). Revisa la propuesta antes de confirmar: puede venir
-    incompleta (PPM, retenciones, documentos fuera del RCV).
+    vivo de una propuesta por la CLI está pendiente (#162). Revisa la propuesta antes de
+    confirmar: puede venir incompleta (PPM, retenciones, documentos fuera del RCV).
 - **Cambio para clientes MCP:** `auth_login`, `auth_status`, `auth_logout` y `operate`
   devuelven el mismo JSON que `sii <cmd> --json`, en vez de texto.
+
+**Novedades en 0.19.0:** **un mes sin movimiento** (`f29 submit --sin-movimiento`) y **tus
+bienes raíces** (`bienes-raices list`).
+- **`f29 submit --sin-movimiento`:** presenta el F29 de un mes sin movimiento por la ruta
+  «Declarar sin movimiento» del SII, que no es la de la propuesta. Vista previa primero (no
+  guarda nada en el SII); `--sin-movimiento --confirm 0` lo presenta.
+  - Tú afirmas que el mes no tuvo movimiento: una propuesta vacía no lo prueba.
+  - Se niega si el SII tiene propuesta, si valida algún código con valor, si el mes no ha
+    terminado o si el mes anterior no está presentado (su remanente de crédito pasaría a este).
+    Los meses atrasados van en orden; una multa por atraso, si la hay, la calcula y cobra el SII.
+  - Verificado byte a byte contra el navegador y validado en vivo: el SII aceptó una
+    presentación sin movimiento hecha por la CLI.
+  - **¿Te toca presentar F29?** Solo los contribuyentes de IVA lo presentan todos los meses,
+    aunque sea sin movimiento. Un contribuyente de segunda categoría (honorarios) no está
+    obligado a presentarlo sin movimiento
+    ([FAQ SII](https://www.sii.cl/preguntas_frecuentes/impuestos_mensuales/001_130_1154.htm)):
+    solo en los meses con boletas emitidas con retención del emisor.
+- **`bienes-raices list`:** los predios cuyas contribuciones pagas, con las cuotas por pagar
+  (vencidas o vigentes, vencimiento y total), leídos de Mi SII. `alertas` suma la fuente
+  `bienes_raices`: cuotas vencidas y por vencer en 30 días.
 
 Checklist completo en [`docs/ROADMAP.md`](docs/ROADMAP.md); el historial de
 versiones, en [`CHANGELOG.md`](CHANGELOG.md).
@@ -417,6 +438,7 @@ en la conversación — lo abres tú desde la ruta que indica.
 - «¿Tengo cuotas de contribuciones vencidas?» → `bienes_raices_list`
 - «¿Qué tengo pendiente con el SII que no me hayan avisado?» → `alertas`
 - «Prepárame el F29 de mayo 2026 con la propuesta del SII y muéstrame el total.» → `f29_submit_preview` (luego `f29_submit` solo con tu aprobación)
+- «Septiembre no tuvo movimiento: prepárame el F29 sin movimiento.» → `f29_submit_preview` con `sinMovimiento` (luego `f29_submit` con `sinMovimiento` y total 0, solo con tu aprobación)
 - «Simula una boleta de honorarios de $500.000 a un cliente (sin emitir).» → `bte_emit_preview`
 - «Cambia a operar como la empresa que represento.» → `operate`
 

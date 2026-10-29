@@ -3,7 +3,8 @@
 Command-line interface for Chile's **SII** (Servicio de Impuestos Internos), for a
 single user acting on their own RUT plus the empresas they represent. Authenticated
 **reads** — RCV, F22, F29, boletas de honorarios (BHE), DTE-authorized (public),
-peticiones administrativas, bienes raíces, whoami — plus a confirm-gated BHE **emit**. Runs
+peticiones administrativas, bienes raíces, whoami — plus confirm-gated **writes**: BHE emit
+and F29 submit (SII's propuesta, or a month sin movimiento). Runs
 unattended too (cron, CI, agents), with no browser and no keyboard. A thin
 surface over [`@albertomarturelo/sii-core`](https://www.npmjs.com/package/@albertomarturelo/sii-core);
 all the legal/operational guardrails live in the core.
@@ -40,6 +41,8 @@ sii rcv all 2026-05            # RCV (compras) — every doc type in one flat ta
 sii f29 overview 2026          # month-by-month IVA position
 sii dte authorized 77777777-7  # public consulta — no login
 sii bte emit … --confirm <monto>   # issue a BHE (defaults to a safe preview)
+sii f29 submit 2026-09         # preview filing SII's propuesta; --confirm <total> files it
+sii f29 submit 2026-09 --sin-movimiento   # a month without movement; --confirm 0 files it
 ```
 
 `sii auth login --www2` and `sii carpeta` left the CLI in 0.11.0: the www2 session needs
