@@ -25,7 +25,9 @@ the context layer is read before code is written, and every step of the workflow
 has a written procedure. Those procedures live in [`.agents/skills/`](.agents/skills/)
 as [Agent Skills](https://agentskills.io/specification), one `<name>/SKILL.md` each;
 `.claude/skills` is a symlink to that directory, so Claude Code and the agents that
-read `.agents/skills` (Codex, Copilot, Gemini CLI) share one copy.
+read `.agents/skills` (Codex, Copilot, Gemini CLI) share one copy. The index works the
+same way: `AGENTS.md` is a symlink to `CLAUDE.md`, so an agent that reads `AGENTS.md`
+finds the same ADRs, conventions and roadmap that Claude Code loads.
 
 **You do not need Claude Code to contribute.** Each skill is a plain markdown
 file describing steps you can follow by hand. The checklists in those files are
