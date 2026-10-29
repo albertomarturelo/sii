@@ -9,6 +9,14 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.19.0 — 2026-10-29
+
+### Added
+
+- **`sinMovimiento`** on `f29_submit_preview` and `f29_submit` (#221), described with the same
+  caveats as the CLI; annotations unchanged.
+- **`bienes_raices_list`** (#236, `readOnlyHint`), and the `bienes_raices` source in `alertas`.
+
 ## 0.18.1 — 2026-10-28
 
 ### Fixed

@@ -4,6 +4,28 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.19.0 — 2026-10-29
+
+### Added
+
+- **`f29SubmitPreview` / `f29Submit` take `sinMovimiento` (#221, ADR-029 amendment).** SII's
+  « Declarar sin movimiento » route: `enviarDatosFlujo` alone with tipo `CUSTOMIZADO`, the
+  primitiva layout (`findVersionFormularioPrimitivaByPeriodo`), Formulario tipo 1, the Periodo
+  built from the flow, and the validated Borrador saved unchanged. It refuses a propuesta, a
+  month not ended, and a month whose previous one is not Vigente (except the account's first,
+  from Mi SII `DatosCntrNow`); any código validated with a value is a `sobra` desacuerdo. The
+  receipt carries `ruta: "sinMovimiento"`. The interpreter now ports `wM`'s editability (the
+  cell's `j` and the campo's editable flag) and the customizado screen (`HMb`, 8859 = "3").
+- **`bienesRaicesList(runtime)` (#236, ADR-032)** with `BienesRaicesResult`, `Predio`,
+  `CuotaContribucion` and `BienesRaicesError` (kind `sii_error`). Session-keyed; the audit holds
+  the RUT and counts only. `alertas` gains the `bienes_raices` source (`contribuciones_vencida`,
+  `contribuciones_por_vencer`, optional `contribucion` field).
+
+### Changed
+
+- **`F29SubmitPreview.borradorGuardado` is `boolean`** (was `true`): `false` on the sin
+  movimiento route, which saves nothing at SII.
+
 ## 0.18.1 — 2026-10-28
 
 ### Fixed
