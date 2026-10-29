@@ -69,7 +69,8 @@ the total with interest. Wire detail: `sii-contract/bienes-raices.md`.
 - **vica is set aside.** It lists only the predios SII's rol registers to the RUT
   (`por-rut` answers `204` otherwise), so a payer who is not the registered owner sees nothing,
   and its rows were not observed. From a cold browser it needs the www2 OAuth login (reCAPTCHA,
-  ADR-026), and it sits behind a Queue-it waiting room. Avalúo, exenciones and ficha wait for an
+  ADR-026), and the way in from SII's menu passes a Queue-it waiting room (whether a direct call
+  meets it is untested). Avalúo, exenciones and ficha wait for an
   account with a registered predio and for #241.
 - **The breakdown comes from SII's public consulta** (`www4.sii.cl/cuotaanualbienesraicespubinternetui`,
   SDI `buscarPropiedades`). It takes `{codigoComuna, manzana, predio}`, needs no session and no

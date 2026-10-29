@@ -79,7 +79,7 @@ The SDI service behind it is named in `metaData.namespace`:
 - `rol` is `<manzana>-<predio>` as SII prints it; the facade composes it when absent.
 - Not curated: `pac`, `indExistencia`, `indHistorial`, `indBcovid`, the `*CNP` triple,
   `agnoVigDesde` / `semestreVigDesde`. `nombrePropietario` is dropped as PII. The public consulta
-  (below) returns the same row, and its client gives three of them a meaning: `indExistencia`
+  (below) returns the same row, and its client gives these flags a meaning: `indExistencia`
   `"N"` = no predio under that rol, `tieneCuotas` = unpaid cuotas exist, `indHistorial` `1` =
   payments made through SII's site exist (`buscaRolPagos.js`, read 2026-10-29).
 
@@ -139,8 +139,8 @@ rol with **no session**. Its own client marks these calls « Servicios no autent
 not a session token. The three `data` values are strings, as the client reads them off its form.
 `codigoComuna` is a code from `facadeService/getComunas` (public, 347 rows observed).
 
-**Response.** `data` is an array of the same predio row Mi SII returns (above), here with
-`tieneCuotas` and `codigoTgr` too. A rol that does not exist answers `data: []` (observed
+**Response.** `data` is an array of the same predio row Mi SII returns (above); here it carries
+`tieneCuotas` and `codigoTgr`. A rol that does not exist answers `data: []` (observed
 2026-10-29); a predio without unpaid cuotas answers `tieneCuotas: 0` and `cuotas: {}` (observed).
 The client's messages (`buscaRolPagos.js`): `indExistencia == "N"` ⇒ « No existe una propiedad
 asociada a este Nro de Rol de Avalúo. »; `tieneCuotas == 0` ⇒ « Bien Raíz no registra cuotas de
@@ -189,7 +189,9 @@ Observed live (2026-10-29): every response is Spring's `ResponseEntity` serializ
 (`{headers, body, statusCode, statusCodeValue}`). The `por-rut` rows and the per-predio calls were
 not observed. From a browser with no cookies the app sends the user
 through the www2 OAuth login (`/app/session/login` → `oauthsii-v1` → `/app/session/create`,
-ADR-026), which leaves only the `X-SII-STATE-*` pair; the app also sets Queue-it waiting-room
-cookies (`QueueITAccepted-…_consultabbrr`, `salaespera.sii.cl`). In the other direction,
+ADR-026), which leaves only the `X-SII-STATE-*` pair. The way in from SII's menu passes a Queue-it
+waiting room: its cookies were set (`QueueITAccepted-…_consultabbrr`, one on `salaespera.sii.cl`)
+inside a redirect, with no page shown. Whether a direct call to `/app/vica/…` meets that queue is
+untested. In the other direction,
 `/app/session/legacy/bridge` (307) took that www2 session to Mi SII without a second login.
 Whether the classic HTTP session opens vica is #241.
