@@ -225,7 +225,13 @@ export async function fetchBteMensual(
   session: PortalSession,
   params: { rut: Rut; periodo: Periodo; side: BteSide },
   pace: () => Promise<void>,
-  opts: { signal?: AbortSignal | undefined; onPagina?: () => void } = {},
+  opts: {
+    signal?: AbortSignal | undefined;
+    onPagina?: () => void;
+    /** Read page 0 only: its META carries the month totals, so `alertas` needs no walk (#245).
+     *  `boletas` then holds the first page's rows only. */
+    soloTotales?: boolean;
+  } = {},
 ): Promise<BteMensual> {
   const { rut, periodo, side } = params;
   const { signal } = opts;
@@ -271,6 +277,7 @@ export async function fetchBteMensual(
       boletas.push(boleta);
       added++;
     }
+    if (opts.soloTotales) break;
     if (totalBoletas !== null && boletas.length >= totalBoletas) break;
     if (added === 0) break; // no new rows → end (also the empty-month exit)
   }

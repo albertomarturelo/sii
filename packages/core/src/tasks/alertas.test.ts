@@ -4,9 +4,15 @@ import {
   FixedClock,
   InMemoryKeyValueStore,
   RecordingAuditSink,
+  inlineMapsPage,
 } from '../adapters/fake/index.js';
 import type { JsonRequest, Runtime } from '../seams/index.js';
-import { NotAuthenticatedError, RateLimitError, ValidationError } from '../errors/index.js';
+import {
+  BteError,
+  NotAuthenticatedError,
+  RateLimitError,
+  ValidationError,
+} from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import { Periodo } from '../periodo/index.js';
@@ -100,6 +106,9 @@ interface Script {
   bug?: boolean;
   /** Mi SII `opc=34` body (bienes raíces); default: no predios. */
   predios?: string;
+  /** BTE emitidas month total `suma_retencion_emisor` per período (YYYY-MM); unlisted ⇒ 0.
+   *  `sin_suma`: the informe lacks the total; `down`: SII's BTE error (#245). */
+  bte?: Record<string, number | 'sin_suma' | 'down'>;
 }
 
 function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
@@ -143,6 +152,20 @@ function makeRuntime(s: Script = {}): { rt: Runtime; calls: string[] } {
           return s.predios ?? JSON.stringify({ data: null, metaData: { errors: null } });
         },
         requestText: (url: string) => {
+          const bte = /cbanoinformemensual=(\d{4})&cbmesinformemensual=(\d{2})/.exec(url);
+          if (bte) {
+            const key = `${bte[1]}-${bte[2]}`;
+            calls.push(`bte:${key}`);
+            const suma = s.bte?.[key] ?? 0;
+            if (suma === 'down') throw new BteError('Informe no disponible (sintético).');
+            return inlineMapsPage({
+              xml_values: {
+                total_boletas: '1',
+                ...(suma !== 'sin_suma' && { suma_retencion_emisor: suma }),
+              },
+              arr_informe_mensual: {},
+            });
+          }
           if (!url.endsWith('/peticion')) {
             // Mi SII: the fake synthesises DatosCntrNow, unless the page lost it.
             return s.miSiiSinDatos ? '<html><body>Mi SII</body></html>' : undefined;
@@ -440,6 +463,110 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     // No atributos at all, or a shape we do not know.
     expect(await f29De({ regimen: NUEVA })).toEqual(noDeclarante);
     expect(await f29De({ regimen: NUEVA, atributos: 'otra forma' })).toEqual(noDeclarante);
+  });
+
+  // #245: segunda categoría owes F29 only in months whose issued boletas carry retención del
+  // emisor. SII registers the category in SGPE's valor (observed text, synthetic account).
+  const SEGUNDA = atributo('SGPE', {
+    valor: 'Tipo contribuyente=1 y Categoría Contribuyente = 2',
+  });
+  const ANTIGUA = { fechaInicioActividades: '2019-05-02 00:00:00.0' };
+
+  it('segunda categoría: sin declarar only in the months with retención del emisor (#245)', async () => {
+    const { rt, calls } = makeRuntime({
+      f29: 'empty',
+      regimen: ANTIGUA,
+      atributos: [atributo('NOTI'), SEGUNDA],
+      bte: { '2026-07': 50000, '2026-09': 12500 },
+    });
+    await seed(rt);
+    const res = await alertas(rt, { fuentes: 'f29' });
+    expect(res.fuentes.find((f) => f.origen === 'f29')?.estado).toBe('ok');
+    const sin = res.alertas.filter((a) => a.tipo === 'f29_sin_declarar');
+    expect(sin.map((a) => a.periodo)).toEqual(['2026-07', '2026-09']);
+    // Same id scheme and due date as any other sin declarar (ADR-030: ids never change).
+    expect(sin[1]).toMatchObject({ id: 'f29:2026-09:sin_declarar', fecha: '2026-10-20' });
+    // One BTE read per candidate período, after the twelve F29 reads.
+    expect(calls.filter((c) => c.startsWith('bte:'))).toHaveLength(12);
+    expect(calls.findIndex((c) => c.startsWith('bte:'))).toBeGreaterThan(
+      calls.lastIndexOf('f29:2026-09'),
+    );
+  });
+
+  it('segunda categoría: no retención del emisor in the window reads no_declarante (#245)', async () => {
+    // Retención by the receptor, or a month with only anuladas, leaves SII's emisor total at 0.
+    expect(await f29De({ regimen: ANTIGUA, atributos: [SEGUNDA], bte: { '2026-05': 0 } })).toEqual({
+      estado: 'no_declarante',
+      sinDeclarar: [],
+    });
+  });
+
+  it('segunda categoría: a filed month does not make every other month due (#245)', async () => {
+    // The activity rule would have raised the other eleven months here.
+    const { rt, calls } = makeRuntime({
+      f29: Object.fromEntries(
+        [
+          '2025-10',
+          '2025-11',
+          '2025-12',
+          '2026-01',
+          '2026-02',
+          '2026-03',
+          '2026-04',
+          '2026-05',
+          '2026-06',
+          '2026-07',
+          '2026-08',
+        ].map((p) => [p, []]),
+      ),
+      regimen: ANTIGUA,
+      atributos: [SEGUNDA],
+    });
+    await seed(rt);
+    const res = await alertas(rt, { fuentes: 'f29' });
+    expect(res.fuentes.find((f) => f.origen === 'f29')?.estado).toBe('ok');
+    expect(res.alertas).toEqual([]);
+    // 2026-09 is Vigente: never a candidate, so its boletas are not read.
+    expect(calls).not.toContain('bte:2026-09');
+  });
+
+  it('segunda categoría: a BTE failure ends the F29 source as an error, never as not due (#245)', async () => {
+    for (const bte of [{ '2026-09': 'down' as const }, { '2026-09': 'sin_suma' as const }]) {
+      const { rt } = makeRuntime({
+        f29: { ...F29_MIXED, '2026-09': [] },
+        regimen: ANTIGUA,
+        atributos: [SEGUNDA],
+        bte,
+      });
+      await seed(rt);
+      const res = await alertas(rt, { fuentes: 'f29' });
+      expect(res.incompleto).toBe(true);
+      expect(res.fuentes.find((f) => f.origen === 'f29')).toMatchObject({
+        estado: 'error',
+        error: { type: 'sii_error' },
+      });
+      // What the source read before the failure stays (ADR-030).
+      expect(res.alertas.map((a) => a.tipo)).toContain('f29_rechazada');
+      expect(res.alertas.some((a) => a.tipo === 'f29_sin_declarar')).toBe(false);
+    }
+  });
+
+  it('only the exact segunda categoría counts; a primera-categoría regime wins (#245)', async () => {
+    // « = 1 y 2 » or no valor is unknown: the activity rule stays, no BTE read.
+    const ambas = atributo('SGPE', {
+      valor: 'Tipo contribuyente=1 y Categoría Contribuyente = 1 y 2',
+    });
+    const { rt, calls } = makeRuntime({ f29: 'empty', regimen: ANTIGUA, atributos: [ambas] });
+    await seed(rt);
+    const res = await alertas(rt, { fuentes: 'f29' });
+    expect(res.fuentes.find((f) => f.origen === 'f29')?.estado).toBe('no_declarante');
+    expect(calls.some((c) => c.startsWith('bte:'))).toBe(false);
+    // SGPE next to an active 14D1: every month is due, as #208 says.
+    const conRegimen = await f29De({
+      regimen: ANTIGUA,
+      atributos: [SEGUNDA, atributo('14D1', { fechaInicio: '02-05-2019' })],
+    });
+    expect(conRegimen.sinDeclarar).toHaveLength(12);
   });
 
   it('a non-string window field reads as unknown, never as not obligated (#214)', async () => {

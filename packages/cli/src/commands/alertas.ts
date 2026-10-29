@@ -50,7 +50,9 @@ export function registerAlertas(program: Command, runtime: Runtime): void {
         'guardados sin enviar, rechazados o sin declarar (últimos 12 períodos, desde tu inicio de ' +
         'actividades y según tu vencimiento: día 12 o 20) y el último ' +
         'estado de tus peticiones administrativas, y las cuotas de contribuciones vencidas o que ' +
-        'vencen en 30 días. Solo lectura. Con todas las fuentes son ' +
+        'vencen en 30 días. Para una cuenta solo de segunda categoría (honorarios), un mes sin ' +
+        'F29 se avisa solo si sus boletas emitidas llevan retención del emisor (una consulta de ' +
+        'boletas más por mes candidato). Solo lectura. Con todas las fuentes son ' +
         '~20 consultas pausadas al SII (~20 s); una rutina frecuente puede limitarlas con ' +
         '--fuentes. Cada alerta trae un id estable para comparar entre ejecuciones.',
     )

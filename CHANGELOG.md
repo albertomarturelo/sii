@@ -23,6 +23,12 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Changed: `alertas` reads a segunda categoría account's F29 month by month (#245, ADR-030
+  amendment).** For an account SII registers in segunda categoría only, a month without F29 is
+  « sin declarar » only when its issued boletas carry retención del emisor, read from the BTE
+  informe (one paced read per candidate month). Before, one filed month made every other month
+  « sin declarar », and none filed hid the months that were owed.
+
 ## 0.19.0 — 2026-10-29 — Sin movimiento
 
 A month without movement can now be filed from the CLI, and your predios and their
