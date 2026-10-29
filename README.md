@@ -24,8 +24,9 @@ conocimiento del SII y los guardrails se **portan**; el código se escribe nuevo
 Superficies de **lectura** operativas y validadas en vivo: autenticación
 (`auth`), representación (`operate`), **RCV**, **F22** (status / formulario /
 observaciones / historial / terceros), **F29** (Fase 1), **BTE/BHE**, **DTE autorizados**
-(consulta pública), **whoami**, **peticiones administrativas** (SISPAD) y **alertas** (lo
-que el SII tiene pendiente contigo y no te avisa).
+(consulta pública), **whoami**, **peticiones administrativas** (SISPAD), **bienes raíces**
+(predios y cuotas de contribuciones por pagar) y **alertas** (lo que el SII tiene pendiente
+contigo y no te avisa).
 
 El login de la CLI **no usa navegador**
 ([ADR-027](docs/decisions/027-http-portal-driver.md)): es un POST directo al formulario
@@ -179,6 +180,7 @@ sii auth login
 # 4) Úsalo desde la terminal
 sii alertas                    # lo que el SII tiene pendiente contigo y no te avisa
 sii peticiones list            # ¿tengo trámites detenidos ("en espera de Antecedentes")?
+sii bienes-raices list         # ¿debo cuotas de contribuciones?
 sii rcv summary 2026-05        # resumen del RCV de compras
 sii f29 overview 2026          # posición de IVA mes a mes
 sii f29 pdf 2026-05            # descarga el PDF del F29 de mayo
@@ -412,6 +414,7 @@ en la conversación — lo abres tú desde la ruta que indica.
 - «Lista las boletas de honorarios que **recibí** en junio 2026.» → `bte_list`
 - «¿Tengo peticiones administrativas detenidas ante el SII (en espera de antecedentes)?» → `peticiones_list`
 - «¿A nombre de quién estoy registrado — razón social y correo?» → `whoami`
+- «¿Tengo cuotas de contribuciones vencidas?» → `bienes_raices_list`
 - «¿Qué tengo pendiente con el SII que no me hayan avisado?» → `alertas`
 - «Prepárame el F29 de mayo 2026 con la propuesta del SII y muéstrame el total.» → `f29_submit_preview` (luego `f29_submit` solo con tu aprobación)
 - «Simula una boleta de honorarios de $500.000 a un cliente (sin emitir).» → `bte_emit_preview`
@@ -457,7 +460,8 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii dte pdf <folio> --empresa <rut> [--out]` | Descarga el PDF de un documento emitido |
 | `sii peticiones list [--rut]` | Peticiones administrativas (SISPAD) + su timeline de estados |
 | `sii whoami` | Razón social/nombre + correo de la cuenta autenticada |
-| `sii alertas [--fuentes f22,f29,peticiones] [--desde <fecha>]` | Lo que el SII tiene pendiente contigo y no te avisa (F22, F29, peticiones), con `id` estable; ~20 consultas al SII |
+| `sii bienes-raices list` | Predios por los que pagas contribuciones (Mi SII) y sus cuotas por pagar: vencidas, vigentes, vencimiento y total |
+| `sii alertas [--fuentes f22,f29,peticiones,bienes_raices] [--desde <fecha>]` | Lo que el SII tiene pendiente contigo y no te avisa (F22, F29, peticiones, contribuciones), con `id` estable; ~20 consultas al SII |
 
 Las superficies **session-keyed** (`f22`, `f29`, `bte`) leen siempre el principal
 de la sesión (sin `--rut`); la **body-RUT** (`rcv`) acepta `--rut` / `operate`

@@ -137,6 +137,8 @@ export type {
 export { peticionesList } from './tasks/peticiones.js';
 export type { PeticionesResult, Peticion, EstadoPeticion } from './tasks/peticiones.js';
 export { carpetaInstituciones } from './tasks/carpeta.js';
+export { bienesRaicesList } from './tasks/bienes-raices.js';
+export type { BienesRaicesResult, CuotaContribucion, Predio } from './tasks/bienes-raices.js';
 export { alertas, FUENTES_ALERTAS } from './tasks/alertas.js';
 export type {
   Alerta,

@@ -3,7 +3,7 @@
 Command-line interface for Chile's **SII** (Servicio de Impuestos Internos), for a
 single user acting on their own RUT plus the empresas they represent. Authenticated
 **reads** — RCV, F22, F29, boletas de honorarios (BHE), DTE-authorized (public),
-peticiones administrativas, whoami — plus a confirm-gated BHE **emit**. Runs
+peticiones administrativas, bienes raíces, whoami — plus a confirm-gated BHE **emit**. Runs
 unattended too (cron, CI, agents), with no browser and no keyboard. A thin
 surface over [`@albertomarturelo/sii-core`](https://www.npmjs.com/package/@albertomarturelo/sii-core);
 all the legal/operational guardrails live in the core.
@@ -34,6 +34,7 @@ sii auth login --rut <rut> --clave-env SII_CLAVE   # unattended: the Clave from 
 sii auth status                # who am I / operating as whom / is unattended login blocked
 sii auth unblock               # lift the block after fixing the Clave (terminal only)
 sii peticiones list            # administrative requests + their state timeline
+sii bienes-raices list         # predios you pay contribuciones for + unpaid cuotas
 sii rcv summary 2026-05        # RCV (compras) summary for a period
 sii rcv all 2026-05            # RCV (compras) — every doc type in one flat table
 sii f29 overview 2026          # month-by-month IVA position

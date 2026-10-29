@@ -18,12 +18,14 @@ export function registerAlertasTools(server: McpServer, runtime: Runtime): void 
         '(últimos 3 años tributarios), F29 guardados sin enviar, rechazados o sin declarar ' +
         '(últimos 12 períodos; "sin declarar" solo si la cuenta declara F29, dentro de su inicio ' +
         'de actividades / término de giro y según su vencimiento día 12 o 20, con fechas de ' +
-        'vencimiento estimadas) y el último estado de las peticiones administrativas. Cada ' +
+        'vencimiento estimadas), el último estado de las peticiones administrativas y las ' +
+        'cuotas de contribuciones (bienes raíces) vencidas o que vencen en 30 días. Cada ' +
         'alerta trae un id estable: guarda los vistos y avisa solo de los nuevos. fuentes ' +
         'elige qué leer: todas son ~20 consultas pausadas al SII (~20 s), así que una rutina ' +
         'frecuente debería pedir solo las que necesita. desde (AAAA-MM-DD) descarta alertas ' +
         'anteriores. Si una fuente falla, el resto se devuelve y fuentes/incompleto lo dicen. ' +
-        'Incluye el texto del SII sobre el contribuyente (datos tributarios personales).',
+        'Incluye el texto del SII sobre el contribuyente y el rol de sus predios (datos ' +
+        'tributarios personales).',
       inputSchema: {
         fuentes: z.array(z.enum(FUENTES_ALERTAS)).optional(),
         desde: z.string().optional(),

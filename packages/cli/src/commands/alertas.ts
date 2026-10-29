@@ -4,6 +4,7 @@
 import type { Command } from 'commander';
 import {
   alertas,
+  formatMoney,
   formatRut as fmtRut,
   type Alerta,
   type Runtime,
@@ -15,6 +16,7 @@ function sobre(a: Alerta): string {
   if (a.periodo) return `F29 ${a.periodo}`;
   if (a.anio) return `F22 ${a.anio}`;
   if (a.peticion !== null) return `petición #${a.peticion}`;
+  if (a.contribucion) return `rol ${a.contribucion.rol} cuota ${a.contribucion.cuota}`;
   return a.origen;
 }
 
@@ -26,6 +28,13 @@ function linea(a: Alerta): string {
       return (
         `sin declarar; con pago venció el ${a.vencimiento?.conPago ?? a.fecha ?? '—'}, ` +
         `sin pago vence el ${a.vencimiento?.sinPago ?? '—'} (fecha estimada)`
+      );
+    case 'contribuciones_vencida':
+    case 'contribuciones_por_vencer':
+      return (
+        `contribuciones ${a.tipo === 'contribuciones_vencida' ? 'vencida' : 'por vencer'}` +
+        `${a.contribucion?.comuna ? ` (${a.contribucion.comuna})` : ''}, ` +
+        `total $${formatMoney(a.contribucion?.monto ?? null)}`
       );
     default:
       return `${a.estado ?? '—'}${a.mensaje ? `: ${a.mensaje}` : ''}`;
@@ -40,13 +49,14 @@ export function registerAlertas(program: Command, runtime: Runtime): void {
         'el SII registra y no avisa: observaciones del F22 (últimos 3 años tributarios), F29 ' +
         'guardados sin enviar, rechazados o sin declarar (últimos 12 períodos, desde tu inicio de ' +
         'actividades y según tu vencimiento: día 12 o 20) y el último ' +
-        'estado de tus peticiones administrativas. Solo lectura. Con todas las fuentes son ' +
+        'estado de tus peticiones administrativas, y las cuotas de contribuciones vencidas o que ' +
+        'vencen en 30 días. Solo lectura. Con todas las fuentes son ' +
         '~20 consultas pausadas al SII (~20 s); una rutina frecuente puede limitarlas con ' +
         '--fuentes. Cada alerta trae un id estable para comparar entre ejecuciones.',
     )
     .option(
       '--fuentes <lista>',
-      'Fuentes separadas por coma: f22,f29,peticiones (por defecto: todas).',
+      'Fuentes separadas por coma: f22,f29,peticiones,bienes_raices (por defecto: todas).',
     )
     .option(
       '--desde <fecha>',

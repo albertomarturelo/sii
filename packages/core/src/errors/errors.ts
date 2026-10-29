@@ -167,3 +167,9 @@ export class DteError extends SiiError {}
  *  message verbatim where one exists — never translated (ADR-004). Never retried; a missing www2
  *  app session is `Www2SessionError` and a `LOGIN_HOST` bounce `SessionExpiredError`, not this. */
 export class CarpetaError extends SiiError {}
+
+/** SII rejected the Mi SII bienes-raíces read (`CViewCarta.cgi opc=34`, ADR-032), the body was
+ *  not the observed shape ("scraper roto"), or the operation is invalid for its session-keyed
+ *  contract (a representing pointer, ADR-005). SII's message verbatim where one exists — never
+ *  translated (ADR-004). A missing session is `SessionExpiredError`, not this. */
+export class BienesRaicesError extends SiiError {}

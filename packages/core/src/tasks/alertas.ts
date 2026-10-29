@@ -24,9 +24,10 @@ import {
 } from '../portal/f22/index.js';
 import { fetchF29Estado, type DeclaracionEstadoF29 } from '../portal/f29.js';
 import { fetchPeticiones } from '../portal/peticiones.js';
+import { fetchPredios } from '../portal/bienes-raices-misii.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
 
-export const FUENTES_ALERTAS = ['f22', 'f29', 'peticiones'] as const;
+export const FUENTES_ALERTAS = ['f22', 'f29', 'peticiones', 'bienes_raices'] as const;
 export type FuenteAlertas = (typeof FUENTES_ALERTAS)[number];
 
 export type TipoAlerta =
@@ -35,7 +36,9 @@ export type TipoAlerta =
   | 'f29_guardada'
   | 'f29_otro_estado'
   | 'f29_sin_declarar'
-  | 'peticion_estado';
+  | 'peticion_estado'
+  | 'contribuciones_vencida'
+  | 'contribuciones_por_vencer';
 
 /** One alerta. Every field is present (null when it does not apply), so the JSON is stable. */
 export interface Alerta {
@@ -59,6 +62,14 @@ export interface Alerta {
     readonly sinPago: string;
     readonly estimado: true;
   };
+  /** `bienes_raices` only: the predio and the cuota (ADR-032). */
+  readonly contribucion?: {
+    readonly rol: string;
+    readonly comuna: string | null;
+    /** `<año>-<n>`, as SII's grid prints « Año Nº Cuota ». */
+    readonly cuota: string;
+    readonly monto: number | null;
+  };
 }
 
 export type EstadoFuente = 'ok' | 'no_declarante' | 'error' | 'omitida';
@@ -79,7 +90,7 @@ export interface AlertasResult {
 }
 
 export interface AlertasArgs {
-  /** `f22,f29,peticiones` (CLI) or a list (MCP); default all. */
+  /** `f22,f29,peticiones,bienes_raices` (CLI) or a list (MCP); default all. */
   readonly fuentes?: string | readonly string[] | undefined;
   /** YYYY-MM-DD: drop alertas dated before it (undated ones are kept). */
   readonly desde?: string | undefined;
@@ -89,6 +100,8 @@ export interface AlertasArgs {
 const F22_ANIOS = 3;
 /** F29: períodos read, ending at the previous month (the current one is not due yet). */
 const F29_PERIODOS = 12;
+/** Bienes raíces: a vigente cuota due within this many days is « por vencer » (ADR-032). */
+const CONTRIBUCIONES_DIAS = 30;
 
 const pacingMs = (): number => Math.round(1000 / DEFAULT_SETTINGS.rateLimitRps);
 
@@ -381,6 +394,41 @@ async function leerPeticiones(
   return 'ok';
 }
 
+async function leerBienesRaices(
+  runtime: Runtime,
+  session: PortalSession,
+  push: (a: Alerta) => void,
+): Promise<EstadoFuente> {
+  const now = runtime.clock.now();
+  const limite = isoDate(
+    new Date(now.getFullYear(), now.getMonth(), now.getDate() + CONTRIBUCIONES_DIAS),
+  );
+  for (const p of await fetchPredios(session)) {
+    for (const c of p.cuotas) {
+      // A vigente cuota whose date did not parse is shown, not hidden (ADR-032).
+      const porVencer = !c.vencida && (c.fechaVencimiento === null || c.fechaVencimiento <= limite);
+      if (!c.vencida && !porVencer) continue;
+      const estado = c.vencida ? 'vencida' : 'por_vencer';
+      push({
+        ...base('bienes_raices'),
+        id:
+          `bienes_raices:${p.comuna.codigo}-${p.manzana}-${p.predio}:` +
+          `${c.anio ?? 'null'}-${c.semestre ?? 'null'}-${c.cuota ?? 'null'}:${estado}`,
+        tipo: c.vencida ? 'contribuciones_vencida' : 'contribuciones_por_vencer',
+        estado: c.condicion,
+        fecha: c.fechaVencimiento,
+        contribucion: {
+          rol: p.rol,
+          comuna: p.comuna.nombre,
+          cuota: `${c.anio ?? '?'}-${c.cuota ?? '?'}`,
+          monto: c.totalPago,
+        },
+      });
+    }
+  }
+  return 'ok';
+}
+
 /** Read the alertas of the session principal from the requested sources (ADR-030). */
 export async function alertas(runtime: Runtime, args: AlertasArgs = {}): Promise<AlertasResult> {
   const fuentes = parseFuentes(args.fuentes); // fail fast — no session opened
@@ -416,7 +464,9 @@ export async function alertas(runtime: Runtime, args: AlertasArgs = {}): Promise
               ? await leerF22(runtime, session, rut, push)
               : origen === 'f29'
                 ? await leerF29(runtime, session, rut, push)
-                : await leerPeticiones(session, rut, push);
+                : origen === 'peticiones'
+                  ? await leerPeticiones(session, rut, push)
+                  : await leerBienesRaices(runtime, session, push);
           estados.push({ origen, estado });
         } catch (e) {
           // A dead session or SII's rate limit ends the whole read: going on would mean asking

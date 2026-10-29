@@ -57,6 +57,7 @@ describe('@albertomarturelo/sii-mcp alertas tool (in-memory client, fake runtime
       'f22:omitida',
       'f29:ok',
       'peticiones:omitida',
+      'bienes_raices:omitida',
     ]);
   });
 

@@ -97,6 +97,12 @@ until the término de giro (`001_130_2312.htm`).
   the FAQ ties to IVA only together with a first declaración con movimiento; waiting for the
   situación tributaria (#204), whose actividades list "afecta IVA" but is not observed yet.
 
+## Amendment (2026-10-28, #236): a fourth source, `bienes_raices`
+
+Mi SII shows the unpaid contribuciones cuotas per predio, so they join as `origen: bienes_raices`
+(one call): `contribuciones_vencida` and `contribuciones_por_vencer` (due within 30 days). Rules,
+ids and the cuota parsing: ADR-032. TGR stays out.
+
 ## Alternatives Considered
 
 1. **Wait for every source before shipping.** Rejected: two sources are unobserved and may need

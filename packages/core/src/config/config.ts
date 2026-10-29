@@ -11,6 +11,10 @@ export const HOSTS = {
   logoutPath: '/cgi_AUT2000/autTermino.cgi',
   /** Mi SII landing — serves the inline `DatosCntrNow` object with the contribuyente snapshot. */
   miSii: 'https://misiir.sii.cl/cgi_misii/siihome.cgi',
+  /** Mi SII's JSON CGI behind the home's panels: form-POST `opc=<n>`, answers JSON. `opc=34` is
+   *  the « Bienes raíces » panel (predios + cuotas por pagar). A missing session answers `200`
+   *  `{"codigoResp":-2,…}`, not a redirect (observed 2026-10-28, #236 / ADR-032). */
+  miSiiCarta: 'https://misiir.sii.cl/cgi_misii/CViewCarta.cgi',
   portal: 'https://www.sii.cl',
   /** SPA JSON facades (RCV / F29 / F22) live under this host. */
   portalApi: 'https://www4.sii.cl',
