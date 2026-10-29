@@ -14,6 +14,7 @@ import {
   guardarBorradorF29,
   inyectarBorradorF29,
   validarBorradorF29,
+  recargosDeclarados,
   verificarBorradorF29,
 } from './f29-rfi.js';
 import { bool, cell, int, layout, map, op, ref, regla, s } from './__fixtures__/f29-rfi-layout.js';
@@ -202,6 +203,37 @@ describe('validarBorradorF29', () => {
     expect(v.campos.find((c) => c.codigo === '77')?.formula).toBe(true);
   });
 
+  it('reads a STRING campo of the layout as text, not as a monto (#235)', async () => {
+    // SYNTHETIC: the layout types 922 as STRING (observed 2026-10-19); its value here is made up.
+    const xml = xmlFormulario([
+      xmlCodigo('D', '504', '1000'),
+      xmlCodigo('D', '537', '1000'),
+      xmlCodigo('D', '77', '1000'),
+      xmlCodigo('D', '922', 'TEXTO 1'),
+      xmlCodigo('R', '91', '0'),
+    ]);
+    const { call } = fakeCaller({
+      findVersionBorradorById: () => {
+        const { root } = layout(
+          [
+            { codigo: '504', value: '1000' },
+            { codigo: '77', formula: op('+', ref('504'), int('0')) },
+            { codigo: '537', formula: ref('504') },
+            { codigo: '922', tipo: 'STRING', maxLen: 15 },
+          ],
+          { cells: [cell('$cod77', 'TEXTBOX'), cell('$cod537', 'TEXTBOX')] },
+        );
+        return { ...root, cls: 'cl.sii.sdi.difm.rcs.web.client.to.FormularioLayoutTO' };
+      },
+      getBorradorRfiValidado: () => node(`${TO}BorradorRfi`, [borrador(xml), borrador(xml)]),
+    });
+    const v = await validarBorradorF29(call, { rut: RUT, periodo: PERIODO, hoy: HOY });
+    expect([...v.declarados.keys()].sort()).toEqual(['504', '537', '77']);
+    expect([...v.textos.keys()]).toEqual(['922']);
+    expect(v.campos.find((c) => c.codigo === '922')?.numerico).toBe(false);
+    expect(recargosDeclarados(v)).toEqual(['922']);
+  });
+
   it('refuses when SII opened the flow for another período', async () => {
     const { call, calls } = fakeCaller({
       consultarHijoToken: () =>
@@ -276,7 +308,7 @@ describe('codigosDeclarados', () => {
         xmlCodigo('N', '8707', '9'),
       ]),
     );
-    expect(Object.fromEntries(d)).toEqual({ '504': 1000, '115': 0.125, '91': 2500 });
+    expect(Object.fromEntries(d.montos)).toEqual({ '504': 1000, '115': 0.125, '91': 2500 });
   });
 
   it('is scraper roto without códigos or with a non-numeric monto', () => {
@@ -285,15 +317,28 @@ describe('codigosDeclarados', () => {
       'scraper roto',
     );
   });
+
+  it('keeps a textual código as text, and only the códigos the layout types as text (#235)', () => {
+    const xml = xmlFormulario([
+      xmlCodigo('D', '504', '1000'),
+      xmlCodigo('D', '922', 'TEXTO 1'),
+      xmlCodigo('D', '0915', ''),
+    ]);
+    const d = codigosDeclarados(xml, new Set(['922', '915']));
+    expect(Object.fromEntries(d.montos)).toEqual({ '504': 1000 });
+    expect(Object.fromEntries(d.textos)).toEqual({ '922': 'TEXTO 1' });
+    // Without the layout's word for it, a word in a D block is still a broken monto.
+    expect(() => codigosDeclarados(xml)).toThrow('el valor del código 922');
+  });
 });
 
 describe('verificarBorradorF29 (the safety rule)', () => {
   const campos = [
-    { codigo: '504', valor: '1000', formula: false },
-    { codigo: '77', valor: '1000', formula: true },
-    { codigo: '537', valor: '1000', formula: true },
-    { codigo: '773', valor: 'FALSE', formula: true },
-    { codigo: '9', valor: '', formula: true },
+    { codigo: '504', valor: '1000', formula: false, numerico: true },
+    { codigo: '77', valor: '1000', formula: true, numerico: true },
+    { codigo: '537', valor: '1000', formula: true, numerico: true },
+    { codigo: '773', valor: 'FALSE', formula: true, numerico: false },
+    { codigo: '9', valor: '', formula: true, numerico: true },
   ];
   const propuesta = [{ codigo: '504', valor: 1000 }];
 
@@ -334,6 +379,45 @@ describe('verificarBorradorF29 (the safety rule)', () => {
         ]),
       ),
     ).toEqual([{ codigo: '77', motivo: 'formula_vs_propuesta' }]);
+  });
+});
+
+describe('verificarBorradorF29: textual códigos (#235)', () => {
+  const campos = [
+    { codigo: '504', valor: '1000', formula: false, numerico: true },
+    { codigo: '922', valor: '', formula: false, numerico: false },
+    { codigo: '915', valor: 'A', formula: false, numerico: false },
+  ];
+  const propuesta = [{ codigo: '504', valor: 1000 }];
+  const montos = new Map([['504', 1000]]);
+
+  it('accepts a text the form holds, and flags one SII adds or changes', () => {
+    expect(verificarBorradorF29(propuesta, campos, montos, new Map([['915', 'A']]))).toEqual([]);
+    expect(verificarBorradorF29(propuesta, campos, montos, new Map([['922', 'X']]))).toEqual([
+      { codigo: '922', motivo: 'sobra' },
+    ]);
+    expect(verificarBorradorF29(propuesta, campos, montos, new Map([['915', 'B']]))).toEqual([
+      { codigo: '915', motivo: 'distinto' },
+    ]);
+  });
+});
+
+describe('recargosDeclarados', () => {
+  it('lists the recargo block SII declares, monto or text, and nothing else', () => {
+    expect(
+      recargosDeclarados({
+        declarados: new Map([
+          ['504', 1000],
+          ['94', 1100],
+          ['92', 40],
+          ['93', 60],
+        ]),
+        textos: new Map([['922', 'X']]),
+      }),
+    ).toEqual(['92', '93', '94', '922']);
+    expect(recargosDeclarados({ declarados: new Map([['91', 1000]]), textos: new Map() })).toEqual(
+      [],
+    );
   });
 });
 

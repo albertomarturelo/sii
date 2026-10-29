@@ -235,6 +235,9 @@ Rules around it:
 - **An error that says "No se pudo confirmar"** means the filing call was sent and its answer
   was lost. Do not resend: run `sii f29 status <periodo>` and report what SII shows.
 - The CLI refuses a período that is already `Vigente` and one without propuesta.
+- It also refuses a **late** período (`sii_error`, "SII agrega recargos a …"): after the due date
+  SII adds reajuste and intereses (códigos 92, 93, 94), and the CLI only files within the
+  plazo. Tell the user to file it at SII themselves, before the end of the month.
 - The `--confirm` echo guards against a typo, **not** against you: only the user's explicit
   approval authorizes a filing.
 

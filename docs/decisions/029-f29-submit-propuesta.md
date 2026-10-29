@@ -8,6 +8,10 @@
 > **Amended 2026-10-20 (#179):** the synthetic oracle injects a synthetic layout into the
 > browser instead of having the operator type values. See
 > [Amendment](#amendment-2026-10-20-179-the-oracle-injects-the-layout-nobody-types).
+>
+> **Amended 2026-10-28 (#235):** the submit files only within the plazo; a validated borrador
+> carrying SII's recargo block is refused before saving. See
+> [Amendment](#amendment-2026-10-28-235-within-the-plazo-only).
 
 ## Status
 
@@ -202,6 +206,27 @@ Costs, accepted:
 
 Rejected: typing in another mode of the form (it tests a path production never takes, and is
 error-prone); rewriting `guardarPropuesta` (it has no values to rewrite).
+
+## Amendment (2026-10-28, #235): within the plazo only
+
+Between the due day and the end of the month SII still opens the previous período in this flow,
+and its validation then adds the **recargo block**: 92 Más IPC, 93 intereses y multas, 795 / 922
+/ 915 the condonación, and 94 TOTAL A PAGAR CON RECARGO (`91 + 92 + 93 − 795`). The layout
+defines them (`findVersionBorradorById`, permutation `543D42AD0EF9E262804F560CE81AF5A6`,
+2026-10-19); a late borrador's real values are not observed yet.
+
+The posture above does not cover that case: the confirm echo is 91, while a late filing pays 94,
+and the safety rule would read SII's surcharges as `sobra`. So:
+- **Decided:** when SII's validated borrador declares any recargo código, both phases refuse
+  before `guardarBorradorRfiValidado`, saying the plazo has passed and the user should file at
+  SII. Nothing is saved past the propuesta's borrador.
+- The rule is keyed on what SII declares, not on our own reading of the due date (estimated
+  holidays, ADR-030), so it cannot refuse a filing SII considers on time.
+- Filing late (total 94, SII's surcharges accepted as SII-computed) needs its own amendment and
+  a live capture: #237.
+
+Rejected: filing late with total 91 (the echo would not be what the user pays); dropping the
+recargo códigos from the safety rule (it would file what nobody reviewed).
 
 ## Alternatives Considered
 

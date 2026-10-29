@@ -23,6 +23,12 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Fixed: `f29 submit` and a text código (#235).** The preview no longer fails with « scraper
+  roto: el valor del código 922 »: SII's layout types 922 and 915 as text, and they are now read
+  as text, still under the safety rule. Both belong to the recargo block SII adds after the due
+  date, so a late período (92, 93, 94…) is now refused up front with that reason: the submit
+  files only within the plazo (filing late is #237).
+
 ## 0.18.0 — 2026-10-26 — Con plazo
 
 A library consumer with a time limit can now stop a boletas read between SII calls.

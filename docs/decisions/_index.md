@@ -33,6 +33,6 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 026 | [The www2 app session — a second cookies-only login, minted only by the user at SII's OAuth page](026-www2-app-session-login.md) | Accepted | 2026-09-12 |
 | 027 | [HTTP `PortalDriver` as the default; the CLI never needs a human at a browser](027-http-portal-driver.md) | Accepted (amended: BTE `list` over HTTP) | 2026-10-18 |
 | 028 | [Non-interactive login — `--clave-env` / `--clave-stdin`, `--if-needed`, a rejection latch](028-non-interactive-login.md) | Accepted (amended: no `--if-needed`) | 2026-10-18 |
-| 029 | [F29 submit — send the propuesta as-is, declare only, return the payment link](029-f29-submit-propuesta.md) | Accepted (amended: transport, oracle) | 2026-10-18 |
+| 029 | [F29 submit — send the propuesta as-is, declare only, return the payment link](029-f29-submit-propuesta.md) | Accepted (amended: transport, oracle, plazo) | 2026-10-18 |
 | 030 | [`alertas` — a session-keyed composite read with stable ids](030-alertas-composite-read.md) | Accepted (amended: regime obligation) | 2026-10-23 |
 | 031 | [A caller bounds a multi-call task with an `AbortSignal`, checked between SII calls](031-task-abort-signal.md) | Accepted | 2026-10-26 |
