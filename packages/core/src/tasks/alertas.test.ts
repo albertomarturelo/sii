@@ -488,6 +488,9 @@ describe('alertas (ADR-030; fakes, synthetic data, no SII)', () => {
     expect(sin[1]).toMatchObject({ id: 'f29:2026-09:sin_declarar', fecha: '2026-10-20' });
     // One BTE read per candidate período, after the twelve F29 reads.
     expect(calls.filter((c) => c.startsWith('bte:'))).toHaveLength(12);
+    // Every SII read is paced, the BTE ones included (ADR-004): one pause per F29 or BTE call.
+    const lecturas = calls.filter((c) => c.startsWith('f29:') || c.startsWith('bte:')).length;
+    expect((rt.clock as FixedClock).slept).toHaveLength(lecturas);
     expect(calls.findIndex((c) => c.startsWith('bte:'))).toBeGreaterThan(
       calls.lastIndexOf('f29:2026-09'),
     );

@@ -113,8 +113,8 @@ boleta-honorarios.html`, read 2026-10-29). The activity rule got it wrong in bot
 such month filed made every other month « sin declarar », and none filed read `no_declarante`.
 
 - **Who:** an active `SGPE` atributo whose `valor` says « Categoría Contribuyente = 2 » (observed
-  on a honorarios-only persona: « Tipo contribuyente=1 y Categoría Contribuyente = 2 »; over the
-  HTTP driver the « í » arrives as three U+001A, so whatever stands for it is accepted), and no
+  on a honorarios-only persona: « Tipo contribuyente=1 y Categoría Contribuyente = 2 »; SII's own
+  `valor` carries three U+001A where the « í » goes, so whatever stands for it is accepted), and no
   active primera-categoría regime. Any other `valor` (« = 1 y 2 » included) is unknown and keeps
   the rules above. The `valor` is read for `SGPE` only (under `NOTI` it is the email).
 - **Rule:** for such an account the activity rule does not apply. A período that would otherwise

@@ -231,16 +231,17 @@ function obligadoDesde(
 // category in the `SGPE` atributo's `valor`, observed 2026-10-23 on a honorarios-only persona as
 // « Tipo contribuyente=1 y Categoría Contribuyente = 2 ». Only that exact category counts: « = 1 y
 // 2 » or any other text is unknown and keeps the activity rule. `valor` is read for SGPE only:
-// under NOTI it is the email. Over the HTTP driver the « í » arrives as three U+001A and the
-// « y » after two spaces (observed 2026-10-29, live #245), so whatever stands for the accent is
-// accepted; the anchor on « = 2 » at the end is what keeps « = 1 y 2 » out.
+// under NOTI it is the email. SII's own `valor` carries three U+001A where the « í » goes, and two
+// spaces before the « y » (observed 2026-10-29, live #245). That is in SII's body, not a decoding
+// artefact: a TextDecoder never yields U+001A (an undecodable byte becomes U+FFFD, #224). So
+// whatever stands for the accent is accepted; the anchor on « = 2 » keeps « = 1 y 2 » out.
 const SEGUNDA_CATEGORIA = /Categor\S*a\s+Contribuyente\s*=\s*2\s*$/i;
 
 function segundaCategoria(atributos: NonNullable<DatosCntr['atributos']>): boolean {
   const activos = atributos.filter(activo);
   if (activos.some((a) => REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? ''))) return false;
   return activos.some((a) => {
-    const valor = (a as Record<string, unknown>)['valor'];
+    const valor = a['valor'];
     return (
       a.atrCodigo?.trim() === 'SGPE' && typeof valor === 'string' && SEGUNDA_CATEGORIA.test(valor)
     );
@@ -390,6 +391,8 @@ async function leerF29(
   // (#245). The activity rule would get it wrong both ways: one such month filed made every other
   // month « sin declarar ». SII's month total leaves anuladas out, so page 0 is enough.
   if (regimen.segundaCategoria) {
+    // With no known inicio there is no lower bound: a month before the account issued any boleta
+    // may answer BTE's « no informe » and end the source as an error (not observed; noted, #254).
     let debido = false;
     for (const { periodo, alerta } of sinDeclarar) {
       await runtime.clock.sleep(pacingMs());
