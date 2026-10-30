@@ -8,6 +8,7 @@ import { recordAudit } from '../audit/index.js';
 import { Anio, Periodo } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
 import {
+  BteError,
   NotAuthenticatedError,
   RateLimitError,
   SiiError,
@@ -25,6 +26,7 @@ import {
 import { fetchF29Estado, type DeclaracionEstadoF29 } from '../portal/f29.js';
 import { fetchPeticiones } from '../portal/peticiones.js';
 import { fetchPredios } from '../portal/bienes-raices-misii.js';
+import { fetchBteMensual } from '../portal/bte.js';
 import type { PortalSession, Runtime } from '../seams/index.js';
 
 export const FUENTES_ALERTAS = ['f22', 'f29', 'peticiones', 'bienes_raices'] as const;
@@ -170,6 +172,9 @@ interface RegimenF29 {
   /** SII holds the account in a primera-categoría regime: F29 is due every month from this
    *  month on, filed or not. `null` means unknown, never "not obligated". */
   readonly obligadoDesde: Periodo | null;
+  /** SII holds the account in segunda categoría only: F29 is due in a month only when its issued
+   *  boletas carry retención del emisor (ADR-030 amendment, #245). */
+  readonly segundaCategoria: boolean;
 }
 
 // SII's FAQ: F29 is mandatory every month, sin movimiento included, for "todos aquellos
@@ -198,6 +203,10 @@ function mesDeAtributo(s: string | null | undefined): Periodo | null {
 const antes = (a: Periodo, b: Periodo): boolean =>
   a.year < b.year || (a.year === b.year && a.month < b.month);
 
+/** An atributo still in force: no end date, not deleted. */
+const activo = (a: NonNullable<DatosCntr['atributos']>[number]): boolean =>
+  a.fechaTermino == null && a.eliminado == null;
+
 /** The month the account entered an observed primera-categoría regime, and the inicio de
  *  actividades, whichever is later: an account that moved from honorarios into the regime owed
  *  nothing before it (#209 review). Either one unknown ⇒ null. */
@@ -207,18 +216,36 @@ function obligadoDesde(
 ): Periodo | null {
   if (!inicio) return null; // no lower bound: "due every month" would reach before the account
   const desde = atributos
-    .filter(
-      (a) =>
-        REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? '') &&
-        a.fechaTermino == null &&
-        a.eliminado == null,
-    )
+    .filter((a) => REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? '') && activo(a))
     .map((a) => mesDeAtributo(a.fechaInicio));
   const meses = desde.filter((p): p is Periodo => p !== null);
   // An active regime whose start does not parse is not proof of when the obligation began.
   if (meses.length === 0 || meses.length < desde.length) return null;
   const regimen = meses.reduce((a, b) => (antes(a, b) ? a : b));
   return antes(regimen, inicio) ? inicio : regimen;
+}
+
+// Segunda categoría owes no F29 « sin movimiento » (preguntas_frecuentes/impuestos_mensuales/
+// 001_130_1154.htm, read 2026-10-29); it owes the F29 of a month whose boletas carry retención del
+// emisor (ayudas/nuevos_contribuyentes/boleta-honorarios.html, read 2026-10-29). SII registers the
+// category in the `SGPE` atributo's `valor`, observed 2026-10-23 on a honorarios-only persona as
+// « Tipo contribuyente=1 y Categoría Contribuyente = 2 ». Only that exact category counts: « = 1 y
+// 2 » or any other text is unknown and keeps the activity rule. `valor` is read for SGPE only:
+// under NOTI it is the email. SII's own `valor` carries three U+001A where the « í » goes, and two
+// spaces before the « y » (observed 2026-10-29, live #245). That is in SII's body, not a decoding
+// artefact: a TextDecoder never yields U+001A (an undecodable byte becomes U+FFFD, #224). So
+// whatever stands for the accent is accepted; the anchor on « = 2 » keeps « = 1 y 2 » out.
+const SEGUNDA_CATEGORIA = /Categor\S*a\s+Contribuyente\s*=\s*2\s*$/i;
+
+function segundaCategoria(atributos: NonNullable<DatosCntr['atributos']>): boolean {
+  const activos = atributos.filter(activo);
+  if (activos.some((a) => REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? ''))) return false;
+  return activos.some((a) => {
+    const valor = a['valor'];
+    return (
+      a.atrCodigo?.trim() === 'SGPE' && typeof valor === 'string' && SEGUNDA_CATEGORIA.test(valor)
+    );
+  });
 }
 
 async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
@@ -231,6 +258,7 @@ async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
   return {
     inicio,
     obligadoDesde: obligadoDesde(inicio, datos?.atributos ?? []),
+    segundaCategoria: segundaCategoria(datos?.atributos ?? []),
     termino: mesDe(c?.fechaTerminoGiro),
     // `"S"` observed. A day-12 taxpayer says "N"; an unknown value keeps the 20th, the later of
     // the two, so the alerta is never early.
@@ -358,6 +386,34 @@ async function leerF29(
         },
       },
     });
+  }
+  // Segunda categoría: a month is due only when its issued boletas carry retención del emisor
+  // (#245). The activity rule would get it wrong both ways: one such month filed made every other
+  // month « sin declarar ». SII's month total leaves anuladas out, so page 0 is enough.
+  if (regimen.segundaCategoria) {
+    // With no known inicio there is no lower bound: a month before the account issued any boleta
+    // may answer BTE's « no informe » and end the source as an error (not observed; noted, #254).
+    let debido = false;
+    for (const { periodo, alerta } of sinDeclarar) {
+      await runtime.clock.sleep(pacingMs());
+      const { totales } = await fetchBteMensual(
+        session,
+        { rut, periodo, side: 'EMITIDAS' },
+        () => runtime.clock.sleep(pacingMs()),
+        { soloTotales: true },
+      );
+      // Unknown is never "not obligated": a missing total ends the source as an error.
+      if (totales.retencionEmisor === null) {
+        throw new BteError(
+          `El SII no entregó la suma de retención del emisor de las boletas de ${periodo.formatted}.`,
+        );
+      }
+      if (totales.retencionEmisor > 0) {
+        debido = true;
+        push(alerta);
+      }
+    }
+    return declarante || debido ? 'ok' : 'no_declarante';
   }
   // An account with no Vigente F29 in the window does not file F29 (a persona without giro):
   // twelve "sin declarar" would be noise, not alertas (ADR-030). Unless SII holds it in a

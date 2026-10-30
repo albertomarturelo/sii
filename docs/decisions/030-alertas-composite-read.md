@@ -103,6 +103,33 @@ Mi SII shows the unpaid contribuciones cuotas per predio, so they join as `orige
 (one call): `contribuciones_vencida` and `contribuciones_por_vencer` (due within 30 days). Rules,
 ids and the cuota parsing: ADR-032. TGR stays out.
 
+## Amendment (2026-10-29, #245): segunda categoría owes F29 only in months with retención del emisor
+
+A segunda categoría taxpayer has no duty to file F29 « sin movimiento » (`preguntas_frecuentes/
+impuestos_mensuales/001_130_1154.htm`, art. 84 b) with art. 89 LIR, read 2026-10-29). It owes
+the F29 of a month in which it issued a boleta de honorarios carrying retención del emisor, because
+then the issuer declares and pays the provisional payment (`ayudas/nuevos_contribuyentes/
+boleta-honorarios.html`, read 2026-10-29). The activity rule got it wrong in both directions: one
+such month filed made every other month « sin declarar », and none filed read `no_declarante`.
+
+- **Who:** an active `SGPE` atributo whose `valor` says « Categoría Contribuyente = 2 » (observed
+  on a honorarios-only persona: « Tipo contribuyente=1 y Categoría Contribuyente = 2 »; SII's own
+  `valor` carries three U+001A where the « í » goes, so whatever stands for it is accepted), and no
+  active primera-categoría regime. Any other `valor` (« = 1 y 2 » included) is unknown and keeps
+  the rules above. The `valor` is read for `SGPE` only (under `NOTI` it is the email).
+- **Rule:** for such an account the activity rule does not apply. A período that would otherwise
+  be `f29_sin_declarar` (in the window, no record, due day passed) is due only when its issued
+  boletas carry retención del emisor: the month total `suma_retencion_emisor` > 0 from the BTE
+  informe (`bte list --emitidas`, page 0 only; SII's total leaves anuladas out). Same id, same
+  due day (the account's 12 / 20). Rechazada / Guardada / other estados are unchanged.
+- **Unknown is never "not obligated":** a BTE read that fails, or a month whose total is missing,
+  ends the F29 source as `error` with its kind; the alertas it already pushed stay (ADR-030).
+- **Estado:** `ok` when a Vigente F29 or a due month was found, else `no_declarante`.
+- **Cost:** one paced BTE read per candidate período (≤ 12), only for these accounts.
+- Rejected: reading BTE for every `no_declarante` account (the persona's regime is known, so the
+  rule can be scoped to it); every boleta's `retencionEmisor` (the month total is SII's own sum,
+  one page instead of all).
+
 ## Alternatives Considered
 
 1. **Wait for every source before shipping.** Rejected: two sources are unobserved and may need
@@ -124,7 +151,8 @@ ids and the cuota parsing: ADR-032. TGR stays out.
 - Easier: a daily routine is one command and an id diff. A new source slots in as an `origen`
   without changing the shape.
 - Risk: an account with no Vigente F29 in the window and no observed primera-categoría regime
-  is silent about missing months by design (a new business in an unobserved regime included).
+  is silent about missing months by design (a new business in an unobserved regime included). A
+  segunda categoría account is checked month by month against its boletas (#245).
   The due date is an estimate, and the result says so.
 - Obligation: the ids are a contract. Changing one makes every caller see an old alerta as new,
   so an id change is **Breaking** in the changelog (ADR-021 amendment).
