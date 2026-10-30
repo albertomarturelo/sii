@@ -62,6 +62,12 @@ Python `sii-cli`, adapted to TypeScript.
     `text/html` and declares `iso-8859-1` only in the HTML, so the header alone turned
     every ñ into U+FFFD. A move from the browser to HTTP is validated on a value with an
     accent, or by counting U+FFFD in the decoded body: "every field present" hid this.
+    **A rule that matches SII's TEXT is checked against the live value, not the contract's
+    transcription (#245).** SII's own `SGPE` `valor` carries three U+001A where the « í » of
+    « Categoría » goes (in the body: a `TextDecoder` never yields U+001A), while the contract had
+    recorded the accented word. The strict pattern never matched and the rule stayed off, with no
+    error. Match only the load-bearing part, tolerate what stands for an accent, and confirm the
+    match live (a boolean, never the value) before the PR.
 - **A seam only ONE surface may use is wired in THAT surface's composition root, never
   as a `createNodeRuntime` default.** Both surfaces build from `createNodeRuntime()`, so a
   default there hands the capability to the MCP server too. Keeping a task off the main
