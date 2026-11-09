@@ -22,8 +22,9 @@ git log <base>..<head> --pretty=format:%s
 ## 2. Load context indices (do NOT read full source files)
 
 - `CLAUDE.md`, `docs/CONVENTIONS.md`, `docs/decisions/_index.md`.
-- `docs/conventions/sii-wire.md` when the diff touches `packages/core/src/portal/`,
-  `packages/core/src/tasks/` or `docs/sii-contract/`. It loads on demand (ADR-033),
+- `docs/conventions/sii-wire.md` when the diff touches `packages/core/src/` (`portal/`,
+  `tasks/`, `auth/`, `adapters/`), `packages/cli/src/commands/`, `packages/mcp/src/tools/`
+  or `docs/sii-contract/`. It loads on demand (ADR-033),
   so this review is the backstop for a change made without reading it.
 - The **linked issue body** (`gh issue view <n>`) — extract the AC
   checklist + the "ADRs to load" list.

@@ -108,9 +108,48 @@ Python `sii-cli`, adapted to TypeScript.
 
 ## SII domain rules
 
-In [`conventions/sii-wire.md`](conventions/sii-wire.md), loaded on demand (ADR-033): read it
-before changing `packages/core/src/portal/`, `packages/core/src/tasks/` or
-`docs/sii-contract/`, and before a write against the live SII. A new SII wire rule goes there.
+The wire rules (transports, parsing, writes, pacing) are in
+[`conventions/sii-wire.md`](conventions/sii-wire.md), loaded on demand (ADR-033): read it before
+changing `packages/core/src/` (`portal/`, `tasks/`, `auth/`, `adapters/`), `packages/cli/src/commands/`,
+`packages/mcp/src/tools/` or `docs/sii-contract/`,
+and before a write against the live SII. A new SII wire rule goes there.
+
+These stay always on, because breaking them locks or misreads the account anywhere in the code:
+
+- **Portal session detection is URL-based, not DOM-based.** Landing on
+  `zeusr.sii.cl` means not authenticated; any other host means we reached the
+  destination. URL is part of the auth contract; DOM markers are a guess.
+  **The HTTP login is the one exception: success and rejection both answer `200` on
+  `zeusr.sii.cl`** (observed 2026-10-17). Success there means the session cookies were
+  set AND the body's navigation leaves `LOGIN_HOST`, and the Mi SII identity read that
+  follows is the proof. (ADR-027)
+  **A dead jar can bounce by JavaScript, not only by redirect.** Mi SII answers it `200`
+  with a page that only runs `location.replace(<zeusr login URL>)` (observed 2026-10-18,
+  GH-139). The HTTP driver treats that page as a landing on `LOGIN_HOST`, so URL-based
+  detection holds on every primitive. Keep the match narrow: the page holds nothing else,
+  and the target is `LOGIN_HOST`. **A JSON CGI can answer a dead jar with a `200` body, no
+  bounce at all (#236).** Mi SII's `CViewCarta.cgi` returns `{"codigoResp":-2,
+  "glosaRespuesta":"Error: Autenticacion"}` (observed 2026-10-28). Its facade maps that code to
+  `SessionExpiredError`: read as "no data", a dead session would pass for an empty list. Before
+  wiring another such CGI, POST it without cookies and see what it says. **"Alive" needs positive proof.** A probe that decides
+  whether to skip a login confirms the session by reading the principal's identity, never
+  by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
+  "dead" costs one login. **"Closed" needs proof too (#135).** Over HTTP, SII's
+  `autTermino.cgi` answers `200` on its own path and navigates by JS, so "we left the logout
+  page" proves nothing. Prove a server-side close by restoring the PRE-close cookies into a
+  fresh session and seeing Mi SII bounce to the login. Never decide it on the same jar, which
+  SII may simply have cleared. An unproven close is reported as local only. **Each close runs
+  in its own session restored from the PRE-close cookies (#146):** the www2 close deletes the
+  classic cookies too, so on a shared jar the classic close went out without the session it had
+  to end. The www2 layer gets the same proof through its own liveness read, and SII was observed
+  NOT to revoke it at all (it expires on its own), so the result says until when it stays valid.
+- **Never retry after a SII rate-limit / block.** It is server-side and timed;
+  surface the message verbatim and stop.
+- **Validate a RUT locally (Mod-11) BEFORE any login attempt.** A malformed RUT
+  must never become a wasted submit — repeated failed logins lock the account.
+  The CLI parses + Mod-11-checks the RUT before prompting/sending the Clave; a
+  login (browser or `--console`) makes exactly ONE attempt, never auto-retried.
+  (ADR-004 / ADR-010)
 
 ## Security, secrets & PII
 

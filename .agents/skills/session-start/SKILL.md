@@ -12,8 +12,9 @@ Read the following files in order, then produce a brief summary:
    first reads it (ADR-033). The surface checklist: what is shipped (✅), in
    progress (🚧), blocked (🔒) and planned (📋).
 2. `docs/decisions/_index.md` — any recent decisions that might affect
-   current work. `CLAUDE.md` already loads it (ADR-033): use that copy,
-   do not read it again.
+   current work. Skip the read only if your agent already holds it from
+   `CLAUDE.md`'s `@` import (Claude Code does; an agent that reads
+   `AGENTS.md` without expanding `@` does not). (ADR-033)
 3. `git log --oneline -10` + `gh issue list --state open` — what actually
    moved last, and what is still open.
 

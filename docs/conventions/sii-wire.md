@@ -2,9 +2,12 @@
 
 How this repo talks to SII: transports, parsing, sessions, writes and pacing. Loaded on
 demand (ADR-033), not in every session: read it before changing
-`packages/core/src/portal/`, `packages/core/src/tasks/` or `docs/sii-contract/`, and before
-a write against the live SII. Moved verbatim from `docs/CONVENTIONS.md` « SII domain rules »;
-a new SII wire rule is added here, every other rule to `CONVENTIONS.md` (ADR-007).
+`packages/core/src/` (`portal/`, `tasks/`, `auth/`, `adapters/`), `packages/cli/src/commands/`,
+`packages/mcp/src/tools/` or `docs/sii-contract/`, and before a write
+against the live SII. Moved verbatim from `docs/CONVENTIONS.md` « SII domain rules », except
+the three rules that guard the account (session detection, no retry after a block, Mod-11
+before a login), which stay always on there. A new SII wire rule is added here, every other
+rule to `CONVENTIONS.md` (ADR-007).
 
 - **No third-party SII libraries.** Every selector, endpoint, and payload
   constant is derived from first-hand observation of the live SII source (HTML,
@@ -13,33 +16,6 @@ a new SII wire rule is added here, every other rule to `CONVENTIONS.md` (ADR-007
 - **Prefer inline structured data over DOM scraping.** Where the portal ships a
   JS object (e.g. `DatosCntrNow`) or an inline data map, read THAT, not the
   rendered DOM. Cite the variable name and observation source.
-- **Portal session detection is URL-based, not DOM-based.** Landing on
-  `zeusr.sii.cl` means not authenticated; any other host means we reached the
-  destination. URL is part of the auth contract; DOM markers are a guess.
-  **The HTTP login is the one exception: success and rejection both answer `200` on
-  `zeusr.sii.cl`** (observed 2026-10-17). Success there means the session cookies were
-  set AND the body's navigation leaves `LOGIN_HOST`, and the Mi SII identity read that
-  follows is the proof. (ADR-027)
-  **A dead jar can bounce by JavaScript, not only by redirect.** Mi SII answers it `200`
-  with a page that only runs `location.replace(<zeusr login URL>)` (observed 2026-10-18,
-  GH-139). The HTTP driver treats that page as a landing on `LOGIN_HOST`, so URL-based
-  detection holds on every primitive. Keep the match narrow: the page holds nothing else,
-  and the target is `LOGIN_HOST`. **A JSON CGI can answer a dead jar with a `200` body, no
-  bounce at all (#236).** Mi SII's `CViewCarta.cgi` returns `{"codigoResp":-2,
-  "glosaRespuesta":"Error: Autenticacion"}` (observed 2026-10-28). Its facade maps that code to
-  `SessionExpiredError`: read as "no data", a dead session would pass for an empty list. Before
-  wiring another such CGI, POST it without cookies and see what it says. **"Alive" needs positive proof.** A probe that decides
-  whether to skip a login confirms the session by reading the principal's identity, never
-  by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
-  "dead" costs one login. **"Closed" needs proof too (#135).** Over HTTP, SII's
-  `autTermino.cgi` answers `200` on its own path and navigates by JS, so "we left the logout
-  page" proves nothing. Prove a server-side close by restoring the PRE-close cookies into a
-  fresh session and seeing Mi SII bounce to the login. Never decide it on the same jar, which
-  SII may simply have cleared. An unproven close is reported as local only. **Each close runs
-  in its own session restored from the PRE-close cookies (#146):** the www2 close deletes the
-  classic cookies too, so on a shared jar the classic close went out without the session it had
-  to end. The www2 layer gets the same proof through its own liveness read, and SII was observed
-  NOT to revoke it at all (it expires on its own), so the result says until when it stays valid.
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The
@@ -295,8 +271,6 @@ a new SII wire rule is added here, every other rule to `CONVENTIONS.md` (ADR-007
 - **Pass SII's Spanish error messages through unchanged.** The user knows the
   domain; opaque translations waste their time. A scraper that can't find its
   selector raises a "scraper broken" error — never retry silently.
-- **Never retry after a SII rate-limit / block.** It is server-side and timed;
-  surface the message verbatim and stop.
 - **In a multi-call fan-out, a per-item SII error stops the ITEM, not the batch.**
   When a task fans out N POSTs (a multi-folio/-period/-year loop) and ONE item
   returns a business/server error (e.g. F22 `historial`'s `buscaEventos` failing on
@@ -326,8 +300,3 @@ a new SII wire rule is added here, every other rule to `CONVENTIONS.md` (ADR-007
   review caught, and would have flagged the months before an account entered the regime. An
   unknown code or an unparseable date is "unknown", never "not obligated"; keep the activity
   rule as the fallback. A probe over `atributos` redacts `valor`: under `NOTI` it is the email.
-- **Validate a RUT locally (Mod-11) BEFORE any login attempt.** A malformed RUT
-  must never become a wasted submit — repeated failed logins lock the account.
-  The CLI parses + Mod-11-checks the RUT before prompting/sending the Clave; a
-  login (browser or `--console`) makes exactly ONE attempt, never auto-retried.
-  (ADR-004 / ADR-010)

@@ -11,8 +11,12 @@ boilerplate, it is how the project stays coherent.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the non-negotiable realities of
   SII and the two-surfaces-one-core design.
 - [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md) — code style, architecture patterns,
-  SII domain rules, security & PII rules. **It is the source of truth: where this
-  file summarizes a rule for convenience and the two ever disagree, it wins.**
+  the SII rules that guard the account, security & PII rules. **It is the source of
+  truth: where this file summarizes a rule for convenience and the two ever disagree,
+  it wins.**
+- [`docs/conventions/sii-wire.md`](docs/conventions/sii-wire.md) — the SII wire rules
+  (transports, parsing, writes, pacing), with the same authority. Read it before
+  changing SII-facing code (`CLAUDE.md` lists the paths; ADR-033).
 - [`docs/ROADMAP.md`](docs/ROADMAP.md) — what is shipped, in progress, or planned,
   plus the "Where a new surface goes" placement table.
 - [`docs/decisions/`](docs/decisions/) — the ADRs. Decisions are recorded *before*
@@ -27,7 +31,8 @@ as [Agent Skills](https://agentskills.io/specification), one `<name>/SKILL.md` e
 `.claude/skills` is a symlink to that directory, so Claude Code and the agents that
 read `.agents/skills` (Codex, Copilot, Gemini CLI) share one copy. The index works the
 same way: `AGENTS.md` is a symlink to `CLAUDE.md`, so an agent that reads `AGENTS.md`
-finds the same ADRs, conventions and roadmap that Claude Code loads.
+finds the same index. Its `@` references are the always-on part; `ROADMAP.md` and
+`conventions/sii-wire.md` are named by plain path and read on demand (ADR-033).
 
 **You do not need Claude Code to contribute.** Each skill is a plain markdown
 file describing steps you can follow by hand. The checklists in those files are

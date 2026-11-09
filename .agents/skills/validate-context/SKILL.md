@@ -42,11 +42,13 @@ checklist with PASS / WARN / FAIL per item:
    `validate-context` job fails on the same cases. Propose
    `ln -sf CLAUDE.md AGENTS.md`.
 
-10. **On-demand context (ADR-033)**: `CLAUDE.md` must not `@`-import
-    `docs/ROADMAP.md` or `docs/conventions/sii-wire.md`, and must keep the
-    Critical Rule that names `docs/conventions/sii-wire.md`. FAIL on either:
-    the first puts the file back in every request, the second leaves the wire
-    rules with no trigger. The CI `validate-context` job fails on the same cases.
+10. **On-demand context (ADR-033)**: neither `CLAUDE.md` nor a file it
+    `@`-imports may `@`-import `docs/ROADMAP.md` or
+    `docs/conventions/sii-wire.md` (anywhere on a line, outside backticks);
+    `docs/conventions/sii-wire.md` must exist; and `CLAUDE.md`'s Critical
+    Rules must keep the rule that names it. FAIL on any: an import puts the
+    file back in every request, a missing rule leaves the wire rules with no
+    trigger. The CI `validate-context` job fails on the same cases.
 
 Output the checklist and propose concrete fixes for any failures.
 Do NOT auto-apply fixes — the user reviews first.

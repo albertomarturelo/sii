@@ -8,7 +8,7 @@ Accepted — 2026-11-09
 
 ADR-001 made `CLAUDE.md` an index of `@docs/*` references. An `@` reference is not a
 pointer: the agent loads the file into the context of every session, and every request
-of that session re-reads it. The index now pulls in about 115 KB of docs. Two files make up
+of that session re-reads it. The index now pulls in about 114 KB of docs. Two files make up
 most of it, and both grew by about 70% between 2026-10-17 and 2026-11-09:
 
 - `docs/ROADMAP.md` (≈44 KB), a status checklist whose rows now carry the validation
@@ -26,17 +26,20 @@ docs work; loading all of them in every session is what scales badly, because
 Split the context layer into an **always-on** part and an **on-demand** part.
 
 - **Always on** (stays `@`-imported by `CLAUDE.md`): `ARCHITECTURE.md`, `STACK.md`,
-  `decisions/_index.md`, and `CONVENTIONS.md` without its SII domain section. These are
-  the rules a slip breaks anywhere: layer boundaries, secrets and PII, commits and PRs,
-  naming. `CLAUDE.md`'s Critical Rules stay as they are.
+  `decisions/_index.md`, and `CONVENTIONS.md` without most of its SII domain section.
+  These are the rules a slip breaks anywhere: layer boundaries, secrets and PII, commits
+  and PRs, naming, and the three SII rules that guard the account (session detection by
+  URL, no retry after a block, Mod-11 before a login). `CLAUDE.md`'s Critical Rules gain
+  only the trigger below.
 - **On demand**, referenced by plain path (no `@`):
   - `docs/ROADMAP.md`. It is status, not instructions. `session-start` and `session-close`
     already read it; `issue-new` reads it to place a new surface.
-  - `docs/conventions/sii-wire.md`, the « SII domain rules » section moved verbatim out
-    of `CONVENTIONS.md`. `CONVENTIONS.md` keeps one line in its place that points to it.
+  - `docs/conventions/sii-wire.md`, the rest of the « SII domain rules » section, moved
+    verbatim out of `CONVENTIONS.md`, which keeps a pointer to it in its place.
 - **The trigger lives in the always-on part.** `CLAUDE.md`'s Critical Rules say: before
-  changing `packages/core/src/portal/`, `packages/core/src/tasks/` or
-  `docs/sii-contract/`, **and before a write against the live SII**, read
+  changing `packages/core/src/` (`portal/`, `tasks/`, `auth/`, `adapters/`),
+  `packages/cli/src/commands/`, `packages/mcp/src/tools/` or `docs/sii-contract/`,
+  **and before a write against the live SII**, read
   `docs/conventions/sii-wire.md`. The write case is there because some wire rules govern
   operating the CLI, not editing code (classify every item before a batch of
   irreversible writes). `issue-start` and `review-pr` read it when the issue or the diff
@@ -49,7 +52,8 @@ Split the context layer into an **always-on** part and an **on-demand** part.
 - **Proof.** Once at least three sessions exist after the change, the telemetry dashboard's
   before/after row must show a lower context at the first request **and** no rise in the
   tokens before the first edit. A rise there means the on-demand reads cost more than the
-  eager load saved: revisit this ADR.
+  eager load saved: revisit this ADR. The result is recorded as better / same / worse,
+  never with the figures: the repository is public.
 
 ## Alternatives Considered
 
@@ -69,14 +73,17 @@ Split the context layer into an **always-on** part and an **on-demand** part.
 ## Consequences
 
 - Every session starts lighter, and the saving repeats on every request it makes.
-- A change to a facade or task now depends on the agent honouring a one-line trigger or
+- A change to SII-facing code now depends on the agent honouring a one-line trigger or
   running `issue-start` / `review-pr`. `review-pr` is the backstop: it reads the wire rules
   whenever the diff touches those paths.
 - The status questions a session used to answer for free ("is X shipped?") now cost a
   read of `ROADMAP.md`. `session-start` already pays it once per session.
-- `validate-context` checks that `CLAUDE.md` has no `@` on the on-demand files and that
-  the trigger line exists.
-- Implementation, one PR: move the section, edit `CLAUDE.md`, `CONVENTIONS.md` and the
-  four skills (`session-start`, `issue-new`, `issue-start`, `review-pr`), plus the
-  `validate-context` check. ADR-001's "index of `@docs/*`" now reads "an index whose
-  `@` references are the always-on part (ADR-033)".
+- `validate-context` and the CI `validate-context` job fail if an always-on file
+  `@`-imports an on-demand one, if `sii-wire.md` is missing, or if the trigger leaves
+  `CLAUDE.md`'s Critical Rules.
+- Implementation, one PR: move the section, edit `CLAUDE.md`, `CONVENTIONS.md`,
+  `CONTRIBUTING.md`, the PR and issue templates and six skills (`session-start`,
+  `session-close`, `issue-new`, `issue-start`, `review-pr`, `new-decision`), plus the
+  `validate-context` check and its CI step. ADR-001's context-layer bullet gains a note:
+  its `@` references are the always-on part, and ROADMAP and the SII wire rules load on
+  demand.
