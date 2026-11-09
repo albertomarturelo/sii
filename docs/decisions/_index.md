@@ -5,7 +5,7 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 
 | ID  | Title                                                                                          | Status   | Date       |
 | --- | ---------------------------------------------------------------------------------------------- | -------- | ---------- |
-| 001 | [Adopt Context-First Development (CFD) for this repo](001-adopt-cfd-methodology.md)             | Accepted (amended: Agent Skills) | 2026-06-27 |
+| 001 | [Adopt Context-First Development (CFD) for this repo](001-adopt-cfd-methodology.md)             | Accepted (amended: Agent Skills; on-demand context, ADR-033) | 2026-06-27 |
 | 002 | [TypeScript + Node + pnpm-workspaces monorepo toolchain](002-typescript-node-pnpm-monorepo.md)  | Accepted | 2026-06-27 |
 | 003 | [Shared core consumed by CLI + MCP; injectable seams for external deps](003-shared-core-ports-adapters.md) | Accepted | 2026-06-27 |
 | 004 | [Port the SII guardrails + ToS posture from sii-py](004-port-sii-guardrails-and-tos-posture.md) | Accepted | 2026-06-27 |
@@ -37,3 +37,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 030 | [`alertas` — a session-keyed composite read with stable ids](030-alertas-composite-read.md) | Accepted (amended: regime obligation, `bienes_raices`, segunda categoría) | 2026-10-23 |
 | 031 | [A caller bounds a multi-call task with an `AbortSignal`, checked between SII calls](031-task-abort-signal.md) | Accepted | 2026-10-26 |
 | 032 | [`bienes-raices` — the predios a RUT pays and their cuotas, from Mi SII](032-bienes-raices-mi-sii.md) | Accepted (amended: public cuota breakdown) | 2026-10-28 |
+| 033 | [ROADMAP and the SII wire rules load on demand, not in every session](033-on-demand-context-loading.md) | Accepted | 2026-11-09 |

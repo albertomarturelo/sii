@@ -22,6 +22,10 @@ git log <base>..<head> --pretty=format:%s
 ## 2. Load context indices (do NOT read full source files)
 
 - `CLAUDE.md`, `docs/CONVENTIONS.md`, `docs/decisions/_index.md`.
+- `docs/conventions/sii-wire.md` when the diff touches `packages/core/src/` (`portal/`,
+  `tasks/`, `auth/`, `adapters/`), `packages/cli/src/commands/`, `packages/mcp/src/tools/`
+  or `docs/sii-contract/`. It loads on demand (ADR-033),
+  so this review is the backstop for a change made without reading it.
 - The **linked issue body** (`gh issue view <n>`) — extract the AC
   checklist + the "ADRs to load" list.
 - **Each ADR named in the issue** under `docs/decisions/NNN-*.md`.
@@ -84,7 +88,8 @@ Token cost so far ~2–4k. **Still no full source-file reads.**
 - Every new conditional branch / error path in `@albertomarturelo/sii-core` is exercised.
 
 ### Documentation (CFD — ADR-001)
-- New convention → `CONVENTIONS.md` updated in the SAME commit.
+- New convention → `CONVENTIONS.md` (or `conventions/sii-wire.md` for an SII wire
+  rule, ADR-033) updated in the SAME commit.
 - New decision → new ADR BEFORE the implementation; superseded ADRs updated.
 - `ROADMAP.md` reflects what shipped, in its OWN commit (status bookkeeping is never
   bundled with feature code). `STACK.md` updated if deps changed; `ARCHITECTURE.md`

@@ -16,7 +16,9 @@ Ask, in order, and confirm each answer before moving on:
 3. **Context.** 2–4 sentences: what is the trigger, what is the
    user-visible outcome.
 4. **Target location.** Concrete paths. For net-new, name the package +
-   file (e.g. `packages/core/src/rut.ts — new file`).
+   file (e.g. `packages/core/src/rut.ts — new file`). For a new SII surface,
+   read the « Where a new surface goes » table in `docs/ROADMAP.md` first
+   (loaded on demand, ADR-033).
 5. **Reference pattern.** An existing file/module to mirror in shape,
    naming, and conventions. Skip ONLY if no analog exists; flag it.
 6. **ADRs to load.** ADR numbers the agent must read before starting.
@@ -31,7 +33,7 @@ Ask, in order, and confirm each answer before moving on:
      or `@albertomarturelo/sii-core` API).
    - **Tests** — what tests exist (`<module>.test.ts`, vitest); state
      explicitly that fixtures are **synthetic** (no real PII).
-   - **Documentation** — which of `CONVENTIONS.md`, `STACK.md`,
+   - **Documentation** — which of `CONVENTIONS.md`, `conventions/sii-wire.md`, `STACK.md`,
      `ARCHITECTURE.md`, `ROADMAP.md`, a `sii-contract/*.md`, or a new ADR
      is updated.
 8. **Reproduction steps.** ONLY for `fix`. Minimal repro to confirm the

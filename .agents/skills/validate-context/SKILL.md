@@ -9,7 +9,8 @@ Validate the CFD context in this project. Check, in order, and output a
 checklist with PASS / WARN / FAIL per item:
 
 1. **`CLAUDE.md` size**: WARN if >150 lines, FAIL if >300.
-2. **`CLAUDE.md` content shape**: should be mostly `@references`, not
+2. **`CLAUDE.md` content shape**: should be mostly references (`@` for the
+   always-on files, a plain path for the on-demand ones — ADR-033), not
    paragraphs of prose. FAIL if any section has >10 lines of inlined
    content where an `@docs/...` reference would do.
 3. **`docs/ROADMAP.md` freshness**: run
@@ -40,6 +41,14 @@ checklist with PASS / WARN / FAIL per item:
    `core.symlinks` that turned the link into a one-line text file. The CI
    `validate-context` job fails on the same cases. Propose
    `ln -sf CLAUDE.md AGENTS.md`.
+
+10. **On-demand context (ADR-033)**: neither `CLAUDE.md` nor a file it
+    `@`-imports may `@`-import `docs/ROADMAP.md` or
+    `docs/conventions/sii-wire.md` (anywhere on a line, outside backticks);
+    `docs/conventions/sii-wire.md` must exist; and `CLAUDE.md`'s Critical
+    Rules must keep the rule that names it. FAIL on any: an import puts the
+    file back in every request, a missing rule leaves the wire rules with no
+    trigger. The CI `validate-context` job fails on the same cases.
 
 Output the checklist and propose concrete fixes for any failures.
 Do NOT auto-apply fixes — the user reviews first.

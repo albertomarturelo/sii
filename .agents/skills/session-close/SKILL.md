@@ -16,7 +16,9 @@ Before this session ends, do ALL of the following. Do not skip any step.
    a local one, it is yours; do not commit it.)
 
 2. **If a convention was clarified or a pattern was corrected this
-   session**, update `docs/CONVENTIONS.md` accordingly. Do NOT leave
+   session**, update `docs/CONVENTIONS.md` accordingly — or
+   `docs/conventions/sii-wire.md` when it is an SII wire rule (transport,
+   parsing, session, write, pacing; ADR-033). Do NOT leave
    corrections only in chat history — they'll be lost next session.
 
 3. **If a significant decision was made informally** (in chat, in a

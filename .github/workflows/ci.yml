@@ -90,6 +90,31 @@ jobs:
             exit 1
           fi
 
+      - name: On-demand context (ADR-033)
+        # An @ reference loads the file into every request of every session, and so does an
+        # @ inside a file CLAUDE.md @-imports. ROADMAP and the SII wire rules load on demand;
+        # the Critical Rule naming sii-wire.md is their only trigger for an agent that runs no
+        # skill. An @ inside backticks is not an import, so it is not matched.
+        run: |
+          set -euo pipefail
+          fail=0
+          always_on=$(printf 'CLAUDE.md\n'; grep -oE '^@[^[:space:]]+' CLAUDE.md | cut -c2-)
+          for f in $always_on; do
+            if grep -nE '(^|[[:space:]])@(\./)?(docs/)?(conventions/)?(ROADMAP|sii-wire)\.md' "$f"; then
+              echo "::error file=$f::$f @-imports an on-demand file (ROADMAP or sii-wire). ADR-033: reference it by plain path."
+              fail=1
+            fi
+          done
+          if [ ! -f docs/conventions/sii-wire.md ]; then
+            echo "::error file=docs/conventions/sii-wire.md::Missing: the SII wire rules live here (ADR-033)."
+            fail=1
+          fi
+          if ! awk '/^## Critical Rules/{on=1; next} /^## /{on=0} on' CLAUDE.md | grep -qF 'Read `docs/conventions/sii-wire.md` before'; then
+            echo "::error file=CLAUDE.md::The Critical Rule that points to docs/conventions/sii-wire.md is missing (ADR-033)."
+            fail=1
+          fi
+          exit $fail
+
       - name: ADR completeness (5 mandatory sections)
         run: |
           set -euo pipefail

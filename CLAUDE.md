@@ -30,7 +30,9 @@ hard-won SII wire knowledge and guardrails are PORTED, the code is not.
 
 ## Roadmap
 
-@docs/ROADMAP.md
+`docs/ROADMAP.md` — what is shipped, in progress and planned. Loaded on demand, not
+here (ADR-033): `/session-start` reads it; read it yourself before answering a status
+question or placing a new surface.
 
 ## Key Decisions
 
@@ -64,11 +66,16 @@ hard-won SII wire knowledge and guardrails are PORTED, the code is not.
 - **No third-party SII libraries.** Every selector, endpoint, and payload shape
   is derived from first-hand observation of the live SII surface and cited in a
   code comment. (ADR-004)
+- **Read `docs/conventions/sii-wire.md` before changing `packages/core/src/` (`portal/`, `tasks/`, `auth/`, `adapters/`),
+  `packages/cli/src/commands/`, `packages/mcp/src/tools/` or `docs/sii-contract/`,
+  and before a write against the live SII.** The SII wire rules load on demand, not in
+  every session. (ADR-033)
 - **Decisions get an ADR BEFORE implementation.** About to add a dependency,
   move a layer boundary, or pick between plausible patterns? Run
   `/new-decision` first. (ADR-001 / CFD)
 - **Corrections become conventions.** Fix the same pattern twice → write it into
-  `docs/CONVENTIONS.md` in the same commit.
+  `docs/CONVENTIONS.md` in the same commit (an SII wire rule goes into
+  `docs/conventions/sii-wire.md`, ADR-033).
 - **Identity is single-account + operate-centric.** One live session at a time
   (switch by logout→login); within it, a persona account's `operate` pointer
   selects which RUT it acts as (self by default; an empresa it represents).
