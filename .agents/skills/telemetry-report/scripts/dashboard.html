@@ -1,0 +1,504 @@
+<!doctype html>
+<!-- Token budget: ~0 (template filled by telemetry.py, never loaded into
+     model context; reading this file costs ~9,000 tokens). The script
+     replaces the data placeholder below; do not open this file directly. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent telemetry</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #E7E8EC; --surface: #F2F3F6; --surface-2: #FBFBFD; --border: #CBCFD8;
+  --grid: #DADDE4; --text: #171921; --muted: #565B68; --accent: #A8690F;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #0F1118; --surface: #171A22; --surface-2: #1E222D; --border: #2B303C;
+    --grid: #242934; --text: #E9EAF0; --muted: #969CAB; --accent: #F0A93E;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--sans); }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 64px; }
+header h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+.eyebrow, th, .tile .label, .tick, .chip, .seg button, .legend, .note {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+}
+.eyebrow { text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+.sub { color: var(--muted); margin: 4px 0 0; }
+#filters { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; margin: 24px 0 16px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button { background: var(--surface); color: var(--muted); border: 0; border-right: 1px solid var(--border);
+  padding: 7px 12px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--surface-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.seg button:focus-visible, .more:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.agent { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
+.tile, .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
+.tile { padding: 14px 16px; }
+.tile .label { color: var(--muted); text-transform: uppercase; }
+.tile .value { font-size: 28px; font-weight: 600; line-height: 1.2; margin: 6px 0 2px; }
+.tile .hint { color: var(--muted); font-size: 12px; }
+.card { margin-top: 16px; padding: 18px 16px 16px; position: relative; }
+.card h2 { font-size: 15px; margin: 0; }
+.card .lede { color: var(--muted); margin: 2px 0 14px; max-width: 76ch; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: flex-start; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); margin: 10px 0 8px; align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.diamond { width: 8px; height: 8px; background: var(--text); transform: rotate(45deg); display: inline-block; }
+svg { display: block; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--border); stroke-width: 1; }
+.tick { fill: var(--muted); }
+.hit { fill-opacity: 0; }
+.glow { fill: var(--text); fill-opacity: 0; pointer-events: none; }
+.glow.on { fill-opacity: 0.06; }
+.mark { fill: var(--text); stroke: var(--surface); stroke-width: 2; }
+#tip { position: absolute; pointer-events: none; z-index: 2; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; max-width: 320px; }
+#tip .t { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+#tip .row { display: flex; align-items: center; gap: 8px; }
+#tip .key { width: 12px; height: 2px; flex: none; }
+#tip b { font-variant-numeric: tabular-nums; }
+#tip .n { color: var(--muted); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { text-align: left; color: var(--muted); text-transform: uppercase; font-weight: 400; white-space: nowrap; }
+th, td { padding: 7px 10px 7px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.num { font-family: var(--mono); font-size: 12px; }
+td small, .dim { color: var(--muted); }
+td small { display: block; font-size: 11px; }
+tr.thin td { color: var(--muted); }
+.name { overflow-wrap: anywhere; min-width: 150px; }
+.chip { display: inline-block; border: 1px solid var(--border); border-radius: 999px; padding: 0 7px; color: var(--muted);
+  margin-left: 6px; white-space: nowrap; }
+.bar { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.bar i { display: block; height: 8px; background: var(--muted); border-radius: 0 4px 4px 0; min-width: 1px; }
+.bar .track { flex: 1; min-width: 60px; max-width: 180px; display: flex; }
+.more { margin-top: 10px; background: none; border: 1px solid var(--border); border-radius: 8px; color: var(--text);
+  padding: 6px 12px; cursor: pointer; font: inherit; font-size: 12px; }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.empty { color: var(--muted); margin: 8px 0; }
+.note { color: var(--muted); margin: 10px 0 0; letter-spacing: 0; line-height: 1.6; }
+footer { margin-top: 24px; color: var(--muted); font-size: 12px; }
+footer p { margin: 4px 0; max-width: 90ch; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">Local agent telemetry</p>
+    <h1 id="title"></h1>
+    <p class="sub" id="subtitle"></p>
+  </header>
+  <div id="filters"></div>
+  <section class="tiles" id="tiles" aria-label="Summary"></section>
+
+  <section class="card" id="chart-card">
+    <div class="head">
+      <div><h2>Consumption over time</h2>
+        <p class="lede">One column per day. Diamonds mark commits that changed the project's context files.</p></div>
+      <div class="seg" id="metric" role="group" aria-label="Metric"></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="chart"></div>
+    <div id="tip" hidden></div>
+    <details><summary>Daily table</summary><div class="scroll" id="daily"></div></details>
+  </section>
+
+  <section class="card">
+    <h2>Context changes: 14 days before vs 14 days after</h2>
+    <p class="lede">Median per session on each side of a day when CLAUDE.md, an ADR, a convention or a skill changed.
+      Lower context and lower orientation cost mean sessions start cheaper.</p>
+    <div class="scroll" id="impact"></div>
+  </section>
+
+  <section class="card">
+    <h2>By task</h2>
+    <p class="lede">A task is a git branch, as recorded by the agent on each request.</p>
+    <div class="scroll" id="tasks"></div>
+  </section>
+
+  <section class="card" id="skills-card">
+    <h2>By skill</h2>
+    <p class="lede">Requests the agent attributed to a skill. A run is one uninterrupted stretch of requests under the same skill.</p>
+    <div class="scroll" id="skills"></div>
+  </section>
+
+  <section class="card">
+    <h2>Sessions</h2>
+    <p class="lede">Active time ignores gaps longer than five minutes. Context is the size of one request: first, then the largest.
+      Before first edit is the orientation cost: output plus fresh input, and the active minutes it took.</p>
+    <div class="scroll" id="sessions"></div>
+  </section>
+
+  <footer id="health"></footer>
+</main>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function () {
+  const D = JSON.parse(document.getElementById('data').textContent);
+  const AGENTS = { claude: ['Claude Code', 'var(--s1)'], codex: ['Codex', 'var(--s2)'],
+    copilot: ['Copilot', 'var(--s3)'], gemini: ['Gemini CLI', 'var(--s4)'] };
+  const METRICS = [['o', 'Output'], ['f', 'Fresh input'], ['r', 'Cache read'], ['n', 'Requests']];
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const WINDOW = 14, PAGE = 12;
+  const st = { range: 'all', agents: new Set(D.agents), metric: 'o', open: {} };
+
+  const $ = (s) => document.querySelector(s);
+  function el(tag, props, ...kids) {
+    const e = document.createElement(tag);
+    for (const k in props || {}) {
+      if (k === 'class') e.className = props[k];
+      else if (k === 'text') e.textContent = props[k];
+      else if (k.slice(0, 2) === 'on') e.addEventListener(k.slice(2), props[k]);
+      else if (props[k] !== false && props[k] != null) e.setAttribute(k, props[k]);
+    }
+    for (const c of kids.flat()) if (c != null) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+    return e;
+  }
+  function svg(tag, attrs, text) {
+    const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  const dn = (d) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 864e5);
+  const shortDay = (n) => { const d = new Date(n * 864e5); return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
+  const full = (n) => Math.round(n).toLocaleString('en-US');
+  function fmt(n) {
+    if (n == null) return '–';
+    const a = Math.abs(n);
+    if (a >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+    if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (a >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+    return full(n);
+  }
+  function median(a) {
+    if (!a.length) return null;
+    const s = a.slice().sort((x, y) => x - y), m = s.length >> 1;
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+  const val = (b, m) => (m === 'o' ? b.o : m === 'f' ? b.i + b.w : m === 'r' ? b.r : b.n);
+  const fromDay = () => (st.range === 'all' ? -Infinity : dn(D.today) - +st.range + 1);
+  const buckets = () => D.buckets.filter((b) => st.agents.has(b.a) && dn(b.d) >= fromDay());
+  const sessions = () => D.sessions.filter((s) => st.agents.has(s.a) && dn(s.d) >= fromDay());
+  const num = (n, title) => el('td', { class: 'num', title: title || (n == null ? null : full(n)) }, fmt(n));
+
+  function table(heads, rows, key) {
+    if (!rows.length) return el('p', { class: 'empty', text: 'Nothing in this range.' });
+    const shown = st.open[key] ? rows : rows.slice(0, PAGE);
+    const t = el('table', null,
+      el('thead', null, el('tr', null, heads.map((h) => el('th', { class: h[1] ? 'num' : null, text: h[0] })))),
+      el('tbody', null, shown));
+    if (rows.length <= PAGE) return t;
+    return el('div', null, t, el('button', {
+      class: 'more', type: 'button',
+      text: st.open[key] ? 'Show fewer' : 'Show all ' + rows.length,
+      onclick: () => { st.open[key] = !st.open[key]; render(); },
+    }));
+  }
+  function magnitude(n, max) {
+    const track = el('span', { class: 'track' }, el('i'));
+    track.firstChild.style.width = (max ? (n / max) * 100 : 0) + '%';
+    return el('td', { class: 'num', title: full(n) }, el('span', { class: 'bar' }, track, fmt(n)));
+  }
+
+  // ------------------------------------------------------------------ filters
+  function segmented(box, options, current, pick) {
+    box.replaceChildren(...options.map(([v, label]) => el('button', {
+      type: 'button', class: current === v ? 'on' : null, 'aria-pressed': String(current === v),
+      text: label, onclick: () => pick(v),
+    })));
+  }
+  function renderFilters() {
+    const range = el('div', { class: 'seg', role: 'group', 'aria-label': 'Date range' });
+    segmented(range, [['7', '7 days'], ['30', '30 days'], ['90', '90 days'], ['all', 'All']], st.range,
+      (v) => { st.range = v; render(); });
+    const picks = D.agents.length < 2 ? [] : D.agents.map((a) => {
+      const box = el('input', { type: 'checkbox', checked: st.agents.has(a) ? '' : false });
+      box.addEventListener('change', () => { box.checked ? st.agents.add(a) : st.agents.delete(a); render(); });
+      const sw = el('span', { class: 'sw' }); sw.style.background = AGENTS[a][1];
+      return el('label', { class: 'agent' }, box, sw, AGENTS[a][0]);
+    });
+    $('#filters').replaceChildren(range, ...picks);
+    segmented($('#metric'), METRICS, st.metric, (v) => { st.metric = v; render(); });
+  }
+
+  // -------------------------------------------------------------------- tiles
+  function renderTiles(fb, ss) {
+    const sum = (m) => fb.reduce((t, b) => t + val(b, m), 0);
+    const turns = ss.reduce((t, s) => t + s.turns, 0);
+    const tiles = [
+      ['Sessions', new Set(fb.map((b) => b.s)).size, full(turns) + ' human turns'],
+      ['Output tokens', sum('o'), 'written by the model'],
+      ['Fresh input tokens', sum('f'), 'context processed for the first time'],
+      ['Cache-read tokens', sum('r'), 'context re-read on every request'],
+      ['Context at first request', median(ss.map((s) => s.ctx0)), 'median: what a session loads before any work'],
+      ['Tokens before first edit', median(ss.filter((s) => s.orient != null).map((s) => s.orient)),
+        'median orientation cost: output + fresh input'],
+    ];
+    $('#tiles').replaceChildren(...tiles.map(([label, value, hint]) => el('div', { class: 'tile' },
+      el('div', { class: 'label', text: label }),
+      el('div', { class: 'value', title: value == null ? null : full(value), text: fmt(value) }),
+      el('div', { class: 'hint', text: hint }))));
+  }
+
+  // -------------------------------------------------------------------- chart
+  function niceStep(max) {
+    const raw = max / 4, pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    for (const m of [1, 2, 2.5, 5, 10]) if (m * pow >= raw) return m * pow;
+    return 10 * pow;
+  }
+  function axisLabel(v, top) {
+    if (!v) return '0';
+    if (top >= 1e9) return +(v / 1e9).toFixed(2) + 'B';
+    if (top >= 1e6) return +(v / 1e6).toFixed(2) + 'M';
+    if (top >= 1e4) return +(v / 1e3).toFixed(1) + 'K';
+    return full(v);
+  }
+  function showTip(evt, title, rows) {
+    const tip = $('#tip'), card = $('#chart-card').getBoundingClientRect();
+    tip.replaceChildren(el('div', { class: 't', text: title }), ...rows);
+    tip.hidden = false;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = evt.clientX - card.left + 14, y = evt.clientY - card.top - h - 10;
+    if (x + w > card.width - 8) x = evt.clientX - card.left - w - 14;
+    tip.style.left = Math.max(8, x) + 'px';
+    tip.style.top = Math.max(8, y) + 'px';
+  }
+  function tipRow(color, value, name) {
+    const key = el('span', { class: 'key' }); key.style.background = color || 'transparent';
+    return el('div', { class: 'row' }, key, el('b', { text: value }), el('span', { class: 'n', text: name }));
+  }
+  function renderChart(fb) {
+    const box = $('#chart'), legend = $('#legend'), daily = $('#daily');
+    $('#tip').hidden = true;
+    const ags = D.agents.filter((a) => st.agents.has(a));
+    const metricName = METRICS.find((m) => m[0] === st.metric)[1];
+    legend.replaceChildren(...(ags.length > 1 ? ags.map((a) => {
+      const sw = el('span', { class: 'sw' }); sw.style.background = AGENTS[a][1];
+      return el('span', null, sw, AGENTS[a][0]);
+    }) : []), el('span', null, el('i', { class: 'diamond' }), 'context change'));
+    if (!fb.length) {
+      box.replaceChildren(el('p', { class: 'empty', text: 'No requests in this range.' }));
+      daily.replaceChildren();
+      return;
+    }
+    const days = fb.map((b) => dn(b.d));
+    const d1 = st.range === 'all' ? Math.max(...days) : dn(D.today);
+    const d0 = st.range === 'all' ? Math.min(...days) : fromDay();
+    const span = d1 - d0 + 1, bin = Math.ceil(span / 90), nb = Math.ceil(span / bin);
+    const series = {};
+    ags.forEach((a) => { series[a] = new Array(nb).fill(0); });
+    for (const b of fb) series[b.a][Math.floor((dn(b.d) - d0) / bin)] += val(b, st.metric);
+    const totals = Array.from({ length: nb }, (_, i) => ags.reduce((t, a) => t + series[a][i], 0));
+    const step = niceStep(Math.max(...totals, 1)), top = step * 4;
+    const marks = {};
+    for (const c of D.changes) {
+      const i = Math.floor((dn(c.d) - d0) / bin);
+      if (i >= 0 && i < nb) (marks[i] = marks[i] || []).push(c);
+    }
+    const binLabel = (i) => shortDay(d0 + i * bin) + (bin > 1 ? ' – ' + shortDay(Math.min(d0 + (i + 1) * bin - 1, d1)) : '');
+
+    const W = Math.max(box.clientWidth, 300), H = 280, L = 52, R = 12, T = 12, B = 52;
+    const pw = W - L - R, ph = H - T - B, band = pw / nb, bw = Math.max(1, Math.min(24, band - 2));
+    const g = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'img',
+      'aria-label': metricName + ' per day, by agent. The daily table below holds the same values.' });
+    for (let k = 0; k <= 4; k++) {
+      const y = T + ph - (ph * k) / 4;
+      g.append(svg('line', { x1: L, x2: W - R, y1: y, y2: y, class: k ? 'gridline' : 'axis' }));
+      g.append(svg('text', { x: L - 8, y: y + 4, 'text-anchor': 'end', class: 'tick' }, axisLabel(step * k, top)));
+    }
+    const labels = band >= 52 ? nb : Math.min(nb, Math.max(2, Math.floor(pw / 90)));
+    for (let k = 0; k < labels; k++) {
+      const i = labels === 1 ? 0 : Math.round((k * (nb - 1)) / (labels - 1));
+      g.append(svg('text', { x: L + band * (i + 0.5), y: T + ph + 18, 'text-anchor': 'middle', class: 'tick' }, shortDay(d0 + i * bin)));
+    }
+    for (let i = 0; i < nb; i++) {
+      const x = L + band * i + (band - bw) / 2, live = ags.filter((a) => series[a][i] > 0);
+      let y = T + ph;
+      live.forEach((a, j) => {
+        const raw = (series[a][i] / top) * ph, gap = j ? 2 : 0, h = Math.max(raw - gap, 1);
+        const y0 = y - raw, r = j === live.length - 1 ? Math.min(4, h, bw / 2) : 0;
+        g.append(svg('path', { fill: AGENTS[a][1], d: 'M' + x + ',' + (y0 + h) + 'V' + (y0 + r) + 'Q' + x + ',' + y0 + ' ' + (x + r) + ',' + y0 +
+          'H' + (x + bw - r) + 'Q' + (x + bw) + ',' + y0 + ' ' + (x + bw) + ',' + (y0 + r) + 'V' + (y0 + h) + 'Z' }));
+        y = y0;
+      });
+      const gw = Math.min(band, bw + 20);
+      const glow = svg('rect', { x: L + band * i + (band - gw) / 2, y: T, width: gw, height: ph, class: 'glow' });
+      const hit = svg('rect', { x: L + band * i, y: T, width: band, height: ph, class: 'hit' });
+      hit.addEventListener('pointerenter', () => glow.classList.add('on'));
+      hit.addEventListener('pointermove', (e) => showTip(e, binLabel(i) + ' · ' + metricName, [
+        ...ags.map((a) => tipRow(AGENTS[a][1], full(series[a][i]), AGENTS[a][0])),
+        ...(ags.length > 1 ? [tipRow(null, full(totals[i]), 'total')] : []),
+      ]));
+      hit.addEventListener('pointerleave', () => { glow.classList.remove('on'); $('#tip').hidden = true; });
+      g.append(glow, hit);
+    }
+    for (const i in marks) {
+      const cx = L + band * (+i + 0.5), cy = T + ph + 36, list = marks[i];
+      g.append(svg('path', { class: 'mark', d: 'M' + cx + ',' + (cy - 5) + 'L' + (cx + 5) + ',' + cy + 'L' + cx + ',' + (cy + 5) + 'L' + (cx - 5) + ',' + cy + 'Z' }));
+      const hit = svg('rect', { x: cx - 12, y: cy - 12, width: 24, height: 24, 'fill-opacity': 0 });
+      hit.addEventListener('pointermove', (e) => showTip(e, binLabel(+i) + ' · ' + list.length + ' context change' + (list.length > 1 ? 's' : ''),
+        list.slice(0, 5).map((c) => el('div', { text: c.subject })).concat(
+          list.length > 5 ? [el('div', { class: 'n', text: '+' + (list.length - 5) + ' more' })] : [])));
+      hit.addEventListener('pointerleave', () => { $('#tip').hidden = true; });
+      g.append(hit);
+    }
+    box.replaceChildren(g);
+
+    const rows = [];
+    for (let i = nb - 1; i >= 0; i--) {
+      if (!totals[i] && !marks[i]) continue;
+      rows.push(el('tr', null, el('td', { text: binLabel(i) }), ...ags.map((a) => num(series[a][i])),
+        num(totals[i]), el('td', { class: 'num', text: marks[i] ? marks[i].length : '' })));
+    }
+    daily.replaceChildren(el('table', null,
+      el('thead', null, el('tr', null, el('th', { text: 'Day' }), ...ags.map((a) => el('th', { class: 'num', text: AGENTS[a][0] })),
+        el('th', { class: 'num', text: 'Total' }), el('th', { class: 'num', text: 'Context changes' }))),
+      el('tbody', null, rows)));
+  }
+
+  // ----------------------------------------------------------- before / after
+  function renderImpact(ss) {
+    const byDay = {};
+    for (const c of D.changes) (byDay[c.d] = byDay[c.d] || []).push(c);
+    const measures = [(s) => s.ctx0, (s) => s.orient, (s) => s.o / Math.max(s.turns, 1)];
+    const rows = [];
+    for (const d of Object.keys(byDay).sort().reverse()) {
+      const n = dn(d);
+      const before = ss.filter((s) => dn(s.d) >= n - WINDOW && dn(s.d) < n);
+      const after = ss.filter((s) => dn(s.d) >= n && dn(s.d) < n + WINDOW);
+      if (!before.length && !after.length) continue;
+      const list = byDay[d], thin = before.length < 3 || after.length < 3;
+      rows.push(el('tr', { class: thin ? 'thin' : null },
+        el('td', { class: 'name' }, shortDay(n), el('small', { title: list.map((c) => c.subject).join('\n'),
+          text: list[0].subject + (list.length > 1 ? '  +' + (list.length - 1) + ' more' : '') })),
+        el('td', { class: 'num', text: before.length + ' / ' + after.length }),
+        ...measures.map((f) => {
+          const a = median(before.map(f).filter((v) => v != null)), b = median(after.map(f).filter((v) => v != null));
+          const delta = a && b != null ? Math.round(((b - a) / a) * 100) : null;
+          return el('td', { class: 'num' }, fmt(a) + ' → ' + fmt(b),
+            el('small', { text: delta == null ? ' ' : (delta > 0 ? '+' : '') + delta + '%' }));
+        })));
+    }
+    const box = $('#impact');
+    if (!D.changes.length) {
+      box.replaceChildren(el('p', { class: 'empty', text: 'No commits touched the context files of this project.' }));
+    } else if (!rows.length) {
+      box.replaceChildren(el('p', { class: 'empty', text: 'No sessions within 14 days of a context change in this range.' }));
+    } else {
+      box.replaceChildren(table([['Change'], ['Sessions before / after', 1], ['Context at first request', 1],
+        ['Tokens before first edit', 1], ['Output per human turn', 1]], rows, 'impact'),
+      el('p', { class: 'note', text: 'Dimmed rows have fewer than 3 sessions on one side: read them as anecdotes, not evidence. ' +
+        'Windows overlap when changes land close together, and a session on the day of the change counts as after.' }));
+    }
+  }
+
+  // --------------------------------------------------------------------- tasks
+  function renderTasks(fb) {
+    const by = {};
+    for (const b of fb) {
+      const t = by[b.b] = by[b.b] || { b: b.b, s: new Set(), d: new Set(), n: 0, o: 0, f: 0, r: 0 };
+      t.s.add(b.s); t.d.add(b.d); t.n += b.n; t.o += b.o; t.f += b.i + b.w; t.r += b.r;
+    }
+    const list = Object.values(by).sort((x, y) => y.o - x.o), max = Math.max(...list.map((t) => t.o), 0);
+    const rows = list.map((t) => {
+      const issue = /(?:^|[\/_-])#?(\d{1,6})(?=$|[\/_-])/.exec(t.b);
+      const trunk = /^(main|master|trunk|develop|HEAD)$/.test(t.b);
+      return el('tr', null,
+        el('td', { class: 'name' }, t.b || '(no branch recorded)',
+          issue ? el('span', { class: 'chip', text: '#' + issue[1] }) : null,
+          trunk ? el('span', { class: 'chip', text: 'no task branch' }) : null),
+        num(t.s.size), num(t.d.size), num(t.n), magnitude(t.o, max), num(t.f), num(t.r));
+    });
+    $('#tasks').replaceChildren(table([['Branch'], ['Sessions', 1], ['Days', 1], ['Requests', 1], ['Output', 1],
+      ['Fresh input', 1], ['Cache read', 1]], rows, 'tasks'));
+  }
+
+  // -------------------------------------------------------------------- skills
+  function renderSkills() {
+    const runs = D.runs.filter((r) => st.agents.has(r.a) && dn(r.d) >= fromDay());
+    $('#skills-card').hidden = !D.runs.length;
+    const by = {};
+    for (const r of runs) (by[r.k] = by[r.k] || []).push(r);
+    const list = Object.keys(by).map((k) => ({
+      k, runs: by[k].length, n: by[k].reduce((t, r) => t + r.n, 0), o: by[k].reduce((t, r) => t + r.o, 0),
+      f: by[k].reduce((t, r) => t + r.f, 0), mo: median(by[k].map((r) => r.o)), mf: median(by[k].map((r) => r.f)),
+    })).sort((x, y) => y.o - x.o);
+    const max = Math.max(...list.map((s) => s.o), 0);
+    $('#skills').replaceChildren(table([['Skill'], ['Runs', 1], ['Requests', 1], ['Output', 1], ['Fresh input', 1],
+      ['Median output / run', 1], ['Median fresh input / run', 1]],
+    list.map((s) => el('tr', null, el('td', { class: 'name', text: s.k }), num(s.runs), num(s.n), magnitude(s.o, max),
+      num(s.f), num(s.mo), num(s.mf))), 'skills'));
+  }
+
+  // ------------------------------------------------------------------ sessions
+  function renderSessions(ss) {
+    const rows = ss.slice().reverse().map((s) => {
+      const sw = el('span', { class: 'sw' }); sw.style.background = AGENTS[s.a][1];
+      return el('tr', null,
+        el('td', { style: 'white-space:nowrap' }, s.start, el('small', { text: s.id })),
+        el('td', null, el('span', { style: 'white-space:nowrap' }, sw, ' ', AGENTS[s.a][0]),
+          el('small', { title: s.models.join('\n'), text: (s.models[0] || '') + (s.models.length > 1 ? ' +' + (s.models.length - 1) : '') })),
+        el('td', { class: 'name', title: s.branches.join('\n') }, s.branches[0] || '–',
+          s.branches.length > 1 ? el('span', { class: 'chip', text: s.branches.length + ' branches' }) : null),
+        el('td', { class: 'num', text: s.active + ' min' }), num(s.turns), num(s.n), num(s.o),
+        el('td', { class: 'num', title: full(s.ctx0) + ' → ' + full(s.ctxmax) }, fmt(s.ctx0) + ' → ' + fmt(s.ctxmax)),
+        el('td', { class: 'num' }, s.orient == null ? 'no edit' : fmt(s.orient),
+          s.orient == null ? null : el('small', { text: s.edit_min + ' active min' })));
+    });
+    $('#sessions').replaceChildren(table([['Start'], ['Agent'], ['Branch'], ['Active', 1], ['Turns', 1], ['Requests', 1],
+      ['Output', 1], ['Context first → peak', 1], ['Before first edit', 1]], rows, 'sessions'));
+  }
+
+  // -------------------------------------------------------------------- health
+  function renderHealth() {
+    const h = D.health, n = (k) => full(h[k] || 0);
+    const lines = [
+      'Claude Code: ' + n('claude_files') + ' transcript files read, ' + n('claude_dup_lines') + ' repeated lines collapsed, ' +
+        n('claude_bad_lines') + ' unreadable lines, ' + n('claude_no_usage') + ' responses without token counts.',
+      'Codex: ' + n('codex_files') + ' session files read, ' + n('codex_bad_lines') + ' unreadable lines, ' +
+        n('codex_unknown_files') + ' files in an unknown format, ' + n('codex_zst_skipped') +
+        ' compressed sessions skipped' + (h.codex_zst_skipped ? ' (install zstd to read them).' : '.'),
+      full(h.history_only_sessions || 0) + ' sessions come from the local history file only: the agent has already deleted their logs. ' +
+        'Agents prune old logs (Claude Code after 30 days by default), so run this at least monthly.',
+      'Not measured here: re-explanation rate (it cannot be derived from logs) and agents without an adapter yet ' +
+        '(Copilot, Gemini). Human turns and time to first edit are approximations.',
+      'Only counters leave the logs. No prompt, response or file content is stored in this page. Generated ' + D.generated + '.',
+    ];
+    $('#health').replaceChildren(...lines.map((t) => el('p', { text: t })));
+  }
+
+  function render() {
+    const fb = buckets(), ss = sessions();
+    renderFilters(); renderTiles(fb, ss); renderChart(fb); renderImpact(ss);
+    renderTasks(fb); renderSkills(); renderSessions(ss);
+  }
+  $('#title').textContent = D.project;
+  document.title = D.project + ' · agent telemetry';
+  $('#subtitle').textContent = D.sessions.length
+    ? D.sessions.length + ' sessions from ' + D.sessions[0].d + ' to ' + D.sessions[D.sessions.length - 1].d + '.'
+    : 'No agent sessions found for this project on this machine.';
+  renderHealth();
+  render();
+  let timer;
+  window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(() => renderChart(buckets()), 120); });
+})();
+</script>
+</body>
+</html>

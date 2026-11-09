@@ -31,3 +31,6 @@ coverage/
 
 # local working doc — status is managed locally, not versioned
 docs/CURRENT_STATUS.md
+
+# CFD telemetry-report: per-developer dashboard + history, never committed (#260)
+.cfd/
