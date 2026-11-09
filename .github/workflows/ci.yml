@@ -90,6 +90,29 @@ jobs:
             exit 1
           fi
 
+      - name: On-demand context (ADR-033)
+        # An @ reference in CLAUDE.md loads the file into every request of every session.
+        # ROADMAP and the SII wire rules load on demand; the Critical Rule naming
+        # sii-wire.md is their only trigger for an agent that runs no skill.
+        run: |
+          set -euo pipefail
+          fail=0
+          for f in docs/ROADMAP.md docs/conventions/sii-wire.md; do
+            if grep -qE "^@${f}\$" CLAUDE.md; then
+              echo "::error file=CLAUDE.md::$f is @-imported; ADR-033 loads it on demand. Reference it by plain path."
+              fail=1
+            fi
+          done
+          if [ ! -f docs/conventions/sii-wire.md ]; then
+            echo "::error file=docs/conventions/sii-wire.md::Missing: the SII wire rules live here (ADR-033)."
+            fail=1
+          fi
+          if ! grep -qF 'docs/conventions/sii-wire.md' CLAUDE.md; then
+            echo "::error file=CLAUDE.md::The Critical Rule that points to docs/conventions/sii-wire.md is missing (ADR-033)."
+            fail=1
+          fi
+          exit $fail
+
       - name: ADR completeness (5 mandatory sections)
         run: |
           set -euo pipefail

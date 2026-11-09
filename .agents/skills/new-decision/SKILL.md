@@ -26,7 +26,8 @@ Constraints:
 
 - The ADR MUST be ≤100 lines.
 - If the decision affects a recurring convention, also update
-  `docs/CONVENTIONS.md` and reference the new ADR there.
+  `docs/CONVENTIONS.md` (or `docs/conventions/sii-wire.md` for an SII wire
+  rule, ADR-033) and reference the new ADR there.
 - Do NOT skip "Alternatives Considered". Future sessions need to know
   why the rejected paths were rejected, or they'll re-litigate.
 - When a rule is ported from the Python `sii-cli`, cite the source ADR

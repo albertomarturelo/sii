@@ -34,10 +34,13 @@ Split the context layer into an **always-on** part and an **on-demand** part.
     already read it; `issue-new` reads it to place a new surface.
   - `docs/conventions/sii-wire.md`, the « SII domain rules » section moved verbatim out
     of `CONVENTIONS.md`. `CONVENTIONS.md` keeps one line in its place that points to it.
-- **The trigger lives in the always-on part.** `CLAUDE.md` says, in one line: before
+- **The trigger lives in the always-on part.** `CLAUDE.md`'s Critical Rules say: before
   changing `packages/core/src/portal/`, `packages/core/src/tasks/` or
-  `docs/sii-contract/`, read `docs/conventions/sii-wire.md`. `issue-start` and
-  `review-pr` read it when the issue or the diff touches those paths. An agent that runs
+  `docs/sii-contract/`, **and before a write against the live SII**, read
+  `docs/conventions/sii-wire.md`. The write case is there because some wire rules govern
+  operating the CLI, not editing code (classify every item before a batch of
+  irreversible writes). `issue-start` and `review-pr` read it when the issue or the diff
+  touches those paths. An agent that runs
   no skill still meets the trigger, because it sits in the file every agent loads
   (`AGENTS.md` is a symlink to it).
 - **Corrections still become conventions.** A new SII wire rule goes into

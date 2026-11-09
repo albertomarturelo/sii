@@ -21,7 +21,8 @@ That discipline is the main reason the Python project stayed coherent across
 Run this repo under CFD from the start:
 
 - **Context layer:** `CLAUDE.md` is an INDEX of `@docs/*` references (target
-  ≤150 lines), not prose. The encyclopedia lives in `docs/ARCHITECTURE.md`,
+  ≤150 lines), not prose. *(ADR-033: its `@` references are the always-on part;
+  `ROADMAP.md` and the SII wire rules are referenced by plain path and load on demand.)* The encyclopedia lives in `docs/ARCHITECTURE.md`,
   `STACK.md`, `CONVENTIONS.md`, `ROADMAP.md`, `CURRENT_STATUS.md`.
 - **ADRs:** every significant decision gets an ADR under `docs/decisions/`
   BEFORE implementation, following `TEMPLATE.md`, ≤100 lines, listed in

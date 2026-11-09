@@ -8,10 +8,12 @@ metadata:
 
 Read the following files in order, then produce a brief summary:
 
-1. `docs/ROADMAP.md` — the surface checklist: what is shipped (✅), in
+1. `docs/ROADMAP.md` — loaded on demand, so this is where a session
+   first reads it (ADR-033). The surface checklist: what is shipped (✅), in
    progress (🚧), blocked (🔒) and planned (📋).
 2. `docs/decisions/_index.md` — any recent decisions that might affect
-   current work.
+   current work. `CLAUDE.md` already loads it (ADR-033): use that copy,
+   do not read it again.
 3. `git log --oneline -10` + `gh issue list --state open` — what actually
    moved last, and what is still open.
 

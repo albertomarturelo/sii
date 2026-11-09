@@ -22,6 +22,10 @@ issues via `gh issue list --repo albertomarturelo/sii --state open`).
    `docs/decisions/`. These set the constraints the implementation must
    satisfy.
 
+   If `Target` touches `packages/core/src/portal/`, `packages/core/src/tasks/`
+   or `docs/sii-contract/`, also read `docs/conventions/sii-wire.md`: the SII
+   wire rules load on demand, not in every session (ADR-033).
+
 4. **Read the file in `Pattern to mirror` ONCE for shape.** Skim, don't
    study.
 
