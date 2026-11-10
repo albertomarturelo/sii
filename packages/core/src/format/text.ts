@@ -9,12 +9,12 @@
  *  holds nothing above U+00FF, and the round trip decodes cleanly, so legitimately-accented text
  *  is left untouched. */
 export function repairMojibake(v: string): string {
-  if (!/[Â-Ã][\u0080-¿]/.test(v)) return v;
+  if (!/[\u00c2-\u00c3][\u0080-\u00bf]/.test(v)) return v;
   const codes = Array.from(v, (ch) => ch.charCodeAt(0));
   if (codes.some((c) => c > 0xff)) return v; // a non-Latin-1 char ⇒ not a mojibake string
   try {
     const decoded = new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(codes));
-    return decoded.includes('�') ? v : decoded;
+    return decoded.includes('\ufffd') ? v : decoded;
   } catch {
     return v; // not valid UTF-8 once re-encoded ⇒ leave the original alone
   }

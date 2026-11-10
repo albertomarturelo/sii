@@ -104,9 +104,10 @@ const roto = (what: string): F22Error =>
   new F22Error(`Scraper roto: ${what} (información de terceros, F22).`);
 
 // --- Values ------------------------------------------------------------------------
-/** A label or text value: re-decoded (one title arrived double-encoded while the others were
- *  clean, `EnajenaciÃ³n`, `NÂ°`: observed 2026-10-21; `repairMojibake`), `&nbsp;`/U+00A0 as a space, whitespace collapsed;
- *  blank ⇒ null (a blank cell is a legitimately absent value, CONVENTIONS). */
+/** A label or text value: re-decoded with `repairMojibake` (one title arrived double-encoded
+ *  while the others were clean, `EnajenaciÃ³n`, `NÂ°`: observed 2026-10-21), `&nbsp;`/U+00A0 as
+ *  a space, whitespace collapsed; blank ⇒ null (a blank cell is a legitimately absent value,
+ *  CONVENTIONS). */
 function text(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   const s = repairMojibake(String(v))
