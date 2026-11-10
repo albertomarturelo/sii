@@ -45,6 +45,24 @@ describe('F22 grid facade (fake session, synthetic envelopes, no SII)', () => {
     expect(reqBody(s)).toMatchObject({ folio: '12345', periodo: '2025', rut: '77777777', dv: '7' });
   });
 
+  it('f22Compacto: repairs a double-encoded glosa, leaving a clean one alone (GH-267)', async () => {
+    const s = session(() => ({
+      metaData: {},
+      data: [
+        { codigo: '87', valor: '150000', glosa: 'Monto devoluci\u00c3\u00b3n solicitada' },
+        { codigo: '305', valor: '0', glosa: 'RESULTADO LIQUIDACIÓN ANUAL' },
+      ],
+    }));
+
+    const codigos = await fetchF22Grid(s, { rut: RUT, anio: ANIO, folio: '12345' });
+
+    expect(codigos.map((c) => c.glosa)).toEqual([
+      'Monto devoluci\u00f3n solicitada',
+      'RESULTADO LIQUIDACIÓN ANUAL',
+    ]);
+    expect(codigos.map((c) => c.valor)).toEqual([150000, 0]);
+  });
+
   it('f22Compacto: parses es-CL montos (dot=thousands) — millions and singles alike', async () => {
     // SII serves montos in Chilean format. Number() would make "9.999" → 9.999 and
     // "12.345.678" → NaN (two dots) → null → "—". The parser must strip thousands dots.

@@ -4,6 +4,7 @@
 import type { Rut } from '../../rut/index.js';
 import type { Anio } from '../../periodo/index.js';
 import type { PortalSession } from '../../seams/index.js';
+import { repairedText } from '../../format/text.js';
 // The código taxonomy (PII denylist + contador grouping) lives in its own domain module —
 // it changes when we observe a new código, not when the wire changes.
 import { isHeaderCodigo } from '../f22-codigos.js';
@@ -27,7 +28,8 @@ const CODIGO_ALIASES = {
 } as const;
 
 /** Project a código grid (`data:[{codigo,valor,glosa}]`) into rows, DROPPING the
- *  identity/bank PII códigos (HEADER_CODIGOS). Sign preserved. */
+ *  identity/bank PII códigos (HEADER_CODIGOS). Sign preserved; glosas repaired
+ *  (`repairMojibake`). */
 function parseCodigoGrid(data: unknown): CodigoF22[] {
   if (!Array.isArray(data)) return [];
   const out: CodigoF22[] = [];
@@ -38,7 +40,8 @@ function parseCodigoGrid(data: unknown): CodigoF22[] {
     out.push({
       codigo,
       valor: asNumber(aliasGet(r, CODIGO_ALIASES.valor)),
-      glosa: asStr(aliasGet(r, CODIGO_ALIASES.glosa)),
+      // SII double-encodes some glosas (observed 2026-11-10, GH-267)
+      glosa: repairedText(aliasGet(r, CODIGO_ALIASES.glosa)),
     });
   }
   return out;
