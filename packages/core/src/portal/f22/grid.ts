@@ -28,7 +28,8 @@ const CODIGO_ALIASES = {
 } as const;
 
 /** Project a código grid (`data:[{codigo,valor,glosa}]`) into rows, DROPPING the
- *  identity/bank PII códigos (HEADER_CODIGOS). Sign preserved; glosas repaired (`repairMojibake`). */
+ *  identity/bank PII códigos (HEADER_CODIGOS). Sign preserved; glosas repaired
+ *  (`repairMojibake`). */
 function parseCodigoGrid(data: unknown): CodigoF22[] {
   if (!Array.isArray(data)) return [];
   const out: CodigoF22[] = [];
