@@ -47,6 +47,17 @@ describe('F22 observaciones facade (fake session, synthetic envelopes, no SII)',
     expect(reqBody(s)).toMatchObject({ periodo: 2025, rut: '77777777', dv: '7', folio: 123456789 });
   });
 
+  it('situacionObservacion: repairs a double-encoded descripcion (GH-264)', async () => {
+    const s = session(() => ({
+      data: [{ codigo: 'B102', descripcion: 'Diferencia en la informaci\u00c3\u00b3n', url: null }],
+      metaData: { errors: null },
+    }));
+
+    const obs = await fetchF22Observaciones(s, { rut: RUT, anio: ANIO, folio: '123456789' });
+
+    expect(obs[0]?.descripcion).toBe('Diferencia en la informaci\u00f3n');
+  });
+
   it('situacionObservacion: empty data is "sin observaciones", not an error', async () => {
     const s = session(() => ({ data: [], respCod: null, errorMsg: null, metaData: {} }));
     expect(await fetchF22Observaciones(s, { rut: RUT, anio: ANIO, folio: '1' })).toEqual([]);

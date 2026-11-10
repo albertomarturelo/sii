@@ -4,6 +4,7 @@
 import type { Rut } from '../../rut/index.js';
 import type { Anio } from '../../periodo/index.js';
 import type { PortalSession } from '../../seams/index.js';
+import { repairedText } from '../../format/text.js';
 import type { CodigoF22, F22Grupos } from '../f22-codigos.js';
 import { F22_BASE, aliasGet, asStr, isObj, postSdi, rutDigits } from './shared.js';
 
@@ -66,7 +67,7 @@ function coerceVigente(v: unknown): boolean | null {
 }
 
 /** Map `glosas[]` (codConclusion → descripción) so a decl's codConc resolves to its
- *  human estado label. */
+ *  human estado label, repaired: SII double-encodes some (observed 2026-11-09, GH-264). */
 function glosaMap(data: unknown): Map<string, string> {
   const out = new Map<string, string>();
   const glosas = isObj(data) ? data['glosas'] : undefined;
@@ -74,7 +75,7 @@ function glosaMap(data: unknown): Map<string, string> {
   for (const g of glosas) {
     if (!isObj(g)) continue;
     const cod = asStr(aliasGet(g, GLOSA_ALIASES.codConc));
-    const desc = asStr(aliasGet(g, GLOSA_ALIASES.descripcion));
+    const desc = repairedText(aliasGet(g, GLOSA_ALIASES.descripcion));
     if (cod !== null && desc !== null) out.set(cod, desc);
   }
   return out;

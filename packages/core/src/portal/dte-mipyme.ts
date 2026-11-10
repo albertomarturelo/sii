@@ -25,6 +25,7 @@
 // factura form's DTE header box and nothing is POSTed (observed 2026-09-09, #95).
 import { HOSTS } from '../config/index.js';
 import { DteError } from '../errors/index.js';
+import { repairMojibake } from '../format/text.js';
 import { Rut } from '../rut/index.js';
 import type { PortalSession, PublicResponse } from '../seams/index.js';
 
@@ -865,28 +866,6 @@ export async function grabaBorrador(session: PortalSession, filled: DteFilled): 
 export async function eliminaBorrador(session: PortalSession, filled: DteFilled): Promise<void> {
   const res = await postLatin1(session, ELIMINA_URL, { ...filled.fields, ES_BORR: 'TRUE' });
   assertCgiOk(res.body, 'eliminaBorrador');
-}
-
-/** Repair SII's DOUBLE-ENCODED text. `listaBorrador` declares `charset=ISO-8859-1` but serves
- *  UTF-8 bytes of an ALREADY-mojibaked string: "Á" arrives as `C3 83 C2 81`, i.e. UTF-8 of
- *  ("Ã", U+0081) — so a correct UTF-8 decode still yields "FundaciÃ³n" / "Ã‘uÃ±oa" (observed
- *  2026-09-08). Undo the extra layer by re-encoding the decoded string as Latin-1 and decoding
- *  it as UTF-8 again. Applied ONLY when the string carries the tell-tale `Ã`/`Â` + continuation
- *  pair AND the round trip decodes cleanly, so legitimately-accented text is left untouched.
- *  This only fixes what we DISPLAY — nothing sent to SII is altered. */
-export function repairMojibake(v: string): string {
-  if (!/[\u00c2-\u00c3][\u0080-\u00bf]/.test(v)) return v;
-  const bytes = Uint8Array.from(v, (ch) => {
-    const c = ch.charCodeAt(0);
-    return c > 0xff ? 0x3f : c; // non-Latin-1 char ⇒ not a mojibake string
-  });
-  if (Array.from(v).some((ch) => ch.charCodeAt(0) > 0xff)) return v;
-  try {
-    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    return decoded.includes('\ufffd') ? v : decoded;
-  } catch {
-    return v; // not valid UTF-8 once re-encoded ⇒ leave the original alone
-  }
 }
 
 /** The borradores of the CURRENTLY SELECTED empresa. A plain JSON array (no SDI `respEstado`

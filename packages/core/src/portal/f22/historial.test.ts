@@ -57,6 +57,24 @@ describe('F22 historial facade (fake session, synthetic envelopes, no SII)', () 
     expect(reqBody(s)).toMatchObject({ periodo: '2025', rut: '77777777', dv: '7', folio: '12345' });
   });
 
+  it('buscaEventos: repairs a double-encoded glosa (observed 2026-11-09, GH-264)', async () => {
+    const s = session(() => ({
+      data: [
+        {
+          folio: '12345',
+          codEvento: '18',
+          nombre: 'Has efectuado una Declaraci\u00c3\u00b3n Rectificatoria de Renta',
+          fechaEvento: '10/05/2025',
+        },
+      ],
+      metaData: { errors: null },
+    }));
+
+    const evs = await fetchF22Historial(s, { rut: RUT, anio: ANIO, folio: '12345' });
+
+    expect(evs[0]?.glosa).toBe('Has efectuado una Declaraci\u00f3n Rectificatoria de Renta');
+  });
+
   it('buscaEventos: empty / non-array data is "sin eventos", not an error', async () => {
     const empty = session(() => ({ data: [], respCod: 0, errorMsg: null, metaData: {} }));
     expect(await fetchF22Historial(empty, { rut: RUT, anio: ANIO, folio: '1' })).toEqual([]);

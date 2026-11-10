@@ -21,7 +21,8 @@ import {
   resolveAndSelectEmpresa,
 } from './dte-mipyme.js';
 import type { DteEmpresa } from './dte-mipyme.js';
-import { repairMojibake, frameFields, contribuyenteError, latin1FormBody } from './dte-mipyme.js';
+import { frameFields, contribuyenteError, latin1FormBody } from './dte-mipyme.js';
+import { repairMojibake } from '../format/text.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 

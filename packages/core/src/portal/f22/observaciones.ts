@@ -7,6 +7,7 @@
 import type { Rut } from '../../rut/index.js';
 import type { Anio } from '../../periodo/index.js';
 import type { PortalSession } from '../../seams/index.js';
+import { repairedText } from '../../format/text.js';
 import { F22_BASE, aliasGet, asStr, isObj, postSdi, rutDigits } from './shared.js';
 
 const SITUACION_OBS_URL = `${F22_BASE}/situacionObservacion`;
@@ -50,7 +51,7 @@ export async function fetchF22Observaciones(
     if (codigo === null) continue;
     out.push({
       codigo,
-      descripcion: asStr(aliasGet(r, OBSERVACION_ALIASES.descripcion)),
+      descripcion: repairedText(aliasGet(r, OBSERVACION_ALIASES.descripcion)), // GH-264
       url: asStr(aliasGet(r, OBSERVACION_ALIASES.url)),
     });
   }

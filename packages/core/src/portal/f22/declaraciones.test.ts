@@ -51,6 +51,20 @@ describe('F22 declaraciones facade (fake session, synthetic envelopes, no SII)',
     expect(reqBody(s)).toMatchObject({ periodo: '2025', rut: '77777777', dv: '7' });
   });
 
+  it('buscaDeclVgte: repairs a double-encoded estado glosa (observed 2026-11-09, GH-264)', async () => {
+    const s = session(() => ({
+      metaData: { errors: [] },
+      data: {
+        decls: [{ folio: '12345', vgte: 'S', codConc: 'C9', fecIng: '15/04/2025' }],
+        glosas: [{ codConclusion: 'C9', descripcion: 'Declaraci\u00c3\u00b3n con observaciones' }],
+      },
+    }));
+
+    const res = await fetchF22Declaraciones(s, { rut: RUT, anio: ANIO });
+
+    expect(res.declaraciones[0]?.estado).toBe('Declaraci\u00f3n con observaciones');
+  });
+
   it('buscaDeclVgte: no decls is a legitimate "sin declaración", not an error', async () => {
     const s = session(() => ({ metaData: {}, data: { decls: null } }));
     const res = await fetchF22Declaraciones(s, { rut: RUT, anio: ANIO });
