@@ -9,6 +9,19 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.19.1 — 2026-11-09
+
+### Changed
+
+- **`sii alertas` reads a segunda categoría account's F29 month by month (#245).** The rule is
+  the core's; `--help` states its cost (one more boletas read per candidate month, only for
+  these accounts). Flags and output are unchanged.
+
+### Fixed
+
+- **`sii f22 status`, `observaciones` and `historial` show accents as SII meant them (#264).**
+  The repair is the core's; the commands' flags and output are unchanged.
+
 ## 0.19.0 — 2026-10-29
 
 ### Added

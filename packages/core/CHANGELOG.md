@@ -4,6 +4,26 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.19.1 — 2026-11-09
+
+### Changed
+
+- **`alertas` reads a segunda categoría account's F29 month by month (#245, ADR-030
+  amendment).** For an account whose `SGPE` atributo says « Categoría Contribuyente = 2 » and
+  no primera-categoría regime, a candidate período is « sin declarar » only when the BTE
+  informe's `suma_retencion_emisor` for that month is > 0; none such in the window reads
+  `no_declarante`. A BTE failure or a missing total ends the F29 source as `error`. Ids and the
+  due day are unchanged. `fetchBteMensual` gains `soloTotales` (page 0 only; portal layer, not
+  the main barrel).
+
+### Fixed
+
+- **The F22 estado, historial and observaciones repair double-encoded text (#264).**
+  `f22Status`, `f22Overview`, `f22Observaciones` and `f22Historial` return the estado glosa,
+  the event glosa and the observación's descripcion repaired when SII double-encodes them
+  (« DeclaraciÃ³n » ⇒ « Declaración »). `repairMojibake` moves to `format/text.ts`; the F22
+  terceros titles and the DTE borradores use it, unchanged.
+
 ## 0.19.0 — 2026-10-29
 
 ### Added

@@ -23,16 +23,24 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed: the F22 estado, historial and observaciones read accents as SII meant them (#264).**
-  SII serves some of those glosas double-encoded, so `f22Status`, `f22Overview`,
-  `f22Observaciones` and `f22Historial` returned « DeclaraciÃ³n » or « TesorerÃ­a ». They are
-  repaired like the terceros titles and the DTE borradores already were; clean text is
-  unchanged.
-- **Changed: `alertas` reads a segunda categoría account's F29 month by month (#245, ADR-030
-  amendment).** For an account SII registers in segunda categoría only, a month without F29 is
-  « sin declarar » only when its issued boletas carry retención del emisor, read from the BTE
-  informe (one paced read per candidate month). Before, one filed month made every other month
-  « sin declarar », and none filed hid the months that were owed.
+## 0.19.1 — 2026-11-09 — Honorarios y tildes
+
+A patch for `alertas` on a segunda categoría account (#245) and for the F22's accents (#264).
+
+**`alertas` reads a segunda categoría account's F29 month by month.** A taxpayer SII registers in
+segunda categoría only owes no F29 « sin movimiento »: it owes the F29 of a month whose issued
+boletas carry retención del emisor. A month without F29 is now « sin declarar » only then, read
+from the BTE informe's month total (one paced read per candidate month, only for these
+accounts). Before, one filed month made every other month « sin declarar », and none filed hid
+the months that were owed. The alerta ids are unchanged; a BTE failure marks the F29 source
+`error` instead of guessing (ADR-030 amendment).
+
+**The F22 reads its accents as SII meant them.** SII serves some F22 glosas double-encoded, so
+the estado, the historial and the observaciones could read « DeclaraciÃ³n » or « TesorerÃ­a ».
+They are now repaired as the terceros titles and the DTE borradores already were; clean text is
+unchanged.
+
+A PATCH: a non-breaking change and a fix. Nothing breaks, nothing is added.
 
 ## 0.19.0 — 2026-10-29 — Sin movimiento
 
