@@ -9,6 +9,18 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.19.1 — 2026-11-09
+
+### Changed
+
+- **`alertas` reads a segunda categoría account's F29 month by month (#245).** The rule is the
+  core's; the tool's description states its cost. Inputs and results are unchanged.
+
+### Fixed
+
+- **`f22_status`, `f22_observaciones` and `f22_historial` return accents as SII meant them
+  (#264).** The repair is the core's; the tools' inputs and results are unchanged.
+
 ## 0.19.0 — 2026-10-29
 
 ### Added
