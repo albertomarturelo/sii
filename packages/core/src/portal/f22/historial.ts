@@ -12,6 +12,7 @@
 import type { Rut } from '../../rut/index.js';
 import type { Anio } from '../../periodo/index.js';
 import type { PortalSession } from '../../seams/index.js';
+import { repairedText } from '../../format/text.js';
 import { F22_BASE, aliasGet, asStr, postSdi, rutDigits, trimToNull, isObj } from './shared.js';
 
 const BUSCA_EVENTOS_URL = `${F22_BASE}/buscaEventos`;
@@ -85,7 +86,8 @@ export async function fetchF22Historial(
     out.push({
       folio: asStr(aliasGet(r, EVENTO_ALIASES.folio)),
       codigo,
-      glosa: asStr(aliasGet(r, EVENTO_ALIASES.glosa)), // verbatim (ADR-004) — may embed the monto
+      // verbatim (ADR-004), may embed the monto; SII double-encodes some (observed 2026-11-09, GH-264)
+      glosa: repairedText(aliasGet(r, EVENTO_ALIASES.glosa)),
       fecha: asStr(aliasGet(r, EVENTO_ALIASES.fecha)),
       tipo: asStr(aliasGet(r, EVENTO_ALIASES.tipo)),
       codCarta: asStr(aliasGet(r, EVENTO_ALIASES.codCarta)),

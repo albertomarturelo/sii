@@ -23,6 +23,10 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Fixed: the F22 estado, historial and observaciones read accents as SII meant them (#265).**
+  SII serves some of those glosas double-encoded, so `f22Status`, `f22Overview`, `f22Observaciones` and
+  `f22Historial` returned « DeclaraciÃ³n » or « TesorerÃ­a ». They are repaired like the
+  terceros titles and the DTE borradores already were; clean text is unchanged.
 - **Changed: `alertas` reads a segunda categoría account's F29 month by month (#245, ADR-030
   amendment).** For an account SII registers in segunda categoría only, a month without F29 is
   « sin declarar » only when its issued boletas carry retención del emisor, read from the BTE

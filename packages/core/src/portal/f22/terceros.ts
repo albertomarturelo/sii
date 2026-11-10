@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import { HOSTS } from '../../config/index.js';
 import { F22Error } from '../../errors/index.js';
+import { repairMojibake } from '../../format/text.js';
 import type { Anio } from '../../periodo/index.js';
 import type { Rut } from '../../rut/index.js';
 import type { PortalSession } from '../../seams/index.js';
@@ -103,25 +104,12 @@ const roto = (what: string): F22Error =>
   new F22Error(`Scraper roto: ${what} (información de terceros, F22).`);
 
 // --- Values ------------------------------------------------------------------------
-/** One title arrived double-encoded (UTF-8 bytes read as Latin-1: `EnajenaciÃ³n`, `NÂ°`)
- *  while the others were clean (observed 2026-10-21). Re-decode only that pattern, and only
- *  when the bytes are valid UTF-8; anything else stays as SII sent it. */
-function fixMojibake(s: string): string {
-  if (!/[ÃÂ]/.test(s)) return s;
-  const codes = [...s].map((ch) => ch.charCodeAt(0));
-  if (codes.some((c) => c > 0xff)) return s;
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(codes));
-  } catch {
-    return s;
-  }
-}
-
-/** A label or text value: re-decoded, `&nbsp;`/U+00A0 as a space, whitespace collapsed;
+/** A label or text value: re-decoded (one title arrived double-encoded while the others were
+ *  clean, `EnajenaciÃ³n`, `NÂ°`: observed 2026-10-21; `repairMojibake`), `&nbsp;`/U+00A0 as a space, whitespace collapsed;
  *  blank ⇒ null (a blank cell is a legitimately absent value, CONVENTIONS). */
 function text(v: unknown): string | null {
   if (v === null || v === undefined) return null;
-  const s = fixMojibake(String(v))
+  const s = repairMojibake(String(v))
     .replace(/&nbsp;| /g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
