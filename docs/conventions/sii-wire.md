@@ -42,8 +42,8 @@ rule to `CONVENTIONS.md` (ADR-007).
   DOUBLE-ENCODED (the UTF-8 bytes of an already-mojibaked string), so even a correct decode
   yields `DeclaraciÃ³n`: the DTE borradores (2026-09-08), one F22 terceros title (2026-10-21),
   the F22 estado and historial glosas (2026-11-09, GH-264), each mixed with clean text. The
-  repair acts only on the `Ã`/`Â` + continuation pair with a clean UTF-8 round trip, so clean
-  accents stay. Glosas, descripciones and titles go through it; codes, folios, dates, montos
+  encoding is Windows-1252, not Latin-1 (`LIQUIDACIÃ“N`, GH-271). The repair acts only on the
+  `Ã`/`Â` + continuation pair with a clean UTF-8 round trip, so clean accents stay. Glosas, descripciones and titles go through it; codes, folios, dates, montos
   and anything sent back to SII never do. Fixed three times in three facades before this rule.
 - **Inline-JS-map facades (legacy CGIs) GET the page with `requestText` and parse the map
   statements with `readInlineMap`, NOT `requestJson`, never `evaluate`.** Some surfaces
