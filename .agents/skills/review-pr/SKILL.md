@@ -3,6 +3,7 @@ name: review-pr
 description: "Review a PR against the project's context (ADRs, CONVENTIONS, the linked issue's acceptance criteria) without scanning full files; report Critical / Suggestions / Nits, never auto-fix. Use when asked to review a pull request, or to self-review before opening one."
 argument-hint: "[pr-number]"
 metadata:
+  cfd-version: "0.4.0"
   token-budget: "≤6,000"
 ---
 

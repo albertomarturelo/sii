@@ -4,6 +4,7 @@ description: "Pick up a GitHub issue as the focus of this session: fetch it, loa
 argument-hint: "[issue-number]"
 disable-model-invocation: true
 metadata:
+  cfd-version: "0.4.0"
   token-budget: "~2,000–4,000 (issue + ADRs + 1 reference file)"
 ---
 

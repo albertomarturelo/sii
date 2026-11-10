@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Token budget: ~0 (executed by the telemetry-report skill, never loaded
-# into model context; reading this file costs ~6,000 tokens).
+# into model context; reading this file costs ~7,000 tokens).
 """Agent telemetry for a CFD project: local dashboard + publishable report.
 
 Reads the session logs that coding agents already keep on this machine,
@@ -17,6 +17,10 @@ Usage:
 Adapters (add one function to ADAPTERS to support another agent):
   Claude Code  ~/.claude/projects/<slug>/**/*.jsonl   (CLAUDE_CONFIG_DIR)
   Codex        ~/.codex/sessions/**/rollout-*.jsonl[.zst]   (CODEX_HOME)
+  Copilot CLI  ~/.copilot/session-store.db, usage table only   (COPILOT_HOME)
+  Copilot      the OpenTelemetry file export of Copilot Chat in VS Code:
+               the path in github.copilot.chat.otel.outfile (user settings);
+               nothing without it
 
 These log formats are undocumented and change between agent versions.
 Every adapter counts what it could not read and the dashboard prints
@@ -50,10 +54,12 @@ import os
 import re
 import secrets
 import shutil
+import sqlite3
 import statistics
 import subprocess
 import sys
 import tempfile
+import urllib.request
 import webbrowser
 
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
@@ -257,7 +263,157 @@ def read_codex_file(fh, project, health):
     return s
 
 
-ADAPTERS = [("claude", read_claude), ("codex", read_codex)]
+# ----------------------------------------------------------------- Copilot CLI
+
+COPILOT_CLI_EDIT_TOOLS = {"apply_patch", "edit", "create"}
+COPILOT_CLI_HINT = "no session store on this machine (~/.copilot/session-store.db or COPILOT_HOME)"
+
+
+def read_copilot_cli(project, health):
+    """Copilot CLI keeps a SQLite session store. Recent versions (observed in
+    1.0.108) add `assistant_usage_events`: one row per model request, token
+    counts and no text. `input_tokens` there is uncached input + cache read +
+    cache write; `output_tokens` includes reasoning.
+
+    The same store (`turns`, `checkpoints`) and session-state/*/events.jsonl
+    hold prompts and responses. Every query below names its columns, and none
+    of those tables or files is ever opened.
+
+    Its OpenTelemetry export is not read: the store needs no setup, covers
+    sessions that predate the export, and reading both would count twice.
+
+    Cases the summary tells apart: no store (`copilot_cli_source_missing`), a
+    store from a version that records no usage (`copilot_cli_no_usage_table`),
+    a store whose sessions all belong to other projects (`copilot_cli_scanned`
+    > 0, nothing returned), sessions read."""
+    home = os.environ.get("COPILOT_HOME") or os.path.expanduser("~/.copilot")
+    path = os.path.join(home, "session-store.db")
+    if not os.path.isfile(path):
+        health["copilot_cli_source_missing"] = 1
+        return []
+    try:
+        db = sqlite3.connect("file:" + urllib.request.pathname2url(path) + "?mode=ro",
+                             uri=True, timeout=5)
+    except sqlite3.Error:
+        health["copilot_cli_unreadable"] = 1
+        return []
+    try:
+        return read_copilot_cli_store(db, project, health)
+    except sqlite3.Error:            # locked, corrupt, or a column renamed by a new version
+        health["copilot_cli_unreadable"] = 1
+        return []
+    finally:
+        db.close()
+
+
+def read_copilot_cli_store(db, project, health):
+    tables = {name for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'")}
+    if "sessions" not in tables:
+        health["copilot_cli_unreadable"] = 1
+        return []
+    sessions = {}
+    for sid, cwd, branch in db.execute("SELECT id, cwd, branch FROM sessions"):
+        health["copilot_cli_scanned"] += 1
+        if under(cwd, project):
+            sessions[sid] = (Session("copilot-cli", sid), branch or "")
+    if "assistant_usage_events" not in tables:
+        health["copilot_cli_no_usage_table"] = 1
+        return []
+    if not sessions:
+        return []
+    turns = collections.defaultdict(set)
+    for (sid, ts, model, i, o, r, w, agent, parent, turn) in db.execute(
+            "SELECT session_id, created_at, model, input_tokens, output_tokens, cache_read_tokens, "
+            "cache_write_tokens, agent_id, parent_tool_call_id, turn_index "
+            "FROM assistant_usage_events ORDER BY id"):
+        if sid not in sessions:
+            continue
+        s, branch = sessions[sid]
+        when = parse_ts(ts)
+        if when is None:
+            health["copilot_cli_bad_rows"] += 1
+            continue
+        if i is None or o is None:
+            health["copilot_cli_no_usage"] += 1
+            continue
+        r, w, sub = r or 0, w or 0, bool(agent or parent)
+        s.marks.append(when)
+        s.requests.append({"ts": when, "branch": branch, "model": model or "",
+                           "i": max(i - r - w, 0), "o": o, "r": r, "w": w,
+                           "skill": "", "sub": sub})
+        if not sub and turn is not None:
+            turns[sid].add(turn)
+    if "session_files" in tables:   # file_path is never selected
+        for sid, tool, ts in db.execute("SELECT session_id, tool_name, first_seen_at FROM session_files"):
+            when = parse_ts(ts)
+            if sid in sessions and tool in COPILOT_CLI_EDIT_TOOLS and when:
+                s = sessions[sid][0]
+                s.first_edit = min(s.first_edit or when, when)
+    result = []
+    for sid, (s, _) in sessions.items():
+        s.turns = len(turns[sid])
+        if s.requests:
+            result.append(s)
+    return result
+
+
+# --------------------------------------------------------------------- Copilot
+
+COPILOT_OUTFILE_KEY = "github.copilot.chat.otel.outfile"
+COPILOT_SOURCE_HINT = ("no OpenTelemetry file export on this machine (set %s in VS Code "
+                       "user settings; see SKILL.md)" % COPILOT_OUTFILE_KEY)
+
+
+def copilot_export_path():
+    """Copilot Chat has no fixed log location: the user names the export file
+    in the `outfile` setting of each VS Code user settings.json. That file is
+    JSONC (comments, trailing commas), so the key is matched with a pattern
+    instead of json.loads.
+
+    COPILOT_OTEL_FILE_EXPORTER_PATH is not read: Copilot CLI honours the same
+    variable, so a path found there cannot be attributed to either product."""
+    home = os.path.expanduser("~")
+    roots = [os.path.join(home, "Library", "Application Support"), os.path.join(home, ".config")]
+    if os.environ.get("APPDATA"):
+        roots.insert(0, os.environ["APPDATA"])
+    pattern = re.compile(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)"' % re.escape(COPILOT_OUTFILE_KEY))
+    for root in roots:
+        for app in ("Code", "Code - Insiders"):
+            try:
+                with open(os.path.join(root, app, "User", "settings.json"), encoding="utf-8",
+                          errors="replace") as fh:
+                    found = pattern.search(fh.read())
+            except OSError:
+                continue
+            if found and found.group(1):
+                try:
+                    return os.path.expanduser(json.loads('"' + found.group(1) + '"'))
+                except ValueError:
+                    continue
+    return None
+
+
+def read_copilot(project, health):
+    """Three cases the summary tells apart: no export on this machine
+    (`copilot_source_missing`), an export whose sessions all belong to other
+    projects (`copilot_scanned` > 0, no session returned), sessions read.
+
+    The parser is not written yet: the export's record shape has to be
+    observed on a real file first, and none was available. An export that
+    exists is therefore reported as found-but-unread (`copilot_unparsed`),
+    never as zero sessions, so nobody mistakes a gap for "no usage"."""
+    path = copilot_export_path()
+    health["copilot_scanned"] += 0
+    if not path or not os.path.isfile(path):
+        health["copilot_source_missing"] = 1
+        return []
+    health["copilot_unparsed"] = 1
+    return []
+
+
+ADAPTERS = [("claude", read_claude), ("codex", read_codex),
+            ("copilot-cli", read_copilot_cli), ("copilot", read_copilot)]
+SOURCE_HINTS = {"copilot": COPILOT_SOURCE_HINT, "copilot-cli": COPILOT_CLI_HINT}
 
 
 # ------------------------------------------------------------------ aggregation
@@ -543,13 +699,30 @@ def main():
     print("Project   " + project)
     for agent, _ in ADAPTERS:
         mine = [r for r in rows if r["a"] == agent]
-        print("%-9s %3d sessions  %6d requests  %12s output tokens" % (
-            agent, len(mine), sum(r["n"] for r in mine), format(sum(r["o"] for r in mine), ",")))
+        key = agent.replace("-", "_")   # health counters: copilot-cli -> copilot_cli_*
+        # An adapter may say WHY it has nothing: its source is absent from this
+        # machine, or present but every session belongs to another project.
+        # Zeros alone cannot tell those apart from "nothing read here".
+        if health.get(key + "_source_missing") and not mine:
+            print("%-11s %s" % (agent, SOURCE_HINTS.get(agent, "source not found on this machine")))
+        elif health.get(key + "_unparsed") and not mine:
+            print("%-11s export found, but this version does not read it yet" % agent)
+        elif health.get(key + "_no_usage_table") and not mine:
+            print("%-11s session store found, but this version of the agent records no usage "
+                  "(update it)" % agent)
+        elif health.get(key + "_unreadable") and not mine:
+            print("%-11s session store found, but it could not be read" % agent)
+        elif not mine and health.get(key + "_scanned"):
+            print("%-11s %3d sessions on this machine, none for this project" % (
+                agent, health[key + "_scanned"]))
+        else:
+            print("%-11s %3d sessions  %6d requests  %12s output tokens" % (
+                agent, len(mine), sum(r["n"] for r in mine), format(sum(r["o"] for r in mine), ",")))
     if rows:
         print("Median context at first request: " + format(
             int(statistics.median(r["ctx0"] for r in rows)), ","))
     for key in sorted(health):
-        if not key.endswith("_files") and health[key]:
+        if not key.endswith(("_files", "_scanned", "_source_missing")) and health[key]:
             print("  note  %-22s %d" % (key, health[key]))
     print("Wrote     " + out)
     if not args.out and subprocess.run(["git", "-C", project, "check-ignore", "-q", out],
