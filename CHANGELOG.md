@@ -23,10 +23,16 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed: the F22's código glosas read accents as SII meant them (#267).** SII double-encodes
-  some `f22Compacto` glosas too, so `f22Status`' códigos (and, with `full`, its grupos) returned
-  « devoluciÃ³n » or « deberÃ¡ ». They are repaired like the estado and the historial
-  (#264).
+## 0.19.2 — 2026-11-09 — Las glosas
+
+A patch for the F22's accents (#267), the rest of 0.19.1's fix.
+
+**The F22's código glosas read their accents as SII meant them.** 0.19.1 repaired the estado,
+the historial and the observaciones, but SII double-encodes some of the form's código glosas too,
+so `f22Status`' códigos (and, with `full`, its grupos) could still read « devoluciÃ³n » or
+« deberÃ¡ ». They are now repaired the same way; clean text, códigos and valores are unchanged.
+
+A PATCH: a fix. Nothing breaks, nothing is added.
 
 ## 0.19.1 — 2026-11-09 — Honorarios y tildes
 

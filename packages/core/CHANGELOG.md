@@ -4,6 +4,15 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.19.2 — 2026-11-09
+
+### Fixed
+
+- **`f22Status` repairs double-encoded código glosas (#267).** `fetchF22Grid` (`f22Compacto`)
+  returns each código's `glosa` through `repairedText`, as the estado, historial and
+  observaciones do since 0.19.1 (« devoluciÃ³n » ⇒ « devolución »). Códigos, valores and the PII
+  drop are unchanged.
+
 ## 0.19.1 — 2026-11-09
 
 ### Changed
