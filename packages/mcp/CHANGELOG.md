@@ -9,6 +9,13 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.19.2 — 2026-11-09
+
+### Fixed
+
+- **`f22_status` and `f22_formulario` return the códigos' accents as SII meant them (#267).** The
+  repair is the core's; the tools' inputs and results are unchanged.
+
 ## 0.19.1 — 2026-11-09
 
 ### Changed
