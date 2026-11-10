@@ -22,6 +22,7 @@ const cp1252Byte = (ch: string): number => CP1252_BYTE.get(ch) ?? ch.codePointAt
  *  pair (the continuation byte in its Latin-1 or cp1252 form), holds nothing else beyond one byte,
  *  and the round trip decodes cleanly, so legitimately-accented text is left untouched. */
 export function repairMojibake(v: string): string {
+  if (!/[ÂÃ]/.test(v)) return v; // every tell-tale pair starts with Â or Ã
   const codes = Array.from(v, cp1252Byte);
   const tellTale = codes.some(
     (c, i) =>
