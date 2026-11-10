@@ -23,10 +23,17 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed: capital accents in SII's double-encoded text read as SII meant them (#271).** SII's
-  double encoding is Windows-1252, not Latin-1, so a glosa with « Ó », « É » or « Ñ » (F22 código
-  305's « LIQUIDACIÃ“N … deberÃ¡ ») was left broken whole. It is now repaired; clean text is
-  unchanged.
+## 0.19.3 — 2026-11-10 — Las mayúsculas
+
+A patch for the accents 0.19.1 and 0.19.2 still missed (#271).
+
+**Capital accents in SII's double-encoded text read as SII meant them.** SII's double encoding is
+Windows-1252, not Latin-1: a capital « Ó », « É », « Ñ » or « Ú » arrived as a pair the repair did
+not recognise, so the whole string was left broken, its other accents too (F22 código 305's
+« LIQUIDACIÃ“N … deberÃ¡ »). Those strings are now repaired; clean text, including text with
+« “ », « – » or « € », is unchanged.
+
+A PATCH: a fix. Nothing breaks, nothing is added.
 
 ## 0.19.2 — 2026-11-09 — Las glosas
 

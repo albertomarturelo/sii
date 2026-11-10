@@ -4,6 +4,17 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.19.3 — 2026-11-10
+
+### Fixed
+
+- **`repairMojibake` repairs SII's Windows-1252 double encoding (#271).** A UTF-8 second byte in
+  0x80–0x9F (the capitals « À »–« ß »: « Ó », « É », « Ñ », « Ú ») arrives as one of cp1252's
+  characters above U+00FF, which the guard took for clean text, leaving the whole string broken
+  (« LIQUIDACIÃ“N … deberÃ¡ »). They map back to their byte before the test and the round trip.
+  Every text repaired since 0.19.1 gains it: the F22's estado, historial, observaciones, códigos
+  and terceros, and the mipyme DTE borradores. Clean text with « “ », « – » or « € » is untouched.
+
 ## 0.19.2 — 2026-11-09
 
 ### Fixed

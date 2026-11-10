@@ -9,6 +9,14 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.19.3 — 2026-11-10
+
+### Fixed
+
+- **`sii f22` and `sii dte borrador list` show capital accents as SII meant them (#271).**
+  « LIQUIDACIÃ“N » reads « LIQUIDACIÓN ». The repair is the core's; the commands' flags and output
+  are unchanged.
+
 ## 0.19.2 — 2026-11-09
 
 ### Fixed
