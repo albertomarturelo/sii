@@ -63,6 +63,26 @@ describe('F22 grid facade (fake session, synthetic envelopes, no SII)', () => {
     expect(codigos.map((c) => c.valor)).toEqual([150000, 0]);
   });
 
+  it('f22Compacto: repairs a cp1252 double-encoded capital accent in código 305 (GH-271)', async () => {
+    const s = session(() => ({
+      metaData: {},
+      data: [
+        {
+          codigo: '305',
+          valor: '0',
+          glosa:
+            'RESULTADO LIQUIDACI\u00c3\u201cN ANUAL IMPUESTO A LA RENTA (deber\u00c3\u00a1 declarar)',
+        },
+      ],
+    }));
+
+    const codigos = await fetchF22Grid(s, { rut: RUT, anio: ANIO, folio: '12345' });
+
+    expect(codigos.map((c) => c.glosa)).toEqual([
+      'RESULTADO LIQUIDACIÓN ANUAL IMPUESTO A LA RENTA (deberá declarar)',
+    ]);
+  });
+
   it('f22Compacto: parses es-CL montos (dot=thousands) — millions and singles alike', async () => {
     // SII serves montos in Chilean format. Number() would make "9.999" → 9.999 and
     // "12.345.678" → NaN (two dots) → null → "—". The parser must strip thousands dots.

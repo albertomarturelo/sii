@@ -15,6 +15,22 @@ describe('repairMojibake (SII double-encoded text)', () => {
     expect(repairMojibake('Ã\u0091uÃ±oa')).toBe('Ñuñoa');
   });
 
+  it('repairs a cp1252 double encoding: a capital accent whose second byte is 0x80–0x9F (GH-271)', () => {
+    // « Ó » is C3 93; SII read 0x93 as cp1252's `“` (U+201C). The « á » beside it is repaired too.
+    expect(
+      repairMojibake('RESULTADO LIQUIDACI\u00c3\u201cN ANUAL (deber\u00c3\u00a1 declarar)'),
+    ).toBe('RESULTADO LIQUIDACIÓN ANUAL (deberá declarar)');
+    // « É » C3 89 → `‰`, « Ñ » C3 91 → `‘`, « Ú » C3 9A → `š`, « Á » C3 81 (undefined in cp1252).
+    expect(
+      repairMojibake('CR\u00c3\u2030DITO A\u00c3\u2018O \u00c3\u0161LTIMO R\u00c3\u0081PIDO'),
+    ).toBe('CRÉDITO AÑO ÚLTIMO RÁPIDO');
+  });
+
+  it('leaves clean text with cp1252 punctuation alone when it carries no tell-tale pair', () => {
+    expect(repairMojibake('Plazo “vigente” – 2025, € 10')).toBe('Plazo “vigente” – 2025, € 10');
+    expect(repairMojibake('LIQUIDACIÓN – «deberá»')).toBe('LIQUIDACIÓN – «deberá»');
+  });
+
   it('leaves clean text alone: plain, correctly accented, or with characters above U+00FF', () => {
     expect(repairMojibake('TALLER DEL SUR LTDA')).toBe('TALLER DEL SUR LTDA');
     expect(repairMojibake('Declaración recibida')).toBe('Declaración recibida');

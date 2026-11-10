@@ -23,6 +23,11 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Fixed: capital accents in SII's double-encoded text read as SII meant them (#271).** SII's
+  double encoding is Windows-1252, not Latin-1, so a glosa with « Ó », « É » or « Ñ » (F22 código
+  305's « LIQUIDACIÃ“N … deberÃ¡ ») was left broken whole. It is now repaired; clean text is
+  unchanged.
+
 ## 0.19.2 — 2026-11-09 — Las glosas
 
 A patch for the F22's accents (#267), the rest of 0.19.1's fix.
