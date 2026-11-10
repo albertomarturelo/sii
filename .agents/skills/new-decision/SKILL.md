@@ -2,6 +2,7 @@
 name: new-decision
 description: "Guide the user through documenting a new architectural decision as an ADR (≤100 lines) with real alternatives, then update docs/decisions/_index.md. Use when a significant decision surfaces without an ADR: a new dependency, a moved layer boundary, a choice between plausible patterns, or a new surface verb."
 metadata:
+  cfd-version: "0.4.0"
   token-budget: "~1,000–2,500 for the whole flow"
 ---
 

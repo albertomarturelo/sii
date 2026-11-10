@@ -1,6 +1,6 @@
 <!doctype html>
-<!-- Token budget: ~0 (template filled by telemetry.py, never loaded into
-     model context; reading this file costs ~9,000 tokens). The script
+<!-- Token budget: ~0 (template filled by telemetry.py or central.py, never
+     loaded into model context; reading this file costs ~11,000 tokens). The script
      replaces the data placeholder below; do not open this file directly. -->
 <html lang="en">
 <head>
@@ -12,7 +12,7 @@
   color-scheme: light;
   --bg: #E7E8EC; --surface: #F2F3F6; --surface-2: #FBFBFD; --border: #CBCFD8;
   --grid: #DADDE4; --text: #171921; --muted: #565B68; --accent: #A8690F;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #8a5cd6;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
@@ -21,7 +21,7 @@
     color-scheme: dark;
     --bg: #0F1118; --surface: #171A22; --surface-2: #1E222D; --border: #2B303C;
     --grid: #242934; --text: #E9EAF0; --muted: #969CAB; --accent: #F0A93E;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #9a72e8;
   }
 }
 * { box-sizing: border-box; }
@@ -41,6 +41,9 @@ header h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
 .seg button.on { background: var(--surface-2); color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
 .seg button:focus-visible, .more:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .agent { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); cursor: pointer; }
+.picks { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; flex-basis: 100%; }
+.picks .eyebrow { margin: 0; }
+.picks .more { margin: 0; padding: 2px 10px; }
 .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
 .tile, .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
@@ -99,7 +102,7 @@ footer p { margin: 4px 0; max-width: 90ch; }
 <body>
 <main>
   <header>
-    <p class="eyebrow">Local agent telemetry</p>
+    <p class="eyebrow" id="eyebrow">Local agent telemetry</p>
     <h1 id="title"></h1>
     <p class="sub" id="subtitle"></p>
   </header>
@@ -131,6 +134,12 @@ footer p { margin: 4px 0; max-width: 90ch; }
     <div class="scroll" id="tasks"></div>
   </section>
 
+  <section class="card" id="repos-card" hidden>
+    <h2>By repository</h2>
+    <p class="lede">Every session of the selected contributors and agents, per repository.</p>
+    <div class="scroll" id="repos"></div>
+  </section>
+
   <section class="card" id="skills-card">
     <h2>By skill</h2>
     <p class="lede">Requests the agent attributed to a skill. A run is one uninterrupted stretch of requests under the same skill.</p>
@@ -152,11 +161,17 @@ footer p { margin: 4px 0; max-width: 90ch; }
 (function () {
   const D = JSON.parse(document.getElementById('data').textContent);
   const AGENTS = { claude: ['Claude Code', 'var(--s1)'], codex: ['Codex', 'var(--s2)'],
-    copilot: ['Copilot', 'var(--s3)'], gemini: ['Gemini CLI', 'var(--s4)'] };
+    'copilot-cli': ['Copilot CLI', 'var(--s5)'], copilot: ['Copilot Chat', 'var(--s3)'],
+    gemini: ['Gemini CLI', 'var(--s4)'] };
   const METRICS = [['o', 'Output'], ['f', 'Fresh input'], ['r', 'Cache read'], ['n', 'Requests']];
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const WINDOW = 14, PAGE = 12;
-  const st = { range: 'all', agents: new Set(D.agents), metric: 'o', open: {} };
+  // Team mode (central.py): sessions carry `repo` and `dev`, filtered like agents.
+  // People are listed alphabetically and never ordered by what they consumed.
+  const TEAM = D.mode === 'team', PEOPLE = D.people || [], REPOS = D.repos || [];
+  const LABEL = Object.fromEntries(PEOPLE.map((p) => [p.id, p.label]));
+  const st = { range: 'all', agents: new Set(D.agents), metric: 'o', open: {},
+    devs: new Set(PEOPLE.map((p) => p.id)), repos: new Set(REPOS) };
 
   const $ = (s) => document.querySelector(s);
   function el(tag, props, ...kids) {
@@ -194,8 +209,10 @@ footer p { margin: 4px 0; max-width: 90ch; }
   }
   const val = (b, m) => (m === 'o' ? b.o : m === 'f' ? b.i + b.w : m === 'r' ? b.r : b.n);
   const fromDay = () => (st.range === 'all' ? -Infinity : dn(D.today) - +st.range + 1);
-  const buckets = () => D.buckets.filter((b) => st.agents.has(b.a) && dn(b.d) >= fromDay());
-  const sessions = () => D.sessions.filter((s) => st.agents.has(s.a) && dn(s.d) >= fromDay());
+  const keep = (x) => st.agents.has(x.a) && (!TEAM || (st.devs.has(x.dev) && st.repos.has(x.repo)));
+  const buckets = () => D.buckets.filter((b) => keep(b) && dn(b.d) >= fromDay());
+  const sessions = () => D.sessions.filter((s) => keep(s) && dn(s.d) >= fromDay());
+  const changes = () => D.changes.filter((c) => !TEAM || st.repos.has(c.repo));
   const num = (n, title) => el('td', { class: 'num', title: title || (n == null ? null : full(n)) }, fmt(n));
 
   function table(heads, rows, key) {
@@ -234,8 +251,23 @@ footer p { margin: 4px 0; max-width: 90ch; }
       const sw = el('span', { class: 'sw' }); sw.style.background = AGENTS[a][1];
       return el('label', { class: 'agent' }, box, sw, AGENTS[a][0]);
     });
-    $('#filters').replaceChildren(range, ...picks);
+    $('#filters').replaceChildren(range, ...picks,
+      ...(TEAM ? [pickGroup('Contributors', PEOPLE.map((p) => [p.id, p.label]), st.devs),
+        pickGroup('Repositories', REPOS.map((r) => [r, r]), st.repos)].filter(Boolean) : []));
     segmented($('#metric'), METRICS, st.metric, (v) => { st.metric = v; render(); });
+  }
+
+  function pickGroup(title, options, chosen) {
+    if (options.length < 2) return null;
+    const boxes = options.map(([v, label]) => {
+      const box = el('input', { type: 'checkbox', checked: chosen.has(v) ? '' : false });
+      box.addEventListener('change', () => { box.checked ? chosen.add(v) : chosen.delete(v); render(); });
+      return el('label', { class: 'agent' }, box, label);
+    });
+    const all = chosen.size === options.length ? null : el('button', { class: 'more', type: 'button', text: 'All',
+      onclick: () => { options.forEach(([v]) => chosen.add(v)); render(); } });
+    return el('div', { class: 'picks', role: 'group', 'aria-label': title },
+      el('span', { class: 'eyebrow', text: title }), ...boxes, all);
   }
 
   // -------------------------------------------------------------------- tiles
@@ -308,7 +340,7 @@ footer p { margin: 4px 0; max-width: 90ch; }
     const totals = Array.from({ length: nb }, (_, i) => ags.reduce((t, a) => t + series[a][i], 0));
     const step = niceStep(Math.max(...totals, 1)), top = step * 4;
     const marks = {};
-    for (const c of D.changes) {
+    for (const c of changes()) {
       const i = Math.floor((dn(c.d) - d0) / bin);
       if (i >= 0 && i < nb) (marks[i] = marks[i] || []).push(c);
     }
@@ -375,18 +407,21 @@ footer p { margin: 4px 0; max-width: 90ch; }
 
   // ----------------------------------------------------------- before / after
   function renderImpact(ss) {
-    const byDay = {};
-    for (const c of D.changes) (byDay[c.d] = byDay[c.d] || []).push(c);
+    // A change only moves the sessions of its own repository.
+    const byDay = {}, many = TEAM && st.repos.size > 1;
+    for (const c of changes()) { const k = c.d + '\u0000' + (c.repo || ''); (byDay[k] = byDay[k] || []).push(c); }
     const measures = [(s) => s.ctx0, (s) => s.orient, (s) => s.o / Math.max(s.turns, 1)];
     const rows = [];
-    for (const d of Object.keys(byDay).sort().reverse()) {
-      const n = dn(d);
-      const before = ss.filter((s) => dn(s.d) >= n - WINDOW && dn(s.d) < n);
-      const after = ss.filter((s) => dn(s.d) >= n && dn(s.d) < n + WINDOW);
+    for (const k of Object.keys(byDay).sort().reverse()) {
+      const [d, repo] = k.split('\u0000'), n = dn(d);
+      const mine = TEAM ? ss.filter((s) => s.repo === repo) : ss;
+      const before = mine.filter((s) => dn(s.d) >= n - WINDOW && dn(s.d) < n);
+      const after = mine.filter((s) => dn(s.d) >= n && dn(s.d) < n + WINDOW);
       if (!before.length && !after.length) continue;
-      const list = byDay[d], thin = before.length < 3 || after.length < 3;
+      const list = byDay[k], thin = before.length < 3 || after.length < 3;
       rows.push(el('tr', { class: thin ? 'thin' : null },
-        el('td', { class: 'name' }, shortDay(n), el('small', { title: list.map((c) => c.subject).join('\n'),
+        el('td', { class: 'name' }, shortDay(n), many ? el('span', { class: 'chip', text: repo }) : null,
+          el('small', { title: list.map((c) => c.subject).join('\n'),
           text: list[0].subject + (list.length > 1 ? '  +' + (list.length - 1) + ' more' : '') })),
         el('td', { class: 'num', text: before.length + ' / ' + after.length }),
         ...measures.map((f) => {
@@ -397,7 +432,7 @@ footer p { margin: 4px 0; max-width: 90ch; }
         })));
     }
     const box = $('#impact');
-    if (!D.changes.length) {
+    if (!changes().length) {
       box.replaceChildren(el('p', { class: 'empty', text: 'No commits touched the context files of this project.' }));
     } else if (!rows.length) {
       box.replaceChildren(el('p', { class: 'empty', text: 'No sessions within 14 days of a context change in this range.' }));
@@ -411,9 +446,10 @@ footer p { margin: 4px 0; max-width: 90ch; }
 
   // --------------------------------------------------------------------- tasks
   function renderTasks(fb) {
-    const by = {};
+    const by = {}, many = TEAM && st.repos.size > 1;
     for (const b of fb) {
-      const t = by[b.b] = by[b.b] || { b: b.b, s: new Set(), d: new Set(), n: 0, o: 0, f: 0, r: 0 };
+      const k = (many ? b.repo + '\u0000' : '') + b.b;   // the same branch name in two repos is two tasks
+      const t = by[k] = by[k] || { b: b.b, repo: b.repo, s: new Set(), d: new Set(), n: 0, o: 0, f: 0, r: 0 };
       t.s.add(b.s); t.d.add(b.d); t.n += b.n; t.o += b.o; t.f += b.i + b.w; t.r += b.r;
     }
     const list = Object.values(by).sort((x, y) => y.o - x.o), max = Math.max(...list.map((t) => t.o), 0);
@@ -423,16 +459,33 @@ footer p { margin: 4px 0; max-width: 90ch; }
       return el('tr', null,
         el('td', { class: 'name' }, t.b || '(no branch recorded)',
           issue ? el('span', { class: 'chip', text: '#' + issue[1] }) : null,
-          trunk ? el('span', { class: 'chip', text: 'no task branch' }) : null),
+          trunk ? el('span', { class: 'chip', text: 'no task branch' }) : null,
+          many ? el('small', { text: t.repo }) : null),
         num(t.s.size), num(t.d.size), num(t.n), magnitude(t.o, max), num(t.f), num(t.r));
     });
     $('#tasks').replaceChildren(table([['Branch'], ['Sessions', 1], ['Days', 1], ['Requests', 1], ['Output', 1],
       ['Fresh input', 1], ['Cache read', 1]], rows, 'tasks'));
   }
 
+  // -------------------------------------------------------------- repositories
+  function renderRepos(fb) {
+    $('#repos-card').hidden = !(TEAM && REPOS.length > 1);
+    if ($('#repos-card').hidden) return;
+    const by = {};
+    for (const b of fb) {
+      const t = by[b.repo] = by[b.repo] || { repo: b.repo, p: new Set(), s: new Set(), d: new Set(), n: 0, o: 0, f: 0, r: 0 };
+      t.p.add(b.dev); t.s.add(b.s); t.d.add(b.d); t.n += b.n; t.o += b.o; t.f += b.i + b.w; t.r += b.r;
+    }
+    const list = Object.values(by).sort((x, y) => y.o - x.o), max = Math.max(...list.map((t) => t.o), 0);
+    $('#repos').replaceChildren(table([['Repository'], ['Contributors', 1], ['Sessions', 1], ['Days', 1], ['Requests', 1],
+      ['Output', 1], ['Fresh input', 1], ['Cache read', 1]],
+    list.map((t) => el('tr', null, el('td', { class: 'name', text: t.repo }), num(t.p.size), num(t.s.size), num(t.d.size),
+      num(t.n), magnitude(t.o, max), num(t.f), num(t.r))), 'repos'));
+  }
+
   // -------------------------------------------------------------------- skills
   function renderSkills() {
-    const runs = D.runs.filter((r) => st.agents.has(r.a) && dn(r.d) >= fromDay());
+    const runs = D.runs.filter((r) => keep(r) && dn(r.d) >= fromDay());
     $('#skills-card').hidden = !D.runs.length;
     const by = {};
     for (const r of runs) (by[r.k] = by[r.k] || []).push(r);
@@ -452,7 +505,8 @@ footer p { margin: 4px 0; max-width: 90ch; }
     const rows = ss.slice().reverse().map((s) => {
       const sw = el('span', { class: 'sw' }); sw.style.background = AGENTS[s.a][1];
       return el('tr', null,
-        el('td', { style: 'white-space:nowrap' }, s.start, el('small', { text: s.id })),
+        el('td', { style: 'white-space:nowrap' }, s.start, el('small', { text: s.id }),
+          TEAM ? el('small', { text: (LABEL[s.dev] || s.dev) + (REPOS.length > 1 ? ' · ' + s.repo : '') }) : null),
         el('td', null, el('span', { style: 'white-space:nowrap' }, sw, ' ', AGENTS[s.a][0]),
           el('small', { title: s.models.join('\n'), text: (s.models[0] || '') + (s.models.length > 1 ? ' +' + (s.models.length - 1) : '') })),
         el('td', { class: 'name', title: s.branches.join('\n') }, s.branches[0] || '–',
@@ -467,7 +521,28 @@ footer p { margin: 4px 0; max-width: 90ch; }
   }
 
   // -------------------------------------------------------------------- health
+  function renderTeamHealth() {
+    const h = D.health, n = (k) => full(h[k] || 0), rep = D.reporting || [];
+    const stale = rep.filter((r) => r.stale), gaps = {};
+    for (const r of rep) for (const k of r.gaps) gaps[k] = (gaps[k] || 0) + 1;
+    const lines = [
+      'Reporting: ' + (rep.length - stale.length) + ' of ' + rep.length + ' contributor reports were updated in the last ' +
+        D.stale_days + ' days. A contributor who does not report is missing from these totals, not at zero.',
+      stale.length ? 'Not reporting: ' + stale.map((r) => r.label + (REPOS.length > 1 ? ' (' + r.repo + ')' : '') +
+        ', last report ' + (r.updated || 'unknown')).join('; ') + '.' : null,
+      Object.keys(gaps).length ? 'Gaps the contributors\' scripts reported on their last publish: ' +
+        Object.keys(gaps).sort().map((k) => k + ' (' + gaps[k] + ')').join(', ') + '.' : null,
+      'Repositories: ' + n('repos_read') + ' read, ' + n('repos_unreachable') + ' unreachable, ' + n('repos_without_branch') +
+        ' without a telemetry branch, ' + n('repos_fetch_failed') + ' not refreshed (read from the cache). Report files: ' +
+        n('unreadable_files') + ' unreadable, ' + n('unknown_schema_files') + ' with an unknown schema version, skipped.',
+      'Contributors are listed alphabetically. Per-person numbers explain what a task cost; they are not a ranking.',
+      'Only counters are published. No prompt, response or file content is stored in this page. Generated ' + D.generated + '.',
+    ];
+    $('#health').replaceChildren(...lines.filter(Boolean).map((t) => el('p', { text: t })));
+  }
+
   function renderHealth() {
+    if (TEAM) return renderTeamHealth();
     const h = D.health, n = (k) => full(h[k] || 0);
     const lines = [
       'Claude Code: ' + n('claude_files') + ' transcript files read, ' + n('claude_dup_lines') + ' repeated lines collapsed, ' +
@@ -475,10 +550,32 @@ footer p { margin: 4px 0; max-width: 90ch; }
       'Codex: ' + n('codex_files') + ' session files read, ' + n('codex_bad_lines') + ' unreadable lines, ' +
         n('codex_unknown_files') + ' files in an unknown format, ' + n('codex_zst_skipped') +
         ' compressed sessions skipped' + (h.codex_zst_skipped ? ' (install zstd to read them).' : '.'),
+      h.copilot_cli_source_missing
+        ? 'Copilot CLI: no session store on this machine (~/.copilot/session-store.db), so its sessions are not counted.'
+        : h.copilot_cli_no_usage_table && !D.agents.includes('copilot-cli')
+        ? 'Copilot CLI: a session store exists, but this version of the CLI records no token usage. Update the CLI; ' +
+          'sessions from before the update stay uncounted.'
+        : h.copilot_cli_unreadable && !D.agents.includes('copilot-cli')
+        ? 'Copilot CLI: a session store exists, but it could not be read (locked, damaged, or a format change).'
+        : !D.agents.includes('copilot-cli') && h.copilot_cli_scanned
+          ? 'Copilot CLI: ' + n('copilot_cli_scanned') + ' sessions on this machine, none for this project.'
+          : 'Copilot CLI: ' + n('copilot_cli_scanned') + ' sessions in the store, ' + n('copilot_cli_bad_rows') +
+            ' unreadable rows, ' + n('copilot_cli_no_usage') + ' requests without token counts. Its ' +
+            'OpenTelemetry export is not read, so no session counts twice.',
+      h.copilot_source_missing
+        ? 'Copilot Chat: no OpenTelemetry file export on this machine. Copilot Chat in VS Code writes one once ' +
+          'github.copilot.chat.otel.outfile is set (see SKILL.md); until then its sessions are not counted.'
+        : h.copilot_unparsed && !D.agents.includes('copilot')
+        ? 'Copilot Chat: an OpenTelemetry file export exists on this machine, but this version of the script does not ' +
+          'read it yet, so its sessions are not counted.'
+        : !D.agents.includes('copilot') && h.copilot_scanned
+          ? 'Copilot Chat: export read, ' + n('copilot_scanned') + ' sessions on this machine, none for this project.'
+          : 'Copilot Chat: ' + n('copilot_sessions') + ' sessions read from the export, ' + n('copilot_bad_lines') +
+            ' unreadable lines, ' + n('copilot_no_usage') + ' requests without token counts.',
       full(h.history_only_sessions || 0) + ' sessions come from the local history file only: the agent has already deleted their logs. ' +
         'Agents prune old logs (Claude Code after 30 days by default), so run this at least monthly.',
       'Not measured here: re-explanation rate (it cannot be derived from logs) and agents without an adapter yet ' +
-        '(Copilot, Gemini). Human turns and time to first edit are approximations.',
+        '(Gemini). Human turns and time to first edit are approximations.',
       'Only counters leave the logs. No prompt, response or file content is stored in this page. Generated ' + D.generated + '.',
     ];
     $('#health').replaceChildren(...lines.map((t) => el('p', { text: t })));
@@ -487,13 +584,15 @@ footer p { margin: 4px 0; max-width: 90ch; }
   function render() {
     const fb = buckets(), ss = sessions();
     renderFilters(); renderTiles(fb, ss); renderChart(fb); renderImpact(ss);
-    renderTasks(fb); renderSkills(); renderSessions(ss);
+    renderTasks(fb); renderRepos(fb); renderSkills(); renderSessions(ss);
   }
   $('#title').textContent = D.project;
+  if (TEAM) $('#eyebrow').textContent = 'Team agent telemetry';
   document.title = D.project + ' · agent telemetry';
   $('#subtitle').textContent = D.sessions.length
-    ? D.sessions.length + ' sessions from ' + D.sessions[0].d + ' to ' + D.sessions[D.sessions.length - 1].d + '.'
-    : 'No agent sessions found for this project on this machine.';
+    ? D.sessions.length + ' sessions from ' + D.sessions[0].d + ' to ' + D.sessions[D.sessions.length - 1].d +
+      (TEAM ? ', ' + PEOPLE.length + ' contributors.' : '.')
+    : TEAM ? 'No published sessions in these repositories.' : 'No agent sessions found for this project on this machine.';
   renderHealth();
   render();
   let timer;

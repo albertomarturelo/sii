@@ -1,3 +1,4 @@
+<!-- CFD version: 0.4.0 -->
 <!-- ~80–120 tokens loaded at session start. Keep it an INDEX, not an encyclopedia. -->
 
 # Project: sii — TypeScript core + CLI + MCP for SII Chile

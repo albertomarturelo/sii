@@ -2,6 +2,7 @@
 name: validate-context
 description: "Audit CFD context integrity (CLAUDE.md size/shape, ROADMAP freshness, ADR index sync and completeness, conventions, the ADR-003 surface boundary, language) and report PASS/WARN/FAIL with proposed fixes. Use when asked to audit the context, or before a push or a release."
 metadata:
+  cfd-version: "0.4.0"
   token-budget: "~2,000–5,000"
 ---
 
@@ -49,6 +50,10 @@ checklist with PASS / WARN / FAIL per item:
     Rules must keep the rule that names it. FAIL on any: an import puts the
     file back in every request, a missing rule leaves the wire rules with no
     trigger. The CI `validate-context` job fails on the same cases.
+
+11. **CFD version**: `grep -h '^  cfd-version:' .agents/skills/*/SKILL.md
+    | sort -u` must print one line. WARN if it prints several (partial
+    upgrade) or none (older than 0.3.0); propose `/cfd-upgrade`.
 
 Output the checklist and propose concrete fixes for any failures.
 Do NOT auto-apply fixes — the user reviews first.

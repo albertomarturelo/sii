@@ -2,6 +2,8 @@
 
 > **Amended 2026-10-22:** the procedures moved from slash commands to Agent Skills in
 > `.agents/skills/`. See the [Amendment](#amendment-2026-10-22).
+> **Amended 2026-11-10:** the skills track upstream CFD releases by version. See the
+> [Amendment](#amendment-2026-11-10).
 
 ## Status
 
@@ -55,6 +57,21 @@ Follows the upstream CFD catalog ADR `agent-skills-as-procedures`, which superse
 - **Token budgets** move from the old header comments to `metadata.token-budget`.
 - **No plugin channel.** The skills are vendored in the repo; installing the upstream `cfd`
   plugin on top would list every procedure twice.
+
+## Amendment (2026-11-10)
+
+Upstream CFD is versioned from 0.3.0: its `CHANGELOG.md` carries, per release, the exact
+Upgrade steps that take an adopter from the previous version. This repo follows them.
+
+- **Stamps.** Every CFD skill carries `metadata.cfd-version`, and `CLAUDE.md` a
+  `<!-- CFD version: X.Y.Z -->` line. One version everywhere is the installed version;
+  `/validate-context` warns on several or none. Project-only skills (`run-sii`, `qa-cover`,
+  `casefile-setup`) carry no stamp.
+- **`/cfd-upgrade` applies a release**, oldest entry first, after the owner approves the
+  plan. It never overwrites this repo's edits: a skill or file changed here gets its diff
+  against the new template, and the owner chooses per file. The upgrade is its own commit.
+- **Release-only by default.** An unreleased upstream change is pulled in only on the
+  owner's request (the telemetry team view, taken ahead of its release on 2026-11-10).
 
 ## Alternatives Considered
 

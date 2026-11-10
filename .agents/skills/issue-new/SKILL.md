@@ -3,6 +3,7 @@ name: issue-new
 description: "Create a self-sufficient GitHub issue on albertomarturelo/sii with the fixed 6-section CFD body. Invoke explicitly when a new unit of work needs an issue."
 disable-model-invocation: true
 metadata:
+  cfd-version: "0.4.0"
   token-budget: "~1,500–3,000 for the full flow"
 ---
 

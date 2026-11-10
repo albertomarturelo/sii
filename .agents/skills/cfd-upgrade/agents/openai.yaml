@@ -1,0 +1,5 @@
+# Token budget: ~0 (Codex config, never loaded into model context).
+# Codex runs this skill only on explicit $cfd-upgrade, mirroring
+# disable-model-invocation in SKILL.md for Claude Code and Copilot.
+policy:
+  allow_implicit_invocation: false

@@ -3,6 +3,7 @@ name: session-close
 description: "Close a session: tick docs/ROADMAP.md in its own commit, fold corrections into CONVENTIONS.md, propose ADRs for informal decisions, and stage docs with the code. Invoke explicitly before ending every working session."
 disable-model-invocation: true
 metadata:
+  cfd-version: "0.4.0"
   token-budget: "~500–1,000"
 ---
 
