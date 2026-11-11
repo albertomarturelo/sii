@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { HttpPortalDriver } from './http.js';
 import type { FetchLike } from './http.js';
+import { HOSTS } from '../../config/index.js';
 import { MI_SII_LOGIN_STUB } from './__fixtures__/login-stub.js';
 import {
   BrowserRequiredError,
@@ -258,6 +259,21 @@ describe('HttpPortalDriver — session primitives', () => {
     const r = await session.requestBinary('https://www4.sii.cl/f29.pdf');
     expect(r.contentType).toBe('application/pdf');
     expect([...r.bytes]).toEqual([0x25, 0x50, 0x44, 0x46]);
+  });
+
+  it('can stop a form POST at a 307 without replaying it', async () => {
+    const { impl, calls } = fakeFetch(() => ({
+      status: 307,
+      headers: { location: `${HOSTS.bheCgi}/followup.cgi` },
+    }));
+    const session = await new HttpPortalDriver(impl).restore({ cookies: [] });
+    const response = await session.requestForm(`${HOSTS.bheCgi}/submit.cgi`, {
+      form: { folio: '17' },
+      followRedirects: false,
+    });
+    expect(response.status).toBe(307);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('POST');
   });
 
   it('carries cookies across a redirect in goto', async () => {

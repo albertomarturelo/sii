@@ -34,6 +34,8 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
       'auth_logout',
       'auth_status',
       'bienes_raices_list',
+      'bte_anular',
+      'bte_anular_preview',
       'bte_emit',
       'bte_emit_preview',
       'bte_list',

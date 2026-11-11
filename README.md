@@ -57,11 +57,12 @@ Primera superficie de **descarga de documentos**: `f29 pdf`, que guarda en disco
 el F29 presentado de un mes —el formulario tal como lo imprime el SII y, cuando el
 período fue pagado, **su comprobante de pago**— y el Certificado de Declaración.
 
-Superficies de **escritura**: `bte emit` (emisión de Boletas de Honorarios Electrónicas) y
+Superficies de **escritura**: `bte emit` (emisión de Boletas de Honorarios Electrónicas),
+`bte anular` (anulación de boletas emitidas) y
 `f29 submit` (presentar el F29 con la propuesta del SII, o un mes sin movimiento con
 `--sin-movimiento`; solo declara, nunca paga —
-[ADR-029](docs/decisions/029-f29-submit-propuesta.md)). Las dos parten por una vista previa y
-exigen repetir el monto para el paso irreversible.
+[ADR-029](docs/decisions/029-f29-submit-propuesta.md)). Cada operación parte por una vista previa y
+exige repetir el monto o el folio para confirmar el envío.
 
 **Facturación por el Portal MIPYME** (`sii dte`): prepara una factura (DTE 33/34) con
 la Clave —sin certificado digital—, la guarda como **borrador**, te da el PDF de vista
@@ -401,9 +402,9 @@ el **MCP** las ofrece como *tools* a Claude; la **CLI**, como comandos `sii …`
 
 Claude ve las operaciones como herramientas con permiso configurable por
 herramienta (lectura vs escritura). Las de **escritura** —iniciar/cerrar sesión,
-operar como, guardar un borrador de factura, **emitir** una BHE y **presentar** el F29—
-quedan controladas. Tres son `destructive` y exigen confirmación explícita: `bte_emit` y
-`f29_submit` (irreversibles y con validez legal, más el monto en eco) y
+operar como, guardar un borrador de factura, **emitir** o **anular** una BHE y **presentar** el F29—
+quedan controladas. Cuatro son `destructive` y exigen confirmación explícita: `bte_emit` y
+`f29_submit` (con el monto en eco), `bte_anular` (con el folio en eco) y
 `dte_borrador_delete` (borrar un borrador no se deshace). `f29_submit_preview` no presenta,
 pero deja un borrador «Guardada» en el SII, así que tampoco es de solo lectura. Guardar un borrador **no** lo es: es
 reversible y sin efecto legal, así que no pide ceremonia
@@ -475,6 +476,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii f29 submit <periodo> --sin-movimiento` (`--confirm 0`) | Declara un mes sin movimiento por la ruta « Declarar sin movimiento » del SII: sin propuesta, todo en cero; tú afirmas que el mes no tuvo movimiento. La vista previa no guarda nada |
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
+| `sii bte anular <folio> --periodo <periodo>` | Revisa una BHE emitida. Para anular, indica `--motivo <codigo>` y `--confirm <folio>` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
 | `sii dte empresas` | Empresas del Portal MIPYME para las que estás autorizado a facturar |
 | `sii dte borrador list\|save\|delete …` | Borradores de factura (33/34) en el Portal MIPYME — crea, actualiza, lista, elimina; **nunca emite** |

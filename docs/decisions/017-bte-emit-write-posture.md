@@ -11,6 +11,9 @@ follow-up).
 
 ## Context
 
+Amended 2026-11-11 by [ADR-034](034-bhe-annulment.md), which defines the separate
+annulment workflow and its report-based verification.
+
 `bte emit` issues a **Boleta de Honorarios Electrónica** — a legally-binding tax document: it
 creates a tax obligation, is reported to SII, and affects the counterparty. The ROADMAP kept it 🔒
 pending "its own ADR for the legal weight". Two facts shape the design (both confirmed in the live

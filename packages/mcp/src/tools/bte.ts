@@ -1,9 +1,10 @@
 // `bte_*` MCP tools — Boletas de Honorarios Electrónicas. Thin calls into @albertomarturelo/sii-core tasks
-// (ADR-003), read-only. zod input schemas (ADR-011). SESSION-KEYED (ADR-005): reads the
+// (ADR-003) with zod input schemas (ADR-011). SESSION-KEYED (ADR-005): uses the
 // session principal; no `rut` argument.
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
+  bteAnular,
   bteEmit,
   bteEmitPreview,
   bteList,
@@ -15,6 +16,8 @@ import {
 import { toolText } from '../tool-helpers.js';
 
 const sideOf = (recibidas?: boolean): BteSide => (recibidas ? 'RECIBIDAS' : 'EMITIDAS');
+const folioAnulacion = z.number().int().positive().max(9_999_999_999);
+const motivoAnulacion = z.union([z.literal(1), z.literal(2), z.literal(3)]);
 
 // Shared emit input fields (zod raw shape). The emisor fields are read from the live form; the
 // caller supplies only receptor + líneas + fecha + who-withholds.
@@ -75,6 +78,76 @@ export function registerBteTools(server: McpServer, runtime: Runtime): void {
       toolText(async () =>
         JSON.stringify(await bteList(runtime, { periodo, side: sideOf(recibidas) }), null, 2),
       ),
+  );
+
+  server.registerTool(
+    'bte_anular_preview',
+    {
+      title: 'BHE — vista previa de anulación',
+      description:
+        'SESSION-KEYED: consulta una boleta emitida por el titular. ' +
+        'Con motivo 1 (no pago), 2 (no prestación) o 3 (error de digitación), abre la revisión del SII. ' +
+        'La vista previa no anula la boleta.',
+      inputSchema: {
+        folio: folioAnulacion,
+        periodo: z.string(),
+        motivo: motivoAnulacion.optional(),
+      },
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async (input) => {
+      const result = await bteAnular(runtime, input);
+      const response = {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+      switch (result.EstadoEjecucion012) {
+        case 0:
+          return response;
+        case 1:
+          return response;
+        case 2:
+          return { ...response, isError: true };
+      }
+    },
+  );
+
+  server.registerTool(
+    'bte_anular',
+    {
+      title: 'BHE — ANULAR boleta de honorarios (acto legal)',
+      description:
+        'SESSION-KEYED: solicita la ANULACIÓN de una boleta emitida por el titular. ' +
+        'Muestra primero la revisión de bte_anular_preview y pide confirmación al usuario. ' +
+        'Requiere motivo, confirmar=true y folioConfirmacion igual al folio. ' +
+        'Si el resultado queda indeterminado, consulta las emitidas antes de otro intento.',
+      inputSchema: {
+        folio: folioAnulacion,
+        periodo: z.string(),
+        motivo: motivoAnulacion,
+        confirmar: z.literal(true),
+        folioConfirmacion: folioAnulacion,
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: true },
+    },
+    async ({ folio, periodo, motivo, folioConfirmacion }) => {
+      const result = await bteAnular(runtime, {
+        folio,
+        periodo,
+        motivo,
+        confirm: folioConfirmacion,
+      });
+      const response = {
+        content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
+      };
+      switch (result.EstadoEjecucion012) {
+        case 0:
+          return response;
+        case 1:
+          return response;
+        case 2:
+          return { ...response, isError: true };
+      }
+    },
   );
 
   // --- emit preview (does NOT issue) — safe to call freely ---

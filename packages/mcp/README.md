@@ -4,7 +4,7 @@
 (Servicio de Impuestos Internos) to **Claude Desktop** and **Claude Code**.
 Authenticated **reads** — RCV, F22, F29, boletas de honorarios (BHE),
 DTE-authorized (public), peticiones administrativas, bienes raíces, whoami — as `readOnly` tools,
-plus `destructive`, confirm-gated **writes**: BHE emit (`bte_emit`) and F29 submit
+plus `destructive`, confirm-gated **writes**: BHE emit (`bte_emit`), BHE annulment (`bte_anular`), and F29 submit
 (`f29_submit`: SII's propuesta, or a month sin movimiento with `sinMovimiento`). A thin surface over
 [`@albertomarturelo/sii-core`](https://www.npmjs.com/package/@albertomarturelo/sii-core);
 all the guardrails live in the core, and **no tool ever receives your password**
@@ -56,7 +56,8 @@ claude mcp add sii -- sii-mcp
 Then ask in natural language — e.g. «muéstrame el RCV de compras de 2026-05» or
 «¿tengo peticiones administrativas detenidas?». Read tools change nothing; issuing
 a BHE (`bte_emit`) or filing the F29 (`f29_submit`) requires an explicit confirmation + amount
-echo.
+echo. Annulment uses `bte_anular_preview` for review and `bte_anular` to submit with the
+SII reason, `confirmar: true`, and a matching `folioConfirmacion`.
 
 Tools, resources, prompts, and the identity model are documented in the
 [project README](https://github.com/albertomarturelo/sii#readme).

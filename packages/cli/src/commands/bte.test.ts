@@ -7,6 +7,8 @@ describe('sii bte command (fake runtime, no SII)', () => {
   const ARR = {
     nroboleta_1: '101',
     fechaemision_1: '15/05/2026',
+    fecha_boleta_1: '14/05/2026',
+    totalhonorarios_1: '300000',
     rutreceptor_1: '12345670',
     dvreceptor_1: 'K',
     nombrereceptor_1: 'Cliente Uno SpA',
@@ -16,18 +18,50 @@ describe('sii bte command (fake runtime, no SII)', () => {
   // The report CGI serves its maps as literals in the HTML; any other URL (the Mi SII identity
   // read) falls through to the fake's DatosCntrNow synthesis. No browser engine (#222).
   const REPORT = testing.inlineMapsPage({ xml_values: META, arr_informe_mensual: ARR });
-  const makeBteRuntime = (): Runtime => ({
-    clock: new testing.FixedClock(new Date('2026-06-30T12:00:00Z')),
-    audit: new testing.RecordingAuditSink(),
-    store: new testing.InMemoryKeyValueStore(),
-    portal: new testing.FakePortalDriver({
-      restoreSession: {
-        landingUrl: HOSTS.miSii,
-        datos,
-        requestText: (url) => (url.includes('/TMBCOC_') ? REPORT : undefined),
-      },
-    }),
-  });
+  const makeBteRuntime = (): Runtime => {
+    let annulled = false;
+    return {
+      clock: new testing.FixedClock(new Date('2026-06-30T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      portal: new testing.FakePortalDriver({
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          datos,
+          requestText: (url) =>
+            url.includes('/TMBCOC_')
+              ? annulled
+                ? testing.inlineMapsPage({
+                    xml_values: META,
+                    arr_informe_mensual: { ...ARR, estado_1: 'S', fechaanulacion_1: '30/06/2026' },
+                  })
+                : REPORT
+              : undefined,
+          requestForm: (url) => {
+            if (url.endsWith('TMBANU_RecepcionAnulacion.cgi')) {
+              annulled = true;
+              return 'received';
+            }
+            return (
+              testing.inlineMapsPage({
+                xml_values: {
+                  rut_ctr: '11111111',
+                  dv_ctr: '1',
+                  nro_boleta: '101',
+                  codigo_causa: '3',
+                  anulada: 'N',
+                  dia_atencion: '14',
+                  mes_atencion: '05',
+                  anio_atencion: '2026',
+                  Monto_Boleta: '300000',
+                },
+              }) + '<input name="BtnConfirmar">'
+            );
+          },
+        },
+      }),
+    };
+  };
 
   it('bte list <periodo> prints the month boletas (EMITIDAS by default)', async () => {
     const rt = makeBteRuntime();
@@ -54,6 +88,37 @@ describe('sii bte command (fake runtime, no SII)', () => {
     await expect(run(makeBteRuntime(), 'bte', 'list', '2026-05')).rejects.toBeInstanceOf(
       NotAuthenticatedError,
     );
+  });
+
+  it('bte anular defaults to consulting an issued folio', async () => {
+    const runtime = makeBteRuntime();
+    await seed(runtime);
+    expect(await runJson(runtime, 'bte', 'anular', '101', '--periodo', '2026-05')).toMatchObject({
+      EstadoEjecucion012: 0,
+      Dato: { folio: 101, EstadoFuncional: 'VIG', envioIntentado: false },
+    });
+  });
+
+  it('bte anular sends only after an explicit reason and folio confirmation', async () => {
+    const runtime = makeBteRuntime();
+    await seed(runtime);
+    expect(
+      await runJson(
+        runtime,
+        'bte',
+        'anular',
+        '101',
+        '--periodo',
+        '2026-05',
+        '--motivo',
+        '3',
+        '--confirm',
+        '101',
+      ),
+    ).toMatchObject({
+      EstadoEjecucion012: 0,
+      Dato: { EstadoFuncional: 'ANUL', envioIntentado: true, fechaAnulacion: '30/06/2026' },
+    });
   });
 });
 

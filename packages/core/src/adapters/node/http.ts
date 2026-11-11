@@ -77,7 +77,12 @@ async function fetchWithJar(
   fetchImpl: FetchLike,
   jar: CookieJar,
   startUrl: string,
-  init: { method: string; headers?: Record<string, string>; body?: string },
+  init: {
+    method: string;
+    headers?: Record<string, string>;
+    body?: string;
+    followRedirects?: boolean;
+  },
 ): Promise<RawResponse> {
   let url = startUrl;
   let method = init.method;
@@ -105,7 +110,7 @@ async function fetchWithJar(
     );
     jar.applySetCookies(url, res.headers.getSetCookie?.() ?? []);
     const location = res.headers.get('location');
-    if (res.status >= 300 && res.status < 400 && location) {
+    if (init.followRedirects !== false && res.status >= 300 && res.status < 400 && location) {
       url = new URL(location, url).href;
       // A 303, or a 301/302 after a POST, continues as GET without the body (fetch semantics).
       if (res.status !== 307 && res.status !== 308) {
@@ -200,6 +205,7 @@ class HttpPortalSession implements PortalSession {
       method: options.method ?? 'POST',
       headers,
       ...(body !== undefined ? { body } : {}),
+      ...(options.followRedirects === false ? { followRedirects: false } : {}),
     });
     const wall = formLoginWallError(r.finalUrl);
     if (wall) throw wall;

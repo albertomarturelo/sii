@@ -3,8 +3,8 @@
 Command-line interface for Chile's **SII** (Servicio de Impuestos Internos), for a
 single user acting on their own RUT plus the empresas they represent. Authenticated
 **reads** — RCV, F22, F29, boletas de honorarios (BHE), DTE-authorized (public),
-peticiones administrativas, bienes raíces, whoami — plus confirm-gated **writes**: BHE emit
-and F29 submit (SII's propuesta, or a month sin movimiento). Runs
+peticiones administrativas, bienes raíces, whoami — plus confirm-gated **writes**: BHE issuance
+and annulment, and F29 submit (SII's propuesta, or a month sin movimiento). Runs
 unattended too (cron, CI, agents), with no browser and no keyboard. A thin
 surface over [`@albertomarturelo/sii-core`](https://www.npmjs.com/package/@albertomarturelo/sii-core);
 all the legal/operational guardrails live in the core.
@@ -41,6 +41,7 @@ sii rcv all 2026-05            # RCV (compras) — every doc type in one flat ta
 sii f29 overview 2026          # month-by-month IVA position
 sii dte authorized 77777777-7  # public consulta — no login
 sii bte emit … --confirm <monto>   # issue a BHE (defaults to a safe preview)
+sii bte anular 123 --periodo 202611 --motivo 3  # preview an issued BHE annulment
 sii f29 submit 2026-09         # preview filing SII's propuesta; --confirm <total> files it
 sii f29 submit 2026-09 --sin-movimiento   # a month without movement; --confirm 0 files it
 ```
@@ -52,6 +53,21 @@ Output is **JSON by default** (pipe to `jq`); add `--human` for a readable rende
 The `operando como …` header goes to STDERR. Full command list, the identity model
 (`operate`), and the MCP server are documented in the
 [project README](https://github.com/albertomarturelo/sii#readme).
+
+## Annul an issued BHE
+
+Use the numeric folio and the period of the document date in the issuer's session.
+Supply a reason to load the SII review. Repeat the folio in `--confirm` to submit.
+
+```bash
+sii bte anular 123 --periodo 202611 --motivo 3
+sii bte anular 123 --periodo 202611 --motivo 3 --confirm 123
+```
+
+Choose the applicable SII reason: `1` (nonpayment), `2` (service not performed),
+or `3` (data entry error). The issued report verifies `EstadoFuncional: "ANUL"`
+with an annulment date. If `EstadoEjecucion012` is `1` after submission, consult
+the issued report before attempting another write.
 
 ## Unattended use (cron, CI, agents)
 

@@ -138,6 +138,7 @@ class PlaywrightPortalSession implements PortalSession {
       method: options.method ?? 'POST',
       ...(options.headers ? { headers: options.headers } : {}),
       ...(options.form ? { form: options.form } : {}),
+      ...(options.followRedirects === false ? { maxRedirects: 0 } : {}),
     });
     const wall = formLoginWallError(response.url());
     if (wall) throw wall;

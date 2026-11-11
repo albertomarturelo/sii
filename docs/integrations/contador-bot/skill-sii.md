@@ -140,7 +140,7 @@ Read-only unless stated. `<periodo>` is `YYYY-MM` (or `YYYYMM`); `<año>` is `YY
 They take no `--rut` and refuse while `operate` points at an empresa. **Body-RUT** surfaces (RCV,
 peticiones) accept `--rut` for a represented empresa.
 
-**Commands you must NOT run**, even though the CLI has them: `sii bte emit`,
+**Commands you must NOT run**, even though the CLI has them: `sii bte emit`, `sii bte anular --confirm <folio>`,
 `sii dte borrador save|delete`, `sii auth unblock`, and any command that changes state at SII
 other than the F29 submit of § 6. They issue legally-binding documents or remove a safety
 rail, and the user did not hand you that job.

@@ -6,16 +6,37 @@ import { KeyringSecretStore, createNodeRuntime } from '@albertomarturelo/sii-cor
 import { buildProgram } from './program.js';
 import { err, exitCodeFor, formatError } from './io.js';
 
-async function main(): Promise<void> {
-  // The OS keyring is wired HERE and only here: the MCP server builds from the same
-  // createNodeRuntime() and must carry no keyring at all (ADR-006 / ADR-025).
-  const runtime = createNodeRuntime({ secrets: new KeyringSecretStore() });
-  await buildProgram(runtime).parseAsync(process.argv);
+type CliStartup =
+  | { EstadoEjecucion012: 0; Dato: ReturnType<typeof buildProgram> }
+  | { EstadoEjecucion012: 1; Dato: string }
+  | { EstadoEjecucion012: 2; Dato: unknown };
+
+function prepareCli(): CliStartup {
+  try {
+    // The MCP server never receives a keyring (ADR-006 / ADR-025).
+    const runtime = createNodeRuntime({ secrets: new KeyringSecretStore() });
+    return { EstadoEjecucion012: 0, Dato: buildProgram(runtime) };
+  } catch (error) {
+    return { EstadoEjecucion012: 2, Dato: error };
+  }
 }
 
-main().catch((error: unknown) => {
-  // Errors go to STDERR (STDOUT stays clean for piping). JSON mode (the default) wraps the
-  // verbatim SII message with its stable `type` and exit code (ADR-012 amendment).
-  err(formatError(error));
-  process.exitCode = exitCodeFor(error);
-});
+const startup = prepareCli();
+switch (startup.EstadoEjecucion012) {
+  case 0:
+    try {
+      await startup.Dato.parseAsync(process.argv);
+    } catch (error) {
+      err(formatError(error));
+      process.exitCode = exitCodeFor(error);
+    }
+    break;
+  case 1:
+    err(startup.Dato);
+    process.exitCode = 1;
+    break;
+  case 2:
+    err(formatError(startup.Dato));
+    process.exitCode = exitCodeFor(startup.Dato);
+    break;
+}

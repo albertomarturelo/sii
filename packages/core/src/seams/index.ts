@@ -62,6 +62,8 @@ export interface FormRequest {
   readonly method?: 'GET' | 'POST';
   readonly headers?: Record<string, string>;
   readonly form?: Record<string, string>;
+  /** Stop at the initial response for a write that must never be replayed. */
+  readonly followRedirects?: boolean;
 }
 
 /** An AUTHENTICATED raw-body request from the session (cookies ride along). The primitive

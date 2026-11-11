@@ -305,6 +305,39 @@ what goes in `cbo_comuna` / `txt_comuna_destinatario`. Ported to `portal/bte-com
 validation (cod_region 1–16 + cod_comuna belongs to the region). Region name glosas are NOT in this
 JS (they render from the `<select cod_region>` HTML).
 
+## Annulment of issued BHEs
+
+The [annulment menu](https://www.sii.cl/boleta_honorarios/menu_anulacion.htm) loads
+`LNK_TMBANU_ING` from [GLB_links.js](https://www.sii.cl/pagina/js/GLB_links.js).
+The `presionaBoton` branches in [TMBANU_Anulacion.js](https://loa.sii.cl/IMT/js/TMBANU_Anulacion.js)
+select the review and submission CGIs. All requests use the issuer's session.
+
+| Step | Request under `HOSTS.bheCgi` | Observed fields or result |
+| --- | --- | --- |
+| Portal entry | `GET TMBANU_PrevalidaAnulacion.cgi?dummy=<timestamp>` | Reason codes `1` (nonpayment), `2` (service not performed), `3` (data entry error). |
+| Review | `POST TMBANU_ConfirmarAnulacion.cgi` | `rut_arrastre`, `dv_arrastre`, `origen=SEXTO`, `Txt_BoletaAnular`, `OptCausaAnulacion`. |
+| Submission | `POST TMBANU_RecepcionAnulacion.cgi` | `rut_arrastre`, `dv_arrastre`, `Txt_CodigoCausa`, `Txt_BoletaAnular`. |
+
+The review page exposes `BtnConfirmar` and an inline `xml_values` map. Its
+`rut_ctr` / `dv_ctr`, `nro_boleta`, `codigo_causa`, `anulada`, `dia_atencion`,
+`mes_atencion`, `anio_atencion`, and `Monto_Boleta` are checked against the
+session principal, selected reason, and issued report. The submitted document
+identifier is the numeric folio. The report period follows the document date.
+The monthly result exposes `fechaBoleta` from `fecha_boleta`. For emitidas, the
+legacy `fecha` field reflects the issuance date when present.
+
+On 2026-11-10 the review and the fields of the final request were captured in a
+browser with final submission blocked. The review was reproduced over HTTP. A
+subsequent production run from the CLI with reason `3` returned `ANUL` with an
+annulment date in the monthly issued report. The tests use synthetic data and
+exercise the submission and verification without a production session.
+
+The [SII guide](https://www.sii.cl/servicios_online/guia_anular_bhe.pdf) documents
+pending recipient confirmation (`VCA`). Its representation in this report was
+not observed. An inconclusive read after submission leaves the operation
+indeterminate. [SII notification guidance](https://www.sii.cl/preguntas_frecuentes/boleta_honorario_electr/001_120_3082.htm)
+describes a notification to the recipient for a direct annulment.
+
 ## Open / TBD (carry into Phase 2)
 
 - **Cookie carry + `evaluate` read: CONFIRMED TS-live (2026-06-30).** No longer open.

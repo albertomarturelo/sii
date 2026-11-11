@@ -3,8 +3,9 @@
 // `register<Mod>(program, runtime)`; `program.ts` just calls it (append-only tree).
 //
 // SESSION-KEYED (ADR-005): reads the session principal; no `--rut`.
-import type { Command } from 'commander';
+import { Option, type Command } from 'commander';
 import {
+  bteAnular,
   bteEmit,
   bteEmitPreview,
   bteList,
@@ -78,6 +79,51 @@ export function registerBte(program: Command, runtime: Runtime): void {
           );
         }
         out(`${res.boletas.length} boleta(s); líquido total=${money(res.totales.liquido)}.`);
+      });
+    });
+
+  bte
+    .command('anular')
+    .description('SESSION-KEYED: revisa o anula una boleta de honorarios emitida por el titular.')
+    .argument('<folio>', 'Folio numérico de la boleta.')
+    .requiredOption('--periodo <periodo>', 'Mes de la fecha de la boleta (YYYYMM o YYYY-MM).')
+    .addOption(
+      new Option(
+        '--motivo <codigo>',
+        '1: no pago, 2: no prestación, 3: error de digitación.',
+      ).choices(['1', '2', '3']),
+    )
+    .option('--confirm <folio>', 'Repite el folio para enviar la anulación al SII.')
+    .action(async (folio: string, opts: { periodo: string; motivo?: string; confirm?: string }) => {
+      const digits = /^[1-9]\d{0,9}$/;
+      const result = await bteAnular(runtime, {
+        periodo: opts.periodo,
+        folio: digits.test(folio) ? Number(folio) : NaN,
+        motivo: opts.motivo === undefined ? undefined : Number(opts.motivo),
+        confirm:
+          opts.confirm === undefined
+            ? undefined
+            : digits.test(opts.confirm)
+              ? Number(opts.confirm)
+              : NaN,
+      });
+      switch (result.EstadoEjecucion012) {
+        case 0:
+          break;
+        case 1:
+          process.exitCode = 1;
+          break;
+        case 2:
+          process.exitCode = 2;
+          break;
+      }
+      emit(result, () => {
+        const dato = result.Dato;
+        out(`BHE folio ${dato.folio ?? '—'} · ${dato.periodo} · ${dato.EstadoFuncional}`);
+        if (dato.fechaBoleta) out(`Fecha de la boleta: ${dato.fechaBoleta}`);
+        if (dato.totalHonorarios != null) out(`Total honorarios: ${money(dato.totalHonorarios)}`);
+        if (dato.fechaAnulacion) out(`Fecha de anulación: ${dato.fechaAnulacion}`);
+        out(dato.diagnostico);
       });
     });
 
