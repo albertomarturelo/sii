@@ -86,7 +86,7 @@ auth — a separate project that may consume this core's session patterns, never
 | 🔒 | `f22 submit` | File the annual return. |
 | 🚧 | `sii bte emit` (#60) / `bte_emit`+`bte_emit_preview` | **First WRITE surface — MERGED (ADR-017, PR #61).** Issue a BHE via the `TMBECN_*` form-POST flow (Clave, no cert; session-keyed). CLI `--dry-run`/`--confirm`; MCP `bte_emit` (the first `destructiveHint`) + `bte_emit_preview`. **Preview LIVE-VALIDATED** (both retención modes); the ISSUE step (step 4) is coded to the 2026-07-02 capture but its live validation + the `v0.3.0` tag are **#62**. Retención server-side; audit = folio only. |
 | 🔒 | `dte emit` / `dte accept` | Issue DTEs; accept per Ley 19.983. Blocked on the cert auth layer: spike + ADR #172 (portal login with a PFX, the DTE SOAP token). `dte accept` from SII's official `WSREGISTRORECLAMODTE` spec is spike #173, after #172. |
-| 🔒 | `bte anular` (#63) | Annul an issued BHE — needs its own live capture (follow-up to `bte emit`). |
+| 🚧 | `bte anular` (#63) / `bte_anular_preview` + `bte_anular` | CLI and MCP share the observed form-POST flow and issued-report verification (ADR-034). Reason 3 has production evidence from 2026-11-10. Synthetic tests cover the new submission path, lost responses, and inconclusive verification. |
 
 ## MCP-specific structure (best practices — ADR-003)
 
@@ -141,7 +141,7 @@ needs an ADR before it lands. Document types are parameters (`--tipo 61`), never
 | Registro de Compras y Ventas | `rcv` | summary, list, all | match (folio reconciliation); the receptor's event per document (acuse / aceptación / reclamo), spike #170 | SDI JSON (`rcv.ts`) · body-RUT |
 | F29 — IVA mensual | `f29` | formulario, overview, status, pdf, submit (`--sin-movimiento` live-validated, 0.19.0) | submit of a propuesta 🚧 (ADR-029 ✅, GWT serializer ✅, form interpreter ✅, command ✅ #161; #162: live filing of 2026-10), a late propuesta (#237), Fase 2 presented form | SDI JSON + servlet (`f29.ts`) · session-keyed |
 | F22 — Renta anual | `f22` | status, formulario, observaciones, historial, terceros | submit 🔒 | SDI JSON (`f22/`) · session-keyed |
-| Boletas de honorarios | `bte` | list, emit | anular (#63) | legacy CGI `loa` (`bte.ts`) · session-keyed |
+| Boletas de honorarios | `bte` | list, emit | anular (#63, implementation in review) | legacy CGI `loa` · session-keyed |
 | **DTE — documentos tributarios electrónicos** | `dte` | authorized (public); empresas, borrador, preview, emitidos, pdf (MIPYME, 33/34) | more types by MIPYME as `--tipo` (52, 56, 61); the signed XML from Respaldo MIPYME (spike #169); the PDF of any DTE via `pdfdteInternet` GWT (spike #171); `emit` / `accept` by SOAP + certificado 🔒 (#172, #173); boletas 39/41 as `--tipo` | palena public CGI (`dte-public.ts`) · public; Portal001 (`dte-mipyme.ts`) · empresa-keyed; SOAP (`dte-soap.ts`) · certificado |
 | Peticiones administrativas | `peticiones` | list | new petition (write) | GWT-RPC SISPAD (`peticiones.ts`) · body-RUT |
 | Carpeta tributaria (**MCP-only, ADR-027**; #241 may lift it) | `carpeta` | instituciones (live-validated) | regular (PDF, #109) — needs the www2 app session (minted by the MCP's `auth_login`, ADR-026/ADR-027) | SPA-JSON `www2` cte-api (`carpeta-tributaria-regular.ts`) · session-keyed (the www2 app session is the principal; path keyed by its `userId`) |
