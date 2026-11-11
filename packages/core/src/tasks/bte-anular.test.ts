@@ -101,6 +101,16 @@ async function scenario(
 }
 
 describe('BHE annulment', () => {
+  it.each([1, 2])('submits the explicitly selected reason %s', async (motivo) => {
+    const { runtime, writes } = await scenario({
+      outcome: 'annulled',
+      review: REVIEW.replace('"3"', `"${motivo}"`),
+    });
+    const result = await bteAnular(runtime, { ...ARGS, motivo, confirm: 17 });
+    expect(result.EstadoEjecucion012).toBe(0);
+    expect(writes[0]?.form?.['Txt_CodigoCausa']).toBe(String(motivo));
+  });
+
   it('rejects a represented identity and a missing session before reaching the form', async () => {
     const { runtime, reviews, writes } = await scenario();
     await initOperateState(runtime.store, {
