@@ -38,3 +38,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 031 | [A caller bounds a multi-call task with an `AbortSignal`, checked between SII calls](031-task-abort-signal.md) | Accepted | 2026-10-26 |
 | 032 | [`bienes-raices` — the predios a RUT pays and their cuotas, from Mi SII](032-bienes-raices-mi-sii.md) | Accepted (amended: public cuota breakdown) | 2026-10-28 |
 | 033 | [ROADMAP and the SII wire rules load on demand, not in every session](033-on-demand-context-loading.md) | Accepted | 2026-11-09 |
+| 034 | [BHE annulment uses the issued report as confirmation](034-bhe-annulment.md) | Accepted | 2026-11-11 |

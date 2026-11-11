@@ -46,6 +46,8 @@ export interface BteBoleta {
   readonly folio: number | null;
   /** Emisión/boleta date, `DD/MM/YYYY` verbatim (ADR-004). */
   readonly fecha: string | null;
+  /** Document date from `fecha_boleta`, used to verify an annulment. */
+  readonly fechaBoleta?: string | null;
   /** Counterparty: receptor (emitidas) or emisor (recibidas), canonical RUT. */
   readonly contraparteRut: string | null;
   readonly contraparteNombre: string | null;
@@ -174,6 +176,8 @@ function projectBoleta(row: Record<string, unknown>): BteBoleta {
   return {
     folio: asMonto(aliasGet(row, ALIASES.folio)),
     fecha: asStr(aliasGet(row, ALIASES.fecha)),
+    // Observed at https://loa.sii.cl/cgi_IMT/TMBCOC_InformeMensualBhe.cgi on 2026-11-10.
+    fechaBoleta: asStr(row['fecha_boleta']),
     contraparteRut: canonicalRut(aliasGet(row, ALIASES.rutDigits), aliasGet(row, ALIASES.dv)),
     contraparteNombre: asStr(aliasGet(row, ALIASES.nombre)),
     totalHonorarios: asMonto(aliasGet(row, ALIASES.totalHonorarios)),

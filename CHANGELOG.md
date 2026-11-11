@@ -17,6 +17,8 @@ Every decision behind a release is recorded as an ADR under
 
 ## Unreleased
 
+- **Added** BHE annulment in the CLI and MCP, with a folio confirmation, issued-report verification, and the document date in monthly BHE results (#63).
+
 <!-- One line per user-visible PR, written in that PR (CONVENTIONS, ADR-021 amendment). Start
      a breaking one with **Breaking**. Any Added / Removed / Breaking line makes the next
      release a MINOR. The release commit turns this list into the version's sections here and

@@ -92,6 +92,8 @@ export type {
   F29MotivoDesacuerdo,
 } from './tasks/f29-submit.js';
 export { bteList, bteEmitPreview, bteEmit } from './tasks/bte.js';
+export { bteAnular } from './tasks/bte-anular.js';
+export type { BteAnularArgs, ResultadoAnulacionBte } from './tasks/bte-anular.js';
 export {
   dteAuthorized,
   dteEmpresas,

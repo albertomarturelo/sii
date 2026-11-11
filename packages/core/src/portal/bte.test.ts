@@ -51,6 +51,7 @@ const ARR_EMITIDAS: Record<string, InlineMapValue> = {
   codigobarras_1: 'ABC',
   nroboleta_2: '102',
   fechaemision_2: '20/05/2026',
+  fecha_boleta_2: '19/05/2026',
   rutreceptor_2: '12345670',
   dvreceptor_2: 'K',
   nombrereceptor_2: 'Cliente Dos Ltda',
@@ -119,6 +120,8 @@ describe('BTE facade (fake session, synthetic report HTML, no SII)', () => {
     });
     expect(res.boletas[1]).toMatchObject({
       folio: 102,
+      fecha: '20/05/2026',
+      fechaBoleta: '19/05/2026',
       estado: 'ANUL',
       fechaAnulacion: '21/05/2026',
     });

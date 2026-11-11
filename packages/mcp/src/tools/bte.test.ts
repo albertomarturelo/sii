@@ -51,6 +51,90 @@ describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, n
     expect(tools.find((t) => t.name === 'bte_list')?.annotations?.readOnlyHint).toBe(true);
   });
 
+  it('publishes annulment as a destructive tool and requires an explicit matching folio', async () => {
+    const runtime = emitRuntime();
+    const client = await connect(runtime);
+    const { tools } = await client.listTools();
+    expect(tools.find((t) => t.name === 'bte_anular_preview')?.annotations?.readOnlyHint).toBe(
+      true,
+    );
+    expect(tools.find((t) => t.name === 'bte_anular')?.annotations).toMatchObject({
+      destructiveHint: true,
+      readOnlyHint: false,
+    });
+    const args = { folio: 17, periodo: '202611', motivo: 3, folioConfirmacion: 18 };
+    expect(isError(await client.callTool({ name: 'bte_anular', arguments: args }))).toBe(true);
+    const result = await client.callTool({
+      name: 'bte_anular',
+      arguments: { ...args, confirmar: true },
+    });
+    expect(isError(result)).toBe(true);
+    expect(JSON.parse(toolText(result))).toMatchObject({
+      EstadoEjecucion012: 2,
+      Dato: { envioIntentado: false },
+    });
+  });
+
+  it('submits an explicitly confirmed annulment through the shared task', async () => {
+    let annulled = false;
+    const runtime: Runtime = {
+      ...emitRuntime(),
+      portal: new testing.FakePortalDriver({
+        restoreSession: {
+          requestText: () =>
+            testing.inlineMapsPage({
+              xml_values: { total_boletas: '1' },
+              arr_informe_mensual: {
+                nroboleta_1: '17',
+                fecha_boleta_1: '02/11/2026',
+                totalhonorarios_1: '45000',
+                estado_1: annulled ? 'S' : 'N',
+                fechaanulacion_1: annulled ? '10/11/2026' : '',
+              },
+            }),
+          requestForm: (url) => {
+            if (url.endsWith('TMBANU_RecepcionAnulacion.cgi')) {
+              annulled = true;
+              return 'received';
+            }
+            return (
+              testing.inlineMapsPage({
+                xml_values: {
+                  rut_ctr: '11111111',
+                  dv_ctr: '1',
+                  nro_boleta: '17',
+                  codigo_causa: '3',
+                  anulada: 'N',
+                  dia_atencion: '02',
+                  mes_atencion: '11',
+                  anio_atencion: '2026',
+                  Monto_Boleta: '45000',
+                },
+              }) + '<input name="BtnConfirmar">'
+            );
+          },
+        },
+      }),
+    };
+    await testing.seedSession(runtime);
+    const client = await connect(runtime);
+    const response = await client.callTool({
+      name: 'bte_anular',
+      arguments: {
+        folio: 17,
+        periodo: '202611',
+        motivo: 3,
+        confirmar: true,
+        folioConfirmacion: 17,
+      },
+    });
+    expect(isError(response)).toBe(false);
+    expect(JSON.parse(toolText(response))).toMatchObject({
+      EstadoEjecucion012: 0,
+      Dato: { EstadoFuncional: 'ANUL', envioIntentado: true },
+    });
+  });
+
   // --- emit (write surface, ADR-017) ---
   const FORM =
     "<html><script>xml_values['dia_actual']='02';xml_values['mes_actual']='07';" +
