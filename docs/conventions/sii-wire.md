@@ -18,6 +18,16 @@ rule to `CONVENTIONS.md` (ADR-007).
   rendered DOM. Cite the variable name and observation source.
 - **Wire contracts are documented under `docs/sii-contract/`** per surface, with
   the request shape, response shape, and observation date. (ported sii-py ADR-020)
+- **Locate a SII app through its public catalog, never through a host Mi SII hard-codes
+  (ADR-035).**
+  - Mi SII's `linkexterno` map names `emin.sii.cl` URLs. That host is SII's internal / QA one:
+    from outside it does not resolve (`ERR_NAME_NOT_RESOLVED`, observed 2026-11-12).
+  - The public URL comes from the `menuSOL` catalog in `zeusr.sii.cl/admin/js/tramites_misii.js`,
+    looked up by the entry's `id` (e.g. 1368 « Consulta Integral F29 » →
+    `www4.sii.cl/sifmConsultaInternet/…`). It is public and lists every online service (625
+    entries).
+  - Before replaying an app's call, trace where each request value comes from (an app-JS constant,
+    the session, an earlier call's answer). Only the calls that feed a value are needed.
 - **Authenticated SPA-JSON facades go through `PortalSession.requestJson`.** The
   `www4.sii.cl` SDI endpoints (RCV, representación, …) are reached via the seam's
   authenticated JSON POST (the session cookies ride along), never a bespoke HTTP
