@@ -20,7 +20,13 @@ const cp1252Byte = (ch: string): number => CP1252_BYTE.get(ch) ?? ch.codePointAt
 /** Repair SII's double-encoded text by re-encoding the decoded string as Windows-1252 and decoding
  *  it as UTF-8 again. Applied ONLY when the string carries the tell-tale `Ã`/`Â` + continuation
  *  pair (the continuation byte in its Latin-1 or cp1252 form), holds nothing else beyond one byte,
- *  and the round trip decodes cleanly, so legitimately-accented text is left untouched. */
+ *  and the round trip decodes cleanly, so legitimately-accented text is left untouched.
+ *
+ *  Public (GH-279) so a consumer can repair text it stored before a fix landed with the SAME
+ *  function the facades apply, and stored and freshly read texts agree byte for byte. A consumer
+ *  relies on two properties: it is idempotent (`repairMojibake(repairMojibake(s))` equals
+ *  `repairMojibake(s)`), and clean or legitimately accented text comes back unchanged, so
+ *  running it over every stored string is safe. */
 export function repairMojibake(v: string): string {
   if (!/[ÂÃ]/.test(v)) return v; // every tell-tale pair starts with Â or Ã
   const codes = Array.from(v, cp1252Byte);
