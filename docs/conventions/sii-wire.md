@@ -171,6 +171,13 @@ rule to `CONVENTIONS.md` (ADR-007).
   001.130.1154). Read the whole set first, report it, and ask before the batch. A write route
   that SII opens for any período checks the período itself (ended, previous month filed): SII
   will not.
+- **A row shape never seen populated comes from SII's own renderer, and a mismatch is an error
+  (ADR-034).** When a live probe only ever returns the empty answer, take the curated field names
+  from the JS function SII uses to paint those rows (cite it by name, e.g. `setDisplayAnotaciones`
+  in `misii.min.js`), and mark them « from the renderer, not observed » in the contract. A
+  non-empty response whose rows lack those fields is a source `error`, never an empty list.
+  Before wiring the CGI, also record each empty code and the cookie-less answer: an unknown code
+  is an error, never "no rows".
 - **Wire parsing is zod-at-the-boundary + alias-tolerant rows (ADR-011 / ADR-004).**
   Validate the SDI ENVELOPE with zod (`respEstado` block + the `data[]` array; use
   `.loose()` so unobserved fields survive into `raw`). Project each row into the
