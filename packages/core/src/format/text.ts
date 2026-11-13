@@ -24,9 +24,10 @@ const cp1252Byte = (ch: string): number => CP1252_BYTE.get(ch) ?? ch.codePointAt
  *
  *  Public (GH-279) so a consumer can repair text it stored before a fix landed with the SAME
  *  function the facades apply, and stored and freshly read texts agree byte for byte. A consumer
- *  relies on two properties: it is idempotent (`repairMojibake(repairMojibake(s))` equals
- *  `repairMojibake(s)`), and clean or legitimately accented text comes back unchanged, so
- *  running it over every stored string is safe. */
+ *  relies on two properties. Clean or legitimately accented text comes back unchanged, so running
+ *  it over every stored string is safe. And one call removes ONE layer of double encoding: on
+ *  SII's text (one layer, the only kind observed) a second call changes nothing, but a string
+ *  encoded more than once ("DeclaraciÃƒÂ³n") needs one call per layer. */
 export function repairMojibake(v: string): string {
   if (!/[ÂÃ]/.test(v)) return v; // every tell-tale pair starts with Â or Ã
   const codes = Array.from(v, cp1252Byte);

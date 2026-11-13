@@ -25,8 +25,8 @@ Every decision behind a release is recorded as an ADR under
 
 - **Added: `repairMojibake` is exported from `@albertomarturelo/sii-core` (#279).** The function
   the facades use to repair SII's double-encoded text, so text stored before a fix can be repaired
-  in place and match a fresh read byte for byte. It is idempotent and leaves clean or accented text
-  unchanged.
+  in place and match a fresh read byte for byte. It leaves clean or accented text unchanged, and
+  one call removes one layer of SII's double encoding, so a second call on its result is a no-op.
 
 ## 0.19.3 — 2026-11-10 — Las mayúsculas
 

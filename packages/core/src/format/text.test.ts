@@ -52,7 +52,14 @@ describe('repairMojibake (SII double-encoded text)', () => {
     expect(repairedText(42)).toBe('42');
   });
 
-  it('is idempotent: a second pass changes nothing (GH-279)', () => {
+  it('removes one layer per call: text encoded twice over needs a second call (GH-279)', () => {
+    // Synthetic: "ó" double-encoded, then double-encoded again. SII was only observed with one layer.
+    const twice = 'DeclaraciÃƒÂ³n';
+    expect(repairMojibake(twice)).toBe('DeclaraciÃ³n');
+    expect(repairMojibake(repairMojibake(twice))).toBe('Declaración');
+  });
+
+  it('is idempotent on one layer: a second pass changes nothing (GH-279)', () => {
     // GH-264 / GH-267 (Latin-1 pairs), GH-271 (cp1252 capitals), plus clean and lone-Ã text.
     const cases = [
       'Has efectuado una DeclaraciÃ³n Rectificatoria',
