@@ -34,7 +34,9 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 027 | [HTTP `PortalDriver` as the default; the CLI never needs a human at a browser](027-http-portal-driver.md) | Accepted (amended: BTE `list` over HTTP) | 2026-10-18 |
 | 028 | [Non-interactive login — `--clave-env` / `--clave-stdin`, `--if-needed`, a rejection latch](028-non-interactive-login.md) | Accepted (amended: no `--if-needed`) | 2026-10-18 |
 | 029 | [F29 submit — send the propuesta as-is, declare only, return the payment link](029-f29-submit-propuesta.md) | Accepted (amended: transport, oracle, plazo, sin movimiento) | 2026-10-18 |
-| 030 | [`alertas` — a session-keyed composite read with stable ids](030-alertas-composite-read.md) | Accepted (amended: regime obligation, `bienes_raices`, segunda categoría) | 2026-10-23 |
+| 030 | [`alertas` — a session-keyed composite read with stable ids](030-alertas-composite-read.md) | Accepted (amended: regime obligation, `bienes_raices`, segunda categoría, Mi SII panels, F29 by año) | 2026-10-23 |
 | 031 | [A caller bounds a multi-call task with an `AbortSignal`, checked between SII calls](031-task-abort-signal.md) | Accepted | 2026-10-26 |
 | 032 | [`bienes-raices` — the predios a RUT pays and their cuotas, from Mi SII](032-bienes-raices-mi-sii.md) | Accepted (amended: public cuota breakdown) | 2026-10-28 |
 | 033 | [ROADMAP and the SII wire rules load on demand, not in every session](033-on-demand-context-loading.md) | Accepted | 2026-11-09 |
+| 034 | [`alertas` reads Mi SII's « Mis alertas » panels, one `origen` each, and a short profile](034-alertas-mi-sii-panels.md) | Accepted | 2026-11-12 |
+| 035 | [`alertas` reads F29 by año from SII's « Consulta Integral F29 », per month only where needed](035-f29-consulta-integral.md) | Accepted | 2026-11-12 |

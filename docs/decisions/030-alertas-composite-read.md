@@ -130,6 +130,22 @@ such month filed made every other month « sin declarar », and none filed read 
   rule can be scoped to it); every boleta's `retencionEmisor` (the month total is SII's own sum,
   one page instead of all).
 
+## Amendment (2026-11-12): Mi SII's « Mis alertas » panels, and `--fuentes mi_sii`
+
+Six more sources from Mi SII's redesigned « Mis alertas » section, one `origen` per panel (`revisiones`,
+`anotaciones`, `mensajes`, `notificaciones`, `transferencias`, `cumplimiento`), on by default (~25
+calls for a full run). The alias `--fuentes mi_sii` reads only them plus `bienes_raices` (7 calls).
+They cover the notificaciones (#205) and the anotaciones / cumplimiento part of #204. Rules, ids and
+answer codes are in ADR-034.
+
+## Amendment (2026-11-12): the `f29` source reads by año, and `f29_observada`
+
+The `f29` source first reads SII's « Consulta Integral F29 » (`getInfoIntegral`, one GWT call per
+año, plus one `getIpLocal`). It reads month by month every window month the integral does not show
+as filed: no entry, or an estado other than the two seen to match « Vigente ». A declaración with an observación other than `SINOBS` gives `f29_observada`. If the integral
+breaks, the source falls back to the 12 per-month reads and says so (`fuentes[].via`). Rules, ids
+and the transport: ADR-035.
+
 ## Alternatives Considered
 
 1. **Wait for every source before shipping.** Rejected: two sources are unobserved and may need
