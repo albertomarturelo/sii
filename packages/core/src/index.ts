@@ -169,7 +169,7 @@ export type {
 
 // --- shared primitives ---
 export { Rut } from './rut/index.js';
-export { formatMoney, formatRut } from './format/index.js';
+export { formatMoney, formatRut, repairMojibake } from './format/index.js';
 export { Periodo, Anio } from './periodo/index.js';
 export { HOSTS, LOGIN_HOST } from './config/index.js';
 export * from './errors/index.js';

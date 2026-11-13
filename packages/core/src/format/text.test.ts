@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { repairMojibake, repairedText } from './text.js';
+import * as core from '../index.js';
 
 // Synthetic strings only. `Ã³` is "ó" double-encoded: UTF-8 C3 B3 read back as Latin-1.
 describe('repairMojibake (SII double-encoded text)', () => {
@@ -49,5 +50,43 @@ describe('repairMojibake (SII double-encoded text)', () => {
     expect(repairedText(undefined)).toBeNull();
     expect(repairedText('autorizÃ³')).toBe('autorizó');
     expect(repairedText(42)).toBe('42');
+  });
+
+  it('removes one layer per call: text encoded twice over needs a second call (GH-279)', () => {
+    // Synthetic: "ó" double-encoded, then double-encoded again. SII was only observed with one layer.
+    const twice = 'DeclaraciÃƒÂ³n';
+    expect(repairMojibake(twice)).toBe('DeclaraciÃ³n');
+    expect(repairMojibake(repairMojibake(twice))).toBe('Declaración');
+  });
+
+  it('is idempotent on one layer: a second pass changes nothing (GH-279)', () => {
+    // GH-264 / GH-267 (Latin-1 pairs), GH-271 (cp1252 capitals), plus clean and lone-Ã text.
+    const cases = [
+      'Has efectuado una DeclaraciÃ³n Rectificatoria',
+      'TesorerÃ­a General de la RepÃºblica',
+      'NÂ° de certificado',
+      'Ã\u0091uÃ±oa',
+      'RESULTADO LIQUIDACI\u00c3\u201cN ANUAL (deber\u00c3\u00a1 declarar)',
+      'CR\u00c3\u2030DITO A\u00c3\u2018O \u00c3\u0161LTIMO R\u00c3\u0081PIDO',
+      'LIQUIDACIÓN – «deberá»',
+      'SÃO PAULO',
+      'Ã³Ã',
+    ];
+    for (const s of cases) {
+      const once = repairMojibake(s);
+      expect(repairMojibake(once)).toBe(once);
+    }
+  });
+});
+
+// A consumer repairs text it stored with the package's own function (GH-279).
+describe('package index', () => {
+  it('exports repairMojibake, the same function the facades apply', () => {
+    expect(core.repairMojibake).toBe(repairMojibake);
+    expect(core.repairMojibake('TRIBUTACI\u00c3\u201cN')).toBe('TRIBUTACIÓN');
+  });
+
+  it('keeps repairedText internal', () => {
+    expect('repairedText' in core).toBe(false);
   });
 });
