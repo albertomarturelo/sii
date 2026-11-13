@@ -141,8 +141,8 @@ answer codes are in ADR-034.
 ## Amendment (2026-11-12): the `f29` source reads by año, and `f29_observada`
 
 The `f29` source first reads SII's « Consulta Integral F29 » (`getInfoIntegral`, one GWT call per
-año, plus one `getIpLocal`), and reads month by month only the window months with no declaración
-there. A declaración with an observación other than `SINOBS` gives `f29_observada`. If the integral
+año, plus one `getIpLocal`). It reads month by month every window month the integral does not show
+as filed: no entry, or an estado other than the two seen to match « Vigente ». A declaración with an observación other than `SINOBS` gives `f29_observada`. If the integral
 breaks, the source falls back to the 12 per-month reads and says so (`fuentes[].via`). Rules, ids
 and the transport: ADR-035.
 

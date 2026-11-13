@@ -35,6 +35,8 @@ notificaciones and the requisitos of `opc=118` (`NDIR`, `DQDT`, `ATPJ`; SII's co
   `notificaciones`, `transferencias`, `cumplimiento`. Each has its own `fuentes` estado, so one
   panel failing never hides the others (ADR-030's partial-result model). A full run grows by 5
   calls (~25). Facade `portal/alertas-misii.ts` over `requestForm`, browser-free (ADR-027).
+  Session-keyed: Mi SII answers for the session principal (ADR-032). Probed as two principals; a
+  representada was not checked, and ADR-030 refuses a representing pointer anyway.
 - **Short profile: `--fuentes mi_sii`** (MCP: `fuentes: ["mi_sii"]`) expands to those six plus
   `bienes_raices`: 7 calls, all to one host. The default stays "all"; nothing changes for a caller
   that passes nothing. `--help` and the MCP description state both costs.
@@ -47,19 +49,25 @@ notificaciones and the requisitos of `opc=118` (`NDIR`, `DQDT`, `ATPJ`; SII's co
   transferencias `pintarBodyInterfazDataCarpeta` (`semestre`, `glosaNombreBanco`,
   `glosaTipoCuenta`, `sumaCantidadAbonos`, `sumaMontoTotalAbonos`); revisiones
   `generarGrillaAlertas` (`folioBloqueo`, `fechaActiv`, `descripcion`). The contract
-  (`docs/sii-contract/mi-sii-alertas.md`) marks each as « from the renderer, not observed ».
+  (`docs/sii-contract/mi-sii-alertas.md`, #204's and #205's contract criteria, in the
+  implementation PR) marks each as « from the renderer, not observed ».
 - **Alertas and ids** (ADR-030 shape; `codigo` / `mensaje` / `estado` are SII's own text):
   - `revisiones`: `revision:<folioBloqueo>`, `fecha` = `fechaActiv`.
   - `anotaciones`: `anotacion:<taltCodigo>:<fechaActivacion>`, `mensaje` = `glosaSubstr`.
-  - `mensajes`: `mensaje:<first 12 hex of sha1(glosaTitulo)>`: SII gives no id, so the title is it.
+  - `mensajes`: `mensaje:<first 12 hex of sha1(glosaTitulo)>`: SII gives no id, so the title is it
+    (`globalThis.crypto.subtle`, never `node:crypto`: the main barrel stays pure, ADR-016).
   - `notificaciones`: `notificacion:<id>`, `fecha` = the epoch-ms `fecha` as a Chile date. Every
     notification is returned (page size 1000), old ones included: seed the ids or use `--desde`.
+    Only the listing is read: it is the call SII's page makes when « Mis alertas » opens. The
+    per-document `opc=41&repoId=…` is never called. Whether the listing itself changes a read
+    state at SII was not observed.
   - `transferencias`: `transferencias:<semestre>:<glosaNombreBanco>:<glosaTipoCuenta>`, plus a
     `transferencias: { semestre, banco, tipoCuenta, cantidad, monto }` field (ADR-030's
     `vencimiento` precedent).
-  - `cumplimiento`: `cumplimiento:<atrCodigo>` for a requisito whose `cumple` is not `"SI"`.
-    `"NO"` and any unobserved value are both reported, never dropped. `estado` = the global
-    `estado`, `mensaje` = `titulo`.
+  - `cumplimiento`: `cumplimiento:<semestreActual>:<atrCodigo>` for a requisito whose `cumple` is
+    not `"SI"`. `"NO"` and any unobserved value are both reported, never dropped. `estado` = the
+    global `estado`, `mensaje` = `titulo`. `semestreActual` was observed empty. While it stays
+    empty, the id cannot tell one semester's « NO » from the next: a known limit.
 - **`cumplimiento` never gates another source.** `NDIR` (« atrasos en declaración de IVA y/o
   Renta ») is SII's semestral evaluation, and when it refreshes was not observed. An `NDIR` that
   reads "SI" never skips the F29 or F22 read.
