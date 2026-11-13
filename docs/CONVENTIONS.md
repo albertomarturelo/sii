@@ -209,6 +209,19 @@ These stay always on, because breaking them locks or misreads the account anywhe
 - Tests must NOT hit production SII. Default mode is recorded fixtures with
   synthetic data; any live test is gated behind an explicit env var.
 - Reproduce CI conditions before pushing (env stripped of any credential vars).
+- **Every facade ships its SII states as scenarios (ADR-036), contributors included.**
+  - `testing.scenarios` holds named states, each with a `procedencia`: observado (and by whom),
+    renderer or sintético.
+  - A read facade covers `con-datos`, `vacio`, `inesperado` and `sesion-muerta`. A write facade
+    covers `exito`, `rechazo-sii`, `indeterminado`, `inesperado` and `sesion-muerta`. A state that
+    does not apply says why.
+  - A snapshot test runs each scenario's task. CI fails on a facade without its states.
+  - Only the maintainer's observation counts as verified, and only the owner's `/live-check`
+    writes `por: 'mantenedor'`: a contributor never does. The rest stays in the generated
+    `docs/validation/pending.md`.
+  - In a contributor PR, a change to a guard file (the exempt and legacy lists, the coverage
+    test, `.github/**`, the snapshot runner) is Critical in review. CI catches mistakes; the
+    owner's review is the gate.
 
 ## Naming
 

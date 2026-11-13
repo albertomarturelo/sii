@@ -40,3 +40,4 @@ Foundational decisions for the TypeScript rewrite. Lineage to the Python
 | 033 | [ROADMAP and the SII wire rules load on demand, not in every session](033-on-demand-context-loading.md) | Accepted | 2026-11-09 |
 | 034 | [`alertas` reads Mi SII's « Mis alertas » panels, one `origen` each, and a short profile](034-alertas-mi-sii-panels.md) | Accepted | 2026-11-12 |
 | 035 | [`alertas` reads F29 by año from SII's « Consulta Integral F29 », per month only where needed](035-f29-consulta-integral.md) | Accepted | 2026-11-12 |
+| 036 | [A catalog of simulated SII states that every facade, and every contributor PR, must ship](036-sii-scenario-catalog.md) | Accepted | 2026-11-12 |
