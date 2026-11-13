@@ -216,8 +216,12 @@ These stay always on, because breaking them locks or misreads the account anywhe
     covers `exito`, `rechazo-sii`, `indeterminado`, `inesperado` and `sesion-muerta`. A state that
     does not apply says why.
   - A snapshot test runs each scenario's task. CI fails on a facade without its states.
-  - Only the maintainer's observation counts as verified. The rest stays in the generated
-    `docs/validation/pending.md` until `/live-check` confirms it.
+  - Only the maintainer's observation counts as verified, and only the owner's `/live-check`
+    writes `por: 'mantenedor'`: a contributor never does. The rest stays in the generated
+    `docs/validation/pending.md`.
+  - In a contributor PR, a change to a guard file (the exempt and legacy lists, the coverage
+    test, `.github/**`, the snapshot runner) is Critical in review. CI catches mistakes; the
+    owner's review is the gate.
 
 ## Naming
 
