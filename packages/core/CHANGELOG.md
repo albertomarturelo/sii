@@ -4,6 +4,16 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.20.0 — 2026-11-13
+
+### Added
+
+- **`repairMojibake` is exported from the package index (#279).** The same function the F22 and
+  mipyme DTE facades apply, so a consumer repairs text it stored before a fix with the code the
+  package itself runs. Clean or legitimately accented text is returned unchanged; one call removes
+  one layer of double encoding (SII's text has one, so a second call is a no-op). `repairedText`,
+  the facades' wire-value helper, stays internal.
+
 ## 0.19.3 — 2026-11-10
 
 ### Fixed
