@@ -23,10 +23,17 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Added: `repairMojibake` is exported from `@albertomarturelo/sii-core` (#279).** The function
-  the facades use to repair SII's double-encoded text, so text stored before a fix can be repaired
-  in place and match a fresh read byte for byte. It leaves clean or accented text unchanged, and
-  one call removes one layer of SII's double encoding, so a second call on its result is a no-op.
+## 0.20.0 — 2026-11-13 — La reparación
+
+A minor for one export (#279).
+
+**`repairMojibake` is exported from `@albertomarturelo/sii-core`.** It is the function the facades
+use to repair SII's double-encoded text (« DeclaraciÃ³n » → « Declaración »), so text a consumer
+stored before 0.19.3 can be repaired in place and match a fresh read byte for byte. Clean or
+accented text comes back unchanged, and one call removes one layer of SII's double encoding, so a
+second call on its result changes nothing. The CLI and the MCP server are unchanged.
+
+A MINOR: a core export is added (ADR-021 amendment). Nothing breaks.
 
 ## 0.19.3 — 2026-11-10 — Las mayúsculas
 

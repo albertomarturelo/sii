@@ -9,6 +9,11 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.20.0 — 2026-11-13
+
+No change to the tools. Released in lockstep with the core, which adds the `repairMojibake`
+export (#279).
+
 ## 0.19.3 — 2026-11-10
 
 ### Fixed
