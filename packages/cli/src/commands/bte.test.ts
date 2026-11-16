@@ -50,6 +50,36 @@ describe('sii bte command (fake runtime, no SII)', () => {
     expect(json.boletas.map((b) => b.folio)).toEqual([101]);
   });
 
+  it('bte pdf <periodo> <folio> resolves the folio, writes the PDF and prints its path (#282)', async () => {
+    const COD = 'SYNTHCB0000000000101';
+    const PAGE = testing.inlineMapsPage({
+      xml_values: META,
+      arr_informe_mensual: { ...ARR, codigobarras_1: COD },
+    });
+    const files = new testing.InMemoryFileSink();
+    const rt: Runtime = {
+      ...makeBteRuntime(),
+      files,
+      portal: new testing.FakePortalDriver({
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          datos,
+          requestText: (url) => (url.includes('/TMBCOC_') ? PAGE : undefined),
+          requestBinary: () => new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]),
+        },
+      }),
+    };
+    await seed(rt);
+    const json = (await runJson(rt, 'bte', 'pdf', '2026-05', '101', '--out', '/tmp/docs')) as {
+      path: string;
+      boleta: { folio: number };
+    };
+    expect(json.path).toBe(`/tmp/docs/bte-emitida-${COD}.pdf`);
+    expect(json.boleta.folio).toBe(101);
+    expect(files.files.has(json.path)).toBe(true);
+    await expect(run(rt, 'bte', 'pdf', '2026-05', 'x1')).rejects.toThrow('Folio inválido: "x1"');
+  });
+
   it('bte list requires a session (NotAuthenticated → exit 2)', async () => {
     await expect(run(makeBteRuntime(), 'bte', 'list', '2026-05')).rejects.toBeInstanceOf(
       NotAuthenticatedError,

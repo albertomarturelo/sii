@@ -410,7 +410,7 @@ reversible y sin efecto legal, así que no pide ceremonia
 ([ADR-023](docs/decisions/023-factura-borradores-only.md)). **Emitir** una factura
 no está expuesto en ninguna herramienta.
 
-Las herramientas que **descargan documentos** (`f29_pdf`, `dte_pdf`, `dte_preview_pdf`) escriben el archivo en tu
+Las herramientas que **descargan documentos** (`f29_pdf`, `bte_pdf`, `dte_pdf`, `dte_preview_pdf`) escriben el archivo en tu
 disco y devuelven **solo su ruta y tamaño, nunca el contenido**: un F29 lleva razón
 social, domicilio y tu posición financiera completa, así que el documento no entra
 en la conversación — lo abres tú desde la ruta que indica.
@@ -474,6 +474,7 @@ Salida **JSON por defecto** (pipeable a `jq`); `--human` para lectura. El header
 | `sii f29 submit <periodo>` (`--confirm <total>`) | Presenta el F29 con la propuesta del SII — por defecto vista previa (deja un borrador «Guardada»); la presentación real exige `--confirm` con el TOTAL A PAGAR |
 | `sii f29 submit <periodo> --sin-movimiento` (`--confirm 0`) | Declara un mes sin movimiento por la ruta « Declarar sin movimiento » del SII: sin propuesta, todo en cero; tú afirmas que el mes no tuvo movimiento. La vista previa no guarda nada |
 | `sii bte list <periodo> [--recibidas\|--emitidas]` | Boletas de honorarios de un mes |
+| `sii bte pdf <periodo> <folio> [--recibidas] [--emisor <rut>] [--codigo] [--out]` | Descarga el PDF de una boleta emitida o recibida (también una anulada) |
 | `sii bte emit …` (`--confirm <monto>`) | Emite una BHE — por defecto vista previa; la emisión real exige `--confirm` |
 | `sii dte authorized <rut>` | Consulta pública: qué DTE puede emitir un RUT (sin login) |
 | `sii dte empresas` | Empresas del Portal MIPYME para las que estás autorizado a facturar |

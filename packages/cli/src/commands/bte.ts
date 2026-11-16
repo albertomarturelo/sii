@@ -3,11 +3,13 @@
 // `register<Mod>(program, runtime)`; `program.ts` just calls it (append-only tree).
 //
 // SESSION-KEYED (ADR-005): reads the session principal; no `--rut`.
+import { join } from 'node:path';
 import type { Command } from 'commander';
 import {
   bteEmit,
   bteEmitPreview,
   bteList,
+  btePdf,
   formatMoney as money,
   formatRut as fmtRut,
   type BteEmitArgs,
@@ -15,6 +17,7 @@ import {
   type BteSide,
   type Runtime,
 } from '@albertomarturelo/sii-core';
+import { documentosDir } from '@albertomarturelo/sii-core/node';
 import { emit, out } from '../io.js';
 
 const sideOf = (opts: { recibidas?: boolean }): BteSide =>
@@ -80,6 +83,57 @@ export function registerBte(program: Command, runtime: Runtime): void {
         out(`${res.boletas.length} boleta(s); líquido total=${money(res.totales.liquido)}.`);
       });
     });
+
+  bte
+    .command('pdf')
+    .description(
+      'Session-keyed (titular de la sesión). Descarga el PDF de una boleta EMITIDA (por defecto) ' +
+        'o --recibidas, por período y folio o por --codigo (codBarras de `bte list`). Una ' +
+        'anulada también se descarga. Escribe el archivo y devuelve su ruta.',
+    )
+    .argument('[periodo]', 'Período de la boleta (YYYYMM o YYYY-MM).')
+    .argument('[folio]', 'Folio de la boleta.')
+    .option('--codigo <codBarras>', 'Código de barras de la boleta, en vez de período y folio.')
+    .option('--recibidas', 'Una boleta RECIBIDA (por defecto: EMITIDA).')
+    .option('--emitidas', 'Una boleta EMITIDA (por defecto).')
+    .option(
+      '--emisor <rut>',
+      'Sólo --recibidas: RUT del emisor, si dos emisores comparten el folio.',
+    )
+    .option(
+      '--out <dir>',
+      'Carpeta destino (por defecto, documentos/bte bajo $SII_HOME, o ~/.sii sin ella).',
+      join(documentosDir(), 'bte'),
+    )
+    .action(
+      async (
+        periodo: string | undefined,
+        folio: string | undefined,
+        opts: { codigo?: string; recibidas?: boolean; emisor?: string; out: string },
+      ) => {
+        const n = folio === undefined ? undefined : Number(folio);
+        if (n !== undefined && (!Number.isInteger(n) || n <= 0)) {
+          throw new Error(`Folio inválido: "${folio}" (entero positivo).`);
+        }
+        const res = await btePdf(runtime, {
+          side: sideOf(opts),
+          directorio: opts.out,
+          ...(opts.codigo !== undefined ? { codBarras: opts.codigo } : {}),
+          ...(periodo !== undefined ? { periodo } : {}),
+          ...(n !== undefined ? { folio: n } : {}),
+          ...(opts.emisor !== undefined ? { emisor: opts.emisor } : {}),
+        });
+        emit(res, () => {
+          const b = res.boleta;
+          out(
+            `Boleta ${res.side === 'EMITIDAS' ? 'emitida' : 'recibida'}` +
+              (b ? ` folio ${b.folio ?? '—'}${b.estado === 'ANUL' ? ' [ANULADA]' : ''}` : '') +
+              ` — ${res.codBarras}`,
+          );
+          out(`  ${res.path} (${res.bytes} bytes)`);
+        });
+      },
+    );
 
   // --- emit (WRITE surface, ADR-017) — issues a legally-binding boleta ---
   bte

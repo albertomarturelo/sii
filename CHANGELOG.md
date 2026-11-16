@@ -23,6 +23,10 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added** `sii bte pdf` / MCP `bte_pdf` / core `btePdf`: the PDF of a listed boleta de
+  honorarios, emitida or recibida (an anulada too), by período + folio or by its código de
+  barras, as a file path, never the bytes; `BteBoleta` now carries `codBarras` (#282).
+
 ## 0.20.0 — 2026-11-13 — La reparación
 
 A minor for one export (#279).

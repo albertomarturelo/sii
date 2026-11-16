@@ -22,6 +22,13 @@ statements in the HTML**, so `bte list` parses them from a `requestText` GET ins
 the page (ADR-027 amendment). **Recibidas confirmed live**, including an anulada: the row fields and the month's sums below. The probe printed structure only (key
 names, value kinds, counts); no value, RUT or name was recorded.
 
+**PDF pass (#282, 2026-11-15, prod, HTTP driver):** one boleta read from BOTH sides, the emisor's
+persona session (emitidas) and the receptor's empresa session (recibidas), then the PDF CGI on
+each, an anulada included. **Emitidas rows confirmed over HTTP** (16 fields, the list below). Both
+sides carry `codigobarras` (an anulada too), and it is the SAME value for one boleta on either
+side. Structure only again: no value, RUT, name, monto or código was recorded, and no document
+is committed.
+
 ## Reach — spike #15 for BHE: SESSION-KEYED (answered)
 
 **BHE does NOT support a represented operating RUT (confirmed live #62).** The
@@ -202,12 +209,14 @@ drop `raw` when the non-curated data is PII).
   future fields. So the curated shape (`folio`, counterparty `contraparte{Rut,Nombre}`, montos,
   retenciones, `estado`, …) IS the whole output — `raw` is dropped. The dropped fields are
   own-identity PII (`usuemisor`/`nombre_receptor`), a counterparty email (`email_envio`), and
-  low-value metadata (`codigobarras`, `cod_comuna`) — no tax detail is lost.
+  low-value metadata (`cod_comuna`) — no tax detail is lost. `codigobarras` was dropped too until
+  #282, which keeps it as `codBarras`: it is the boleta's id and the key of its PDF.
 - The **audit log** already carried no boleta data (action/result/rut/period/side only) — unaffected.
 
 ## Read / write boundary
 
 - **READ (#20):** the 4 informe CGIs (anual + mensual × recibidas + emitidas).
+- **READ (#282):** `TMBCOT_ConsultaBoletaPdf.cgi`, the PDF of one listed boleta (below).
 - **WRITE (this section, ADR-017):** the `TMBECN_*` emission flow — **captured live
   2026-07-02** (own session, headed Playwright, a REAL boleta issued end-to-end). Emit rides
   **Clave, no certificate** (NOT blocked on the DTE cert layer). Session-keyed to the principal.
@@ -286,7 +295,9 @@ hardcodes a per-year table. Who-withholds rule (JS): `PJ = 50000000`; if the rec
   (e.g. `NNNNNNNN0000NNNNNNDD`). This IS the folio-equivalent key.
 - `codigo_inferior` — the Code-39 rendering of the código (→ `txt_cod_39` in the envío step).
 - `nombre_archivo` — the PDF filename.
-- **PDF:** `GET TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=<cod_barras>` (same host).
+- **PDF:** `TMBCOT_ConsultaBoletaPdf.cgi` (same host). **With `txt_codigobarras` alone SII
+  refuses** (« origen nulo », observed 2026-11-15, see § PDF), so a link to it needs the
+  listing's own `origen` parameters.
 
 ### Envío por email (optional, post-issue)
 
@@ -305,14 +316,46 @@ what goes in `cbo_comuna` / `txt_comuna_destinatario`. Ported to `portal/bte-com
 validation (cod_region 1–16 + cod_comuna belongs to the region). Region name glosas are NOT in this
 JS (they render from the `<select cod_region>` HTML).
 
+## PDF de una boleta (#282, observed 2026-11-15)
+
+`GET https://loa.sii.cl/cgi_IMT/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=<codigobarras>&<side's params>`,
+on the session of whoever sees the boleta: the emisor on emitidas, the receptor on recibidas.
+
+| Side | How SII's listing page asks for it | What the task sends |
+| --- | --- | --- |
+| EMITIDAS | the PDF icon's `href`: `…?txt_codigobarras=<c>&veroriginal=si&origen=PROPIOS&enviar=si` | that GET, verbatim |
+| RECIBIDAS | `ObtenerBoletaPdf(cod_barra, cod_comuna)` POSTs form `formulario`: `origen=RECIBIDOS`, `veroriginal=si`, `txt_codigobarras`, `txt_cod_39` (a Code39 its JS computes), `txt_descr_comuna` (the comuna's name), `nro_boleta=0`, `CantidadFilas` | a GET with `txt_codigobarras`, `veroriginal=si`, `origen=RECIBIDOS` only: it was served the same PDF, so the JS-computed fields are not ported |
+
+| Answer | Observed |
+| --- | --- |
+| A vigente boleta, either side (an emitida months old, not just issued); an **anulada** recibida | `200 application/pdf`, body starts `%PDF-1.3` |
+| `txt_codigobarras` without `origen` | `200 text/html; charset=ISO-8859-1`, « INFORMACION AL CONTRIBUYENTE »: « Sr. Contribuyente: No ha sido posible completar su solicitud. Inténtelo más tarde o comuníquese con la Mesa de Ayuda informando el siguiente código : origen nulo:loa.sii.cl » |
+| A dead jar | not observed on this CGI; the seam's login-host check applies (`SessionExpiredError`) |
+
+- **Success is `content-type` + the `%PDF` magic, never the status** (ADR-022): the refusal is a
+  `200` too. The task lifts the sentence after « Sr. Contribuyente: » and surfaces it verbatim;
+  any other non-PDF body is « scraper roto ».
+- **The PDF is encrypted** (`/Filter/Standard`) and two downloads of one boleta differ from byte
+  43 on, so neither the hash nor the size identifies a boleta: `codigobarras` does. The task
+  names the file after it (`bte-<emitida|recibida>-<codigobarras>.pdf`).
+- **`codigobarras`:** 20 letters or digits on every row read (both sides). The task refuses any
+  other shape locally, before a session.
+- **Addressing by folio:** a folio is unique per emisor only, so on recibidas two emisores can
+  share one. `btePdf` resolves período + folio through that month's listing and refuses an
+  ambiguous folio unless the emisor's RUT is given; nothing is guessed.
+- **Not observed:** whether the CGI serves a boleta to a session that is neither its emisor nor its
+  receptor (never tried: it would read a third party's document), and whether the anulada's PDF
+  is stamped as such (its text was not read), and an anulada on the EMITIDAS side (none was
+  read).
+
 ## Open / TBD (carry into Phase 2)
 
 - **Cookie carry + `evaluate` read: CONFIRMED TS-live (2026-06-30).** No longer open.
 - **Cookie carry on a plain GET + the literal maps: CONFIRMED HTTP-live (2026-10-26, #222).**
 - **Recibidas rows: CONFIRMED HTTP-live (2026-10-26)** on an empresa (13 fields, above).
-- **Emitidas rows over HTTP:** not yet seen (only an empty month was read, and it parsed
-  cleanly). The emitidas row fields stay as TS-live-validated through `evaluate`
-  (2026-06-30); re-confirm on an account with emitidas.
+- **Emitidas rows over HTTP: CONFIRMED (2026-11-15, #282)**, the 16 fields listed above.
+- **`bteEmit`'s `pdfUrl`** carries `txt_codigobarras` only, the shape SII refuses (« origen
+  nulo », § PDF). Fixing it is its own change.
 - **The annual report over HTTP:** 110 literal keys (the set above), but the month columns 1–3
   are assigned twice and `tot1`…`tot7` / `sum<mes>` / `sumtot` are JS expressions, which
   `readInlineMap` leaves out. Nothing reads the annual report today; a surface that does must

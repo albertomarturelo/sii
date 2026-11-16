@@ -51,6 +51,48 @@ describe('@albertomarturelo/sii-mcp bte tools (in-memory client, fake runtime, n
     expect(tools.find((t) => t.name === 'bte_list')?.annotations?.readOnlyHint).toBe(true);
   });
 
+  it('bte_pdf returns a descriptor with the file path, never the PDF bytes (#282)', async () => {
+    const COD = 'SYNTHCB0000000000101';
+    const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x33]);
+    const files = new testing.InMemoryFileSink();
+    let pdfUrl = '';
+    const runtime: Runtime = {
+      clock: new testing.FixedClock(new Date('2026-06-30T12:00:00Z')),
+      audit: new testing.RecordingAuditSink(),
+      store: new testing.InMemoryKeyValueStore(),
+      files,
+      portal: new testing.FakePortalDriver({
+        restoreSession: {
+          landingUrl: HOSTS.miSii,
+          datos,
+          requestBinary: (url) => {
+            pdfUrl = url;
+            return PDF;
+          },
+        },
+      }),
+    };
+    const client = await connect(runtime);
+    await testing.seedSession(runtime);
+
+    const res = await client.callTool({
+      name: 'bte_pdf',
+      arguments: { recibidas: true, codBarras: COD, directorio: '/tmp/docs' },
+    });
+    expect(isError(res)).toBe(false);
+    const parsed = JSON.parse(toolText(res)) as Record<string, unknown>;
+    expect(parsed).toMatchObject({
+      path: `/tmp/docs/bte-recibida-${COD}.pdf`,
+      bytes: PDF.length,
+      contentType: 'application/pdf',
+      side: 'RECIBIDAS',
+      codBarras: COD,
+    });
+    expect(pdfUrl).toContain('origen=RECIBIDOS');
+    expect(toolText(res)).not.toContain('%PDF'); // the bytes stay on disk (ADR-022 / ADR-006)
+    expect(files.files.size).toBe(1);
+  });
+
   // --- emit (write surface, ADR-017) ---
   const FORM =
     "<html><script>xml_values['dia_actual']='02';xml_values['mes_actual']='07';" +
