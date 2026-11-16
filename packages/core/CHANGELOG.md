@@ -4,6 +4,24 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.21.0 — 2026-11-16
+
+### Added
+
+- **`btePdf` downloads a listed boleta de honorarios' PDF (#282).** Emitida or recibida, by
+  `codBarras` (one GET) or by `periodo` + `folio` (the month's listing first, paced), with
+  `emisor` to tell two recibidas apart that share a folio. It GETs `TMBCOT_ConsultaBoletaPdf.cgi`
+  with the side's `origen` (`PROPIOS` / `RECIBIDOS`), decides success by content-type and the
+  `%PDF` magic, writes through `runtime.files` and returns a descriptor (`path`, `archivo`,
+  `bytes`, `codBarras`, `boleta`), never the bytes. SII's refusal page is a `BteError` with its
+  message verbatim. The receipt carries rut, side, folio and bytes only.
+- **`BteBoleta.codBarras`**: the listing row's código de barras, on both sides (null when absent).
+
+### Fixed
+
+- **`bteEmit`'s `pdfUrl` is the emitidas listing's link (#284).** With `txt_codigobarras` alone
+  SII answers « origen nulo »; the link now carries `origen=PROPIOS`.
+
 ## 0.20.0 — 2026-11-13
 
 ### Added

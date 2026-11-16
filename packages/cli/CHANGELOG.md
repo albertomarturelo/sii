@@ -9,6 +9,19 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.21.0 — 2026-11-16
+
+### Added
+
+- **`sii bte pdf <periodo> <folio>`** / **`--codigo <codBarras>`** (#282): downloads a boleta's
+  PDF to `--out` (default `documentos/bte` under `$SII_HOME`, or `~/.sii`) and prints its path.
+  `--recibidas` for a received one, `--emisor <rut>` when two emisores share the folio. `bte list`
+  rows carry `codBarras`.
+
+### Fixed
+
+- **`sii bte emit`'s printed PDF link opens the boleta (#284).**
+
 ## 0.20.0 — 2026-11-13
 
 No change to the commands. Released in lockstep with the core, which adds the `repairMojibake`
