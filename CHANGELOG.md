@@ -23,11 +23,23 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Added: `sii bte pdf`, MCP `bte_pdf` and core `btePdf` download a listed boleta's PDF
-  (#282).** Emitida or recibida (an anulada too), by período + folio or by its código de barras,
-  returned as a file path, never the bytes. `BteBoleta` now carries `codBarras`.
-- **Fixed: `bte emit`'s `pdfUrl` opens the issued boleta (#284).** It carried the código de barras
-  alone, which SII refuses (« origen nulo »); it is now the link SII's emitidas listing builds.
+## 0.21.0 — 2026-11-16 — La boleta
+
+A minor for one new surface (#282) and the fix it uncovered (#284).
+
+**The PDF of any boleta de honorarios you can list.** `sii bte pdf`, the MCP tool `bte_pdf` and the
+core task `btePdf` download a boleta that `bte list` returns, emitida or recibida (an anulada
+too), by período + folio or by its código de barras, now carried by every `bte list` row as
+`codBarras`. The result is the file's path, never its contents. On recibidas two emisores can
+share a folio: then pass the emisor's RUT, or the código. SII's PDF CGI needs the listing's own
+`origen` parameters; without them it answers a `200` page, « origen nulo », which the task
+surfaces verbatim instead of saving.
+
+**`bte emit`'s `pdfUrl` opens the issued boleta.** It carried the código alone, the shape SII
+refuses; it is now the link SII's emitidas listing builds (#284).
+
+A MINOR: a CLI verb, an MCP tool, a core export and a result field are added (ADR-021 amendment).
+Nothing breaks.
 
 ## 0.20.0 — 2026-11-13 — La reparación
 

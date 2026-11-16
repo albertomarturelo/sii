@@ -9,6 +9,19 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.21.0 — 2026-11-16
+
+### Added
+
+- **`bte_pdf`** (#282): a boleta's PDF by `periodo` + `folio` (+ `emisor`) or `codBarras`,
+  `recibidas` for a received one; returns the file's path, never its contents.
+  `readOnlyHint: false`, like `dte_pdf`, since it writes a local file. `bte_list` rows carry
+  `codBarras`.
+
+### Fixed
+
+- **`bte_emit`'s `pdfUrl` opens the issued boleta (#284).**
+
 ## 0.20.0 — 2026-11-13
 
 No change to the tools. Released in lockstep with the core, which adds the `repairMojibake`
