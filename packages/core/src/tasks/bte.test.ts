@@ -327,6 +327,45 @@ describe('btePdf (#282, fakes, no SII, no filesystem)', () => {
     expect(urls.every((u) => u.includes('TMBCOC_InformeMensualBheRec.cgi'))).toBe(true);
   });
 
+  it("SII's refusal page is a BteError: no file written, a failed receipt, never retried", async () => {
+    let pdfCalls = 0;
+    const page = Uint8Array.from(
+      '<html><body><table><tr><td>Sr. Contribuyente:</td></tr>' +
+        '<tr><td>No ha sido posible completar su solicitud.</td></tr></table></body></html>',
+      (c) => c.charCodeAt(0),
+    );
+    const rt: Runtime = {
+      ...makeRuntime(),
+      files: new InMemoryFileSink(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          requestBinary: () => {
+            pdfCalls++;
+            return { status: 200, contentType: 'text/html; charset=ISO-8859-1', bytes: page };
+          },
+        },
+      }),
+    };
+    await seed(rt);
+    const err = await btePdf(rt, { side: 'EMITIDAS', codBarras: COD, directorio: '/d' }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(BteError);
+    expect((err as Error).message).toBe(
+      'El SII no entregó el PDF de la boleta: No ha sido posible completar su solicitud.',
+    );
+    expect(classifyError(err)).toMatchObject({ type: 'sii_error' });
+    expect(pdfCalls).toBe(1);
+    expect(written(rt).size).toBe(0);
+    expect(entries(rt).at(-1)).toEqual({
+      ts: expect.any(String),
+      action: 'bte_pdf',
+      result: 'failed',
+      side: 'EMITIDAS',
+      folio: null,
+    });
+  });
+
   it('bad input fails before any session', async () => {
     const { rt } = pdfRuntime();
     await seed(rt);

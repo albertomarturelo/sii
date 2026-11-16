@@ -343,10 +343,7 @@ on the session of whoever sees the boleta: the emisor on emitidas, the receptor 
 - **Addressing by folio:** a folio is unique per emisor only, so on recibidas two emisores can
   share one. `btePdf` resolves período + folio through that month's listing and refuses an
   ambiguous folio unless the emisor's RUT is given; nothing is guessed.
-- **Not observed:** whether the CGI serves a boleta to a session that is neither its emisor nor its
-  receptor (never tried: it would read a third party's document), and whether the anulada's PDF
-  is stamped as such (its text was not read), and an anulada on the EMITIDAS side (none was
-  read).
+- What was not observed is listed under « Open / TBD ».
 
 ## Open / TBD (carry into Phase 2)
 
@@ -355,7 +352,12 @@ on the session of whoever sees the boleta: the emisor on emitidas, the receptor 
 - **Recibidas rows: CONFIRMED HTTP-live (2026-10-26)** on an empresa (13 fields, above).
 - **Emitidas rows over HTTP: CONFIRMED (2026-11-15, #282)**, the 16 fields listed above.
 - **`bteEmit`'s `pdfUrl`** carries `txt_codigobarras` only, the shape SII refuses (« origen
-  nulo », § PDF). Fixing it is its own change.
+  nulo », § PDF). Fix: #284.
+- **The PDF of an anulada EMITIDA** (#282): not observed, none was read; an anulada recibida is
+  served. Confirm on an account with one.
+- **Whether the anulada's PDF is stamped as such** (#282): its text was not read.
+- **A session that is neither emisor nor receptor** (#282): never tried, since it would read a
+  third party's document.
 - **The annual report over HTTP:** 110 literal keys (the set above), but the month columns 1–3
   are assigned twice and `tot1`…`tot7` / `sum<mes>` / `sumtot` are JS expressions, which
   `readInlineMap` leaves out. Nothing reads the annual report today; a surface that does must

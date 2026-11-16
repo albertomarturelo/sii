@@ -3,6 +3,7 @@ import { FakePortalSession, inlineMapsPage } from '../adapters/fake/index.js';
 import type { InlineMapValue } from '../adapters/fake/index.js';
 import { Rut } from '../rut/index.js';
 import { Periodo } from '../periodo/index.js';
+import { HOSTS } from '../config/index.js';
 import {
   AbortedError,
   BrowserRequiredError,
@@ -206,6 +207,23 @@ describe('BTE facade (fake session, synthetic report HTML, no SII)', () => {
     expect(urls[0]).toContain('/TMBCOC_InformeMensualBheRec.cgi');
   });
 
+  it('a row without a código de barras reads as codBarras null, on either side (#282)', async () => {
+    for (const [side, row] of [
+      ['EMITIDAS', { nroboleta_1: '101', rutreceptor_1: '77777777', dvreceptor_1: '7' }],
+      ['RECIBIDAS', { nroboleta_1: '55', rutemisor_1: '20000042', dvemisor_1: '0' }],
+    ] as const) {
+      const { session } = reportSession(
+        inlineMapsPage({
+          xml_values: { total_boletas: '2' },
+          // Row 2 carries an empty value: SII's blank, which also reads as null.
+          arr_informe_mensual: { ...row, nroboleta_2: '9', estado_2: 'N', codigobarras_2: '' },
+        }),
+      );
+      const res = await fetchBteMensual(session, { rut: RUT, periodo: PERIODO, side }, noPace);
+      expect(res.boletas.map((b) => b.codBarras)).toEqual([null, null]);
+    }
+  });
+
   it('an empty month is a clean 0-boleta result, not an error', async () => {
     // Report page exists (meta declared, total 0) but its rows map is empty.
     const { session } = reportSession(
@@ -373,24 +391,31 @@ describe('BTE PDF (#282, fake session, synthetic bytes, no SII)', () => {
   const COD = 'SYNTHCB0000000000101';
   const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x33]); // "%PDF-1.3"
   const latin1 = (s: string): Uint8Array => Uint8Array.from(s, (c) => c.charCodeAt(0));
-  // The refusal page as observed (2026-11-15): a 200 ISO-8859-1 page, the message after
-  // « Sr. Contribuyente: ». Accented text is ISO-8859-1 bytes, as SII sends it.
+  // The refusal page in its observed markup (2026-11-15): a 200 ISO-8859-1 page whose message is
+  // the table rows after « Sr. Contribuyente: ». Accented text is ISO-8859-1 bytes, as SII sends
+  // it. The footer after the table is synthetic: it must not join the message.
   const ORIGEN_NULO = latin1(
     '<!DOCTYPE html><html><head><title>INFORMACION AL CONTRIBUYENTE</title>' +
-      '<script src="/IMT/js/GLB_links.js"></script></head><body>' +
-      '<a href="http://www.sii.cl">Home</a> | Boleta Electr\u00f3nica P\u00e1gina Segura &nbsp;' +
-      '<b>INFORMACION AL CONTRIBUYENTE</b><p>Sr. Contribuyente:<br>No ha sido posible completar ' +
-      'su solicitud. Int\u00e9ntelo m\u00e1s tarde o comun\u00edquese con la Mesa de Ayuda ' +
-      'informando el siguiente c\u00f3digo : origen nulo:loa.sii.cl</p></body></html>',
+      '<script src="/IMT/js/GLB_links.js"></script></head><body><center>' +
+      '<table><tr> <td colspan="2"><font class="titulo">INFORMACION AL CONTRIBUYENTE</font> <br>' +
+      '<hr></td></table>\n<table width="630" border="0" cellspacing="0" cellpadding="0">\n' +
+      '<tr> <td> <font class="normal"> Sr. Contribuyente:<br> <br>  </font></td> </tr>\n' +
+      '<tr> <td> <font class="normal">   </font></td> </tr>\n' +
+      '<tr> <td> <font class="normal"> No ha sido posible completar su solicitud. </font></td> </tr>\n' +
+      '<tr> <td> <font class="normal"> Int\u00e9ntelo m\u00e1s tarde o comun\u00edquese con la ' +
+      '<a href="http://www.sii.cl/sobre_el_sii/mesa_ayuda.htm">Mesa de Ayuda</a> informando el ' +
+      'siguiente c\u00f3digo :  </font></td> </tr>\n' +
+      '<tr> <td> <font class="normal">  <b>origen nulo:loa.sii.cl</b>  </font></td> </tr>\n' +
+      '</table>\n<p>Pie de p\u00e1gina sint\u00e9tico.</p></center>\n</body>\n</html>',
   );
 
   it("builds each side's URL as its listing page does (origen per side)", () => {
     expect(btePdfUrl('EMITIDAS', COD)).toBe(
-      `https://loa.sii.cl/cgi_IMT/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=${COD}` +
+      `${HOSTS.bheCgi}/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=${COD}` +
         '&veroriginal=si&origen=PROPIOS&enviar=si',
     );
     expect(btePdfUrl('RECIBIDAS', COD)).toBe(
-      `https://loa.sii.cl/cgi_IMT/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=${COD}` +
+      `${HOSTS.bheCgi}/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=${COD}` +
         '&veroriginal=si&origen=RECIBIDOS',
     );
   });

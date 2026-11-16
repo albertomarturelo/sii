@@ -17,7 +17,7 @@ import { HOSTS } from '../config/index.js';
 import { BteError } from '../errors/index.js';
 import { checkAborted } from '../errors/abort.js';
 import { Rut } from '../rut/index.js';
-import { isPdfBytes } from './dte-mipyme.js';
+import { isPdfBytes } from './pdf.js';
 import { readInlineMap } from './inline-map.js';
 import type { Periodo } from '../periodo/index.js';
 import type { PortalSession } from '../seams/index.js';
@@ -325,19 +325,20 @@ export function btePdfUrl(side: BteSide, codBarras: string): string {
   );
 }
 
-/** SII's refusal arrives as a `200 text/html` « INFORMACION AL CONTRIBUYENTE » page whose
- *  message follows « Sr. Contribuyente: » (observed 2026-11-15, the « origen nulo » answer). Lift
- *  that sentence so it is surfaced verbatim (ADR-004); any other body is not SII speaking. */
+/** SII's refusal arrives as a `200 text/html` « INFORMACION AL CONTRIBUYENTE » page. Its message
+ *  is the table rows from « Sr. Contribuyente: » to that table's `</table>` (observed 2026-11-15,
+ *  the « origen nulo » answer). Lift exactly that so it is surfaced verbatim (ADR-004) and nothing
+ *  after the table joins it; any other body is not SII speaking. */
 function siiRefusal(bytes: Uint8Array, contentType: string | null): string | null {
   if (!(contentType ?? '').toLowerCase().includes('html')) return null;
-  const text = new TextDecoder('iso-8859-1') // the page's declared charset (header + meta)
-    .decode(bytes)
-    .replace(/<head[\s\S]*?<\/head>/i, '')
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
+  const html = new TextDecoder('iso-8859-1').decode(bytes); // the page's declared charset
+  const block = /Sr\. Contribuyente:([\s\S]*?)<\/table>/i.exec(html)?.[1];
+  if (block === undefined) return null;
+  const msg = block
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ');
-  const msg = /Sr\. Contribuyente:\s*(.+)$/.exec(text)?.[1]?.trim();
+    .replace(/\s+/g, ' ')
+    .trim();
   return msg ? msg : null;
 }
 

@@ -27,6 +27,7 @@ import { HOSTS } from '../config/index.js';
 import { DteError } from '../errors/index.js';
 import { repairMojibake } from '../format/text.js';
 import { Rut } from '../rut/index.js';
+import { isPdfBytes } from './pdf.js';
 import type { PortalSession, PublicResponse } from '../seams/index.js';
 
 const CGI = HOSTS.mipeCgi;
@@ -327,18 +328,7 @@ export function frameFields(html: string): { name: string; value: string }[] {
   return out;
 }
 
-/** `content-type` says PDF AND the body starts with the `%PDF` magic. Status is never a
- *  success signal here — SII answers 200 for its own error page (ADR-022). */
-export function isPdfBytes(bytes: Uint8Array, contentType: string | null): boolean {
-  return (
-    (contentType ?? '').toLowerCase().includes('application/pdf') &&
-    bytes.length > 4 &&
-    bytes[0] === 0x25 &&
-    bytes[1] === 0x50 &&
-    bytes[2] === 0x44 &&
-    bytes[3] === 0x46
-  );
-}
+export { isPdfBytes }; // moved to `./pdf.js` (#282); kept here for its existing importers
 
 /** Also relay SII's generic failure page ("Error al contribuyente"), which carries a support
  *  code rather than a validation message — it is a SII-side refusal, not our bad input. */
