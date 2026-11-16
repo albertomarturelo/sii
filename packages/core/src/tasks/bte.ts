@@ -15,8 +15,8 @@ import { Rut } from '../rut/index.js';
 import { AbortedError, BteError, ValidationError } from '../errors/index.js';
 import { checkAborted } from '../errors/abort.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
-import { fetchBteMensual } from '../portal/bte.js';
-import type { BteMensual, BteSide } from '../portal/bte.js';
+import { COD_BARRAS, fetchBteMensual, fetchBtePdf } from '../portal/bte.js';
+import type { BteBoleta, BteMensual, BteSide } from '../portal/bte.js';
 import {
   assertRegionComuna,
   emitBteEmision,
@@ -95,6 +95,163 @@ export async function bteList(
       side: args.side,
       ...(result === 'aborted' ? { paginas } : {}),
     });
+    throw e;
+  }
+}
+
+// --- bte pdf (#282) ---------------------------------------------------------------
+
+/** A downloaded boleta — a DESCRIPTOR, never the bytes (ADR-022 / ADR-006). */
+export interface BtePdfDoc {
+  readonly path: string;
+  readonly archivo: string;
+  readonly bytes: number;
+  readonly contentType: 'application/pdf';
+  /** Session principal (canonical): the emisor on EMITIDAS, the receptor on RECIBIDAS. */
+  readonly rut: string;
+  readonly side: BteSide;
+  readonly codBarras: string;
+  /** The listing row, when the boleta was addressed by período + folio; null by código. */
+  readonly boleta: BteBoleta | null;
+}
+
+export interface BtePdfArgs {
+  readonly side: BteSide;
+  /** SII's código de barras (`BteBoleta.codBarras`): one GET, no listing. */
+  readonly codBarras?: string;
+  /** Or the período + folio, resolved through that month's listing. */
+  readonly periodo?: string;
+  readonly folio?: number;
+  /** RECIBIDAS only: the emisor's RUT, needed when two emisores share the folio. */
+  readonly emisor?: string;
+  /** REQUIRED: the pure core cannot know `$HOME`; each surface applies its default (ADR-022). */
+  readonly directorio: string;
+}
+
+type PdfTarget =
+  | { kind: 'codigo'; codBarras: string }
+  | { kind: 'folio'; periodo: Periodo; folio: number; emisor: Rut | null };
+
+/** Validate the address locally, before any session: exactly one of código or período + folio. */
+function pdfTarget(args: BtePdfArgs): PdfTarget {
+  const porFolio = args.periodo !== undefined || args.folio !== undefined;
+  if (args.codBarras !== undefined) {
+    if (porFolio || args.emisor !== undefined) {
+      throw new ValidationError('Indica el código de barras O el período y el folio, no ambos.');
+    }
+    const codBarras = args.codBarras.trim();
+    if (!COD_BARRAS.test(codBarras)) {
+      throw new ValidationError(
+        'Código de barras inválido: el SII usa 20 letras o dígitos (columna codBarras de `bte list`).',
+      );
+    }
+    return { kind: 'codigo', codBarras };
+  }
+  if (args.periodo === undefined || args.folio === undefined) {
+    throw new ValidationError('Indica el período y el folio de la boleta (o su código de barras).');
+  }
+  if (!Number.isInteger(args.folio) || args.folio <= 0) {
+    throw new ValidationError(`Folio inválido: "${args.folio}" (entero positivo).`);
+  }
+  if (args.emisor !== undefined && args.side !== 'RECIBIDAS') {
+    throw new ValidationError(
+      'El emisor sólo distingue boletas RECIBIDAS (las emitidas son tuyas).',
+    );
+  }
+  return {
+    kind: 'folio',
+    periodo: Periodo.parse(args.periodo),
+    folio: args.folio,
+    emisor: args.emisor === undefined ? null : Rut.parse(args.emisor),
+  };
+}
+
+/** The listing row a período + folio names. A folio is unique per emisor, so on RECIBIDAS two
+ *  emisores can share one: then the emisor must be given, and nothing is guessed. */
+function pickBoleta(mes: BteMensual, folio: number, emisor: Rut | null): BteBoleta {
+  const hits = mes.boletas.filter(
+    (b) => b.folio === folio && (emisor === null || b.contraparteRut === emisor.canonical),
+  );
+  const donde = `${mes.side.toLowerCase()} de ${mes.periodo}`;
+  if (hits.length === 0) {
+    throw new BteError(
+      `No hay una boleta con folio ${folio}${emisor ? ` de ${emisor.formatted}` : ''} en las ${donde}. ` +
+        'Revisa `bte list`.',
+    );
+  }
+  if (hits.length > 1) {
+    throw new BteError(
+      `Hay ${hits.length} boletas con folio ${folio} en las ${donde}, de distintos emisores. ` +
+        'Indica el RUT del emisor.',
+    );
+  }
+  const boleta = hits[0]!;
+  if (boleta.codBarras === null) {
+    throw new BteError(`La boleta folio ${folio} no trae código de barras en el listado del SII.`);
+  }
+  return boleta;
+}
+
+/** Download one boleta de honorarios as a PDF, emitida or recibida, for the session principal
+ *  (session-keyed, ADR-005). Addressed by its código de barras (one GET) or by período + folio
+ *  (the month's listing first, then the PDF, paced). Returns a descriptor written through
+ *  `runtime.files`, never the bytes: the document carries both parties' identity and the montos
+ *  (ADR-006 / ADR-022). An anulada is served too (observed 2026-11-15). The receipt records the
+ *  RUT, side, folio and byte count only: never the counterparty, montos or glosa. */
+export async function btePdf(runtime: Runtime, args: BtePdfArgs): Promise<BtePdfDoc> {
+  const target = pdfTarget(args); // fail fast — no session on bad input
+  const files = runtime.files;
+  if (!files) {
+    throw new BteError(
+      'Este runtime no tiene un FileSink configurado, así que no puede escribir el PDF. ' +
+        'Usa `createNodeRuntime()` o inyecta `files`.',
+    );
+  }
+  await assertSelfOperating(runtime);
+  const start = runtime.clock.now().getTime();
+  const folioPedido = target.kind === 'folio' ? target.folio : null;
+  try {
+    const res = await withSession(runtime, async (session, ctx) => {
+      const rut = Rut.parse(ctx.sessionRut); // session-keyed: the principal
+      let boleta: BteBoleta | null = null;
+      let codBarras: string;
+      if (target.kind === 'folio') {
+        const mes = await fetchBteMensual(
+          session,
+          { rut, periodo: target.periodo, side: args.side },
+          () => runtime.clock.sleep(pacingMs()),
+        );
+        boleta = pickBoleta(mes, target.folio, target.emisor);
+        codBarras = boleta.codBarras!; // pickBoleta refuses a row without one
+        await runtime.clock.sleep(pacingMs()); // listing → PDF: two SII calls (ADR-004)
+      } else {
+        codBarras = target.codBarras;
+      }
+      const bytes = await fetchBtePdf(session, { side: args.side, codBarras });
+      // SII names no file; the código is unique and stable, so a re-download refreshes in place.
+      const archivo = `bte-${args.side === 'EMITIDAS' ? 'emitida' : 'recibida'}-${codBarras}.pdf`;
+      const path = await files.write(args.directorio, archivo, bytes);
+      return {
+        path,
+        archivo,
+        bytes: bytes.length,
+        contentType: 'application/pdf' as const,
+        rut: rut.canonical,
+        side: args.side,
+        codBarras,
+        boleta,
+      };
+    });
+    audit(runtime, 'bte_pdf', 'ok', {
+      rut: res.rut,
+      side: args.side,
+      folio: res.boleta?.folio ?? null,
+      bytes: res.bytes,
+      durationMs: runtime.clock.now().getTime() - start,
+    });
+    return res;
+  } catch (e) {
+    audit(runtime, 'bte_pdf', 'failed', { side: args.side, folio: folioPedido });
     throw e;
   }
 }

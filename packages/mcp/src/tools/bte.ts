@@ -1,17 +1,20 @@
 // `bte_*` MCP tools — Boletas de Honorarios Electrónicas. Thin calls into @albertomarturelo/sii-core tasks
 // (ADR-003), read-only. zod input schemas (ADR-011). SESSION-KEYED (ADR-005): reads the
 // session principal; no `rut` argument.
+import { join } from 'node:path';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import {
   bteEmit,
   bteEmitPreview,
   bteList,
+  btePdf,
   type BteEmitArgs,
   type BteRetiene,
   type BteSide,
   type Runtime,
 } from '@albertomarturelo/sii-core';
+import { documentosDir } from '@albertomarturelo/sii-core/node';
 import { toolText } from '../tool-helpers.js';
 
 const sideOf = (recibidas?: boolean): BteSide => (recibidas ? 'RECIBIDAS' : 'EMITIDAS');
@@ -74,6 +77,48 @@ export function registerBteTools(server: McpServer, runtime: Runtime): void {
     ({ periodo, recibidas }) =>
       toolText(async () =>
         JSON.stringify(await bteList(runtime, { periodo, side: sideOf(recibidas) }), null, 2),
+      ),
+  );
+
+  server.registerTool(
+    'bte_pdf',
+    {
+      title: 'BHE/BTE — PDF de una boleta de honorarios',
+      description:
+        'SESSION-KEYED (titular de la sesión). Descarga el PDF de una boleta de honorarios ' +
+        'EMITIDA (por defecto) o RECIBIDA (recibidas=true), por periodo + folio o por codBarras ' +
+        '(el de bte_list). En recibidas, si dos emisores comparten el folio, indica emisor (RUT). ' +
+        'Una anulada también se descarga. Devuelve la RUTA del archivo, nunca su contenido: la ' +
+        'boleta es PII densa (identidad de ambas partes y montos) y no debe entrar al contexto ' +
+        'del modelo. Sólo lectura en el SII: no emite ni anula nada.',
+      inputSchema: {
+        recibidas: z.boolean().optional(),
+        codBarras: z.string().optional(),
+        periodo: z.string().optional(),
+        folio: z.number().int().positive().optional(),
+        emisor: z.string().optional(),
+        directorio: z
+          .string()
+          .optional()
+          .describe('Carpeta destino; por defecto documentos/bte bajo $SII_HOME (o ~/.sii).'),
+      },
+      // It writes a file on this machine, like dte_pdf.
+      annotations: { readOnlyHint: false },
+    },
+    ({ recibidas, codBarras, periodo, folio, emisor, directorio }) =>
+      toolText(async () =>
+        JSON.stringify(
+          await btePdf(runtime, {
+            side: sideOf(recibidas),
+            directorio: directorio ?? join(documentosDir(), 'bte'),
+            ...(codBarras !== undefined ? { codBarras } : {}),
+            ...(periodo !== undefined ? { periodo } : {}),
+            ...(folio !== undefined ? { folio } : {}),
+            ...(emisor !== undefined ? { emisor } : {}),
+          }),
+          null,
+          2,
+        ),
       ),
   );
 

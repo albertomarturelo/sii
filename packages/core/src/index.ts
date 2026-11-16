@@ -91,7 +91,7 @@ export type {
   F29Desacuerdo,
   F29MotivoDesacuerdo,
 } from './tasks/f29-submit.js';
-export { bteList, bteEmitPreview, bteEmit } from './tasks/bte.js';
+export { bteList, btePdf, bteEmitPreview, bteEmit } from './tasks/bte.js';
 export {
   dteAuthorized,
   dteEmpresas,
@@ -127,6 +127,8 @@ export type {
   BteBoleta,
   BteTotales,
   BteSide,
+  BtePdfArgs,
+  BtePdfDoc,
   BteEmitArgs,
   BteEmitResult,
   BteEmitida,

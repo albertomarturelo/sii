@@ -17,6 +17,7 @@ import { HOSTS } from '../config/index.js';
 import { BteError } from '../errors/index.js';
 import { checkAborted } from '../errors/abort.js';
 import { Rut } from '../rut/index.js';
+import { isPdfBytes } from './pdf.js';
 import { readInlineMap } from './inline-map.js';
 import type { Periodo } from '../periodo/index.js';
 import type { PortalSession } from '../seams/index.js';
@@ -39,7 +40,7 @@ const MAX_PAGINAS = 100;
  *  `usuemisor` = the emitter = self; RECIBIDAS: a self receptor-name field), plus a counterparty
  *  email — and the full own-identity field set is not provably enumerable. So, like F22/F29, BTE
  *  exposes NO `raw`: the curated fields below ARE the tax detail a contador reads; the dropped
- *  fields are own-identity PII / counterparty email / low-value metadata (barcode, comuna). The
+ *  fields are own-identity PII / counterparty email / low-value metadata (comuna). The
  *  report META's `nombre_contribuyente`/`rut_arrastre` are likewise never read. Montos are parsed
  *  from SII's es-CL dot-formatted strings. (CONVENTIONS: drop `raw` when non-curated data is PII.) */
 export interface BteBoleta {
@@ -57,6 +58,9 @@ export interface BteBoleta {
   readonly estado: 'VIG' | 'ANUL' | null;
   readonly fechaAnulacion: string | null;
   readonly socProfesional: boolean | null;
+  /** SII's código de barras, the boleta's own id and the key of its PDF (`btePdf`, #282).
+   *  Present on both sides, an anulada included (observed 2026-11-15); null when a row has none. */
+  readonly codBarras: string | null;
 }
 
 /** Per-month aggregates from the report META (`xml_values`). */
@@ -91,6 +95,7 @@ const ALIASES = {
   estado: ['estado'],
   fechaAnulacion: ['fechaanulacion'],
   socProfesional: ['es_soc_profesional'],
+  codBarras: ['codigobarras'], // both sides (observed 2026-11-15, #282)
 } as const;
 
 const aliasGet = (row: Record<string, unknown>, aliases: readonly string[]): unknown => {
@@ -183,6 +188,7 @@ function projectBoleta(row: Record<string, unknown>): BteBoleta {
     estado: estadoLabel(aliasGet(row, ALIASES.estado)),
     fechaAnulacion: asStr(aliasGet(row, ALIASES.fechaAnulacion)),
     socProfesional: boolSiNo(aliasGet(row, ALIASES.socProfesional)),
+    codBarras: asStr(aliasGet(row, ALIASES.codBarras)),
   };
 }
 
@@ -290,4 +296,69 @@ export async function fetchBteMensual(
     totales,
     boletas,
   };
+}
+
+// --- The boleta's PDF (#282) -------------------------------------------------------------
+
+/** The CGI behind the listing's PDF icon, same host on both sides (observed 2026-11-15). */
+const PDF_CGI = 'TMBCOT_ConsultaBoletaPdf.cgi';
+
+/** The parameters each side's listing page sends with the código de barras (observed
+ *  2026-11-15). EMITIDAS: the icon's `href`, verbatim. RECIBIDAS: the page POSTs a form
+ *  (`ObtenerBoletaPdf`) that adds `txt_cod_39` (a Code39 its JS computes) and
+ *  `txt_descr_comuna`; a GET with just `origen` + `veroriginal` was served the same PDF, so those
+ *  two are not sent. Without `origen` SII refuses with a `200` page, « origen nulo ». */
+const PDF_PARAMS: Record<BteSide, string> = {
+  EMITIDAS: 'veroriginal=si&origen=PROPIOS&enviar=si',
+  RECIBIDAS: 'veroriginal=si&origen=RECIBIDOS',
+};
+
+/** Every código de barras observed is 20 letters or digits (both sides, 2026-11-15). */
+export const COD_BARRAS = /^[0-9A-Za-z]{20}$/;
+
+/** The PDF URL of one boleta as its side's listing page builds it. Exported for the contract
+ *  test: dropping `origen` turns the PDF into SII's refusal page. */
+export function btePdfUrl(side: BteSide, codBarras: string): string {
+  return (
+    `${HOSTS.bheCgi}/${PDF_CGI}?txt_codigobarras=${encodeURIComponent(codBarras)}` +
+    `&${PDF_PARAMS[side]}`
+  );
+}
+
+/** SII's refusal arrives as a `200 text/html` « INFORMACION AL CONTRIBUYENTE » page. Its message
+ *  is the table rows from « Sr. Contribuyente: » to that table's `</table>` (observed 2026-11-15,
+ *  the « origen nulo » answer). Lift exactly that so it is surfaced verbatim (ADR-004) and nothing
+ *  after the table joins it; any other body is not SII speaking. */
+function siiRefusal(bytes: Uint8Array, contentType: string | null): string | null {
+  if (!(contentType ?? '').toLowerCase().includes('html')) return null;
+  const html = new TextDecoder('iso-8859-1').decode(bytes); // the page's declared charset
+  const block = /Sr\. Contribuyente:([\s\S]*?)<\/table>/i.exec(html)?.[1];
+  if (block === undefined) return null;
+  const msg = block
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return msg ? msg : null;
+}
+
+/** Download one boleta's PDF by its código de barras, on the side the session sees it from.
+ *  Success is `content-type` + the `%PDF` magic, never the status: SII answers `200` for its
+ *  refusal page too (ADR-022). A dead jar lands on the login host and the seam raises
+ *  `SessionExpiredError`, which propagates. Never retried. The PDF is encrypted and differs on
+ *  every download (observed), so its bytes never identify a boleta: the código does. */
+export async function fetchBtePdf(
+  session: PortalSession,
+  params: { side: BteSide; codBarras: string },
+): Promise<Uint8Array> {
+  const res = await session.requestBinary(btePdfUrl(params.side, params.codBarras), {
+    method: 'GET',
+  });
+  if (isPdfBytes(res.bytes, res.contentType)) return res.bytes;
+  const sii = siiRefusal(res.bytes, res.contentType);
+  throw new BteError(
+    sii
+      ? `El SII no entregó el PDF de la boleta: ${sii}`
+      : `El SII no devolvió un PDF de la boleta (content-type: ${res.contentType ?? 'desconocido'}). Scraper roto.`,
+  );
 }
