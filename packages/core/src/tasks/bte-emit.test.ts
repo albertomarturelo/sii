@@ -5,6 +5,7 @@ import {
   InMemoryKeyValueStore,
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
+import { HOSTS } from '../config/index.js';
 import type { FormRequest, Runtime } from '../seams/index.js';
 import { BteError, NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
@@ -122,7 +123,11 @@ describe('bte emit (fakes, no SII)', () => {
     await seed(rt);
     const res = await bteEmit(rt, baseArgs);
     expect(res.codBarras).toBe('200000420000000123DD');
-    expect(res.pdfUrl).toContain('txt_codigobarras=200000420000000123DD');
+    // The emitidas listing's link, with its `origen`: without it SII refuses (#284).
+    expect(res.pdfUrl).toBe(
+      `${HOSTS.bheCgi}/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=200000420000000123DD` +
+        '&veroriginal=si&origen=PROPIOS&enviar=si',
+    );
     expect(res.totalHonorarios).toBe(1_000_000);
     const audited = entries(rt).at(-1);
     expect(audited).toMatchObject({

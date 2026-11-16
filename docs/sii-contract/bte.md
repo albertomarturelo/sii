@@ -296,8 +296,8 @@ hardcodes a per-year table. Who-withholds rule (JS): `PJ = 50000000`; if the rec
 - `codigo_inferior` — the Code-39 rendering of the código (→ `txt_cod_39` in the envío step).
 - `nombre_archivo` — the PDF filename.
 - **PDF:** `TMBCOT_ConsultaBoletaPdf.cgi` (same host). **With `txt_codigobarras` alone SII
-  refuses** (« origen nulo », observed 2026-11-15, see § PDF), so a link to it needs the
-  listing's own `origen` parameters.
+  refuses** (« origen nulo », observed 2026-11-15, see § PDF), so `bteEmit`'s `pdfUrl` is the
+  emitidas listing's own link (`btePdfUrl('EMITIDAS', …)`, #284).
 
 ### Envío por email (optional, post-issue)
 
@@ -351,8 +351,6 @@ on the session of whoever sees the boleta: the emisor on emitidas, the receptor 
 - **Cookie carry on a plain GET + the literal maps: CONFIRMED HTTP-live (2026-10-26, #222).**
 - **Recibidas rows: CONFIRMED HTTP-live (2026-10-26)** on an empresa (13 fields, above).
 - **Emitidas rows over HTTP: CONFIRMED (2026-11-15, #282)**, the 16 fields listed above.
-- **`bteEmit`'s `pdfUrl`** carries `txt_codigobarras` only, the shape SII refuses (« origen
-  nulo », § PDF). Fix: #284.
 - **The PDF of an anulada EMITIDA** (#282): not observed, none was read; an anulada recibida is
   served. Confirm on an account with one.
 - **Whether the anulada's PDF is stamped as such** (#282): its text was not read.
