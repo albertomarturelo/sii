@@ -26,6 +26,8 @@ Every decision behind a release is recorded as an ADR under
 - **Added: `sii bte pdf`, MCP `bte_pdf` and core `btePdf` download a listed boleta's PDF
   (#282).** Emitida or recibida (an anulada too), by período + folio or by its código de barras,
   returned as a file path, never the bytes. `BteBoleta` now carries `codBarras`.
+- **Fixed: `bte emit`'s `pdfUrl` opens the issued boleta (#284).** It carried the código de barras
+  alone, which SII refuses (« origen nulo »); it is now the link SII's emitidas listing builds.
 
 ## 0.20.0 — 2026-11-13 — La reparación
 

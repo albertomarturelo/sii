@@ -20,6 +20,7 @@ import { HOSTS } from '../config/index.js';
 import { BteError } from '../errors/index.js';
 import type { Rut } from '../rut/index.js';
 import type { PortalSession, FormRequest } from '../seams/index.js';
+import { btePdfUrl } from './bte.js';
 import { comunaInRegion, comunaName, isRegion } from './bte-comunas.js';
 
 const CGI = HOSTS.bheCgi;
@@ -27,9 +28,6 @@ const VALIDA_URL = `${CGI}/TMBECN_ValidaTimbrajeContrib.cgi?modo=1`;
 const PRESENTA_URL = `${CGI}/TMBECN_PresentaDatosBoleta.cgi`;
 const CONFIRMA_URL = `${CGI}/TMBECN_ConfirmaTimbrajeContrib.cgi`;
 const EMITE_URL = `${CGI}/TMBECN_BoletaHonorariosElectronica.cgi`;
-/** The PDF is fetched by código de barras (observed). */
-export const pdfUrl = (codBarras: string): string =>
-  `${CGI}/TMBCOT_ConsultaBoletaPdf.cgi?txt_codigobarras=${codBarras}`;
 
 /** Who withholds the PPM retención. `RECEPTOR` (the payer, typically a persona jurídica) →
  *  `RETRECEPTOR`; `EMISOR` (the issuer) → `RETCONTRIBUYENTE`. (observed) */
@@ -317,7 +315,9 @@ export async function emitBteEmision(
         'Revisa en el portal si la boleta quedó emitida antes de reintentar.',
     );
   }
-  return { ...preview, codBarras, pdfUrl: pdfUrl(codBarras) };
+  // The emitidas listing's own link: with `txt_codigobarras` alone SII answers « origen nulo »
+  // (observed 2026-11-15, #284), so the link carries the listing's `origen` parameters.
+  return { ...preview, codBarras, pdfUrl: btePdfUrl('EMITIDAS', codBarras) };
 }
 
 // --- Envío por email (optional, post-issue) ---------------------------------------
