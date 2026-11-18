@@ -4,6 +4,27 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.22.0 — 2026-11-18
+
+### Added
+
+- **`f22Historial`'s `foliosConError` says why (#288).** Each entry is an `F22FolioConError`:
+  `folio`, `motivo` (`MotivoFolioConError`: `sii_no_entrega_historial` for SII's own
+  `For input string` parse failure, `sii_error` otherwise), `error` (SII's message, verbatim) and
+  the folio's `vigente` / `estado` / `tipoImpugnado` (null for a `folio` outside the año's
+  declaraciones). Both types are exported. `motivo` is a per-item reason inside a successful
+  result, not an ADR-012 error kind.
+
+### Fixed
+
+- **SISPAD's in-band login wall is a `SessionExpiredError` (#287).** A dead session gets `200`
+  and `//EX[…"302|https://zeus.sii.cl/<login path>?…"…]`; the protocol-5 GWT decoder used to
+  read it as `PeticionesError` « error de servicio ». It now matches a string-table entry that is
+  exactly `302|<URL>` on a known login host and the login path. `peticionesList` and `alertas`
+  therefore fail as `session_expired`.
+- **`SessionExpiredError` has a default message**, « La sesión expiró. Ejecuta `sii auth login`. »,
+  the one every dead-session detector shares.
+
 ## 0.21.0 — 2026-11-16
 
 ### Added

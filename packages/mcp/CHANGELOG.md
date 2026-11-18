@@ -9,6 +9,18 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.22.0 — 2026-11-18
+
+### Added
+
+- **`f22_historial`**: each `foliosConError` entry carries `motivo` (`sii_no_entrega_historial` /
+  `sii_error`), `vigente`, `estado` and `tipoImpugnado` (#288). The tool description says so.
+
+### Fixed
+
+- **`peticiones_list` on an expired session answers `session_expired`**, not `sii_error`
+  (#287). So does `alertas` with the `peticiones` source.
+
 ## 0.21.0 — 2026-11-16
 
 ### Added

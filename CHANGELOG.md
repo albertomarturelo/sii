@@ -23,14 +23,26 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed** — `peticiones list` (and the `peticiones` source of `alertas`): an expired session
-  now fails as `session_expired` (exit 2), not `sii_error` « error de servicio » (exit 1).
-  SISPAD refuses a dead session inside a `200` GWT answer naming SII's login page (#287).
+## 0.22.0 — 2026-11-18 — Los motivos
 
-- **Added** — `f22 historial`: each `foliosConError` entry carries a stable `motivo`
-  (`sii_no_entrega_historial` for SII's own `For input string` failure on a folio anulado,
-  `sii_error` otherwise) and the folio's `vigente` / `estado` / `tipoImpugnado`; the human
-  output names the declaración and says SII's own web fails the same way (#288).
+A minor for two reads that hid the real reason behind a failure (#288, #287).
+
+**Why a folio has no historial.** `sii f22 historial` and the MCP tool `f22_historial` list a
+folio SII cannot serve in `foliosConError`. Each entry now carries a stable `motivo` and the
+folio's declaración (`vigente`, `estado`, `tipoImpugnado`), and SII's message stays verbatim in
+`error`. `sii_no_entrega_historial` is SII's own `For input string` failure, seen on a folio
+anulado by a rectificatoria. Our request is well formed and SII's own web fails the same way, so
+nothing on this side can fetch it. Any other message is `sii_error`. The human output names the
+declaración, and says SII's web fails too only for a folio no vigente, where that was observed.
+
+**An expired session in `peticiones` asks for a login.** `sii peticiones list`, the MCP tool
+`peticiones_list` and the `peticiones` source of `alertas` reported a dead session as
+`sii_error` « error de servicio » (exit 1), so an agent following the session loop never asked
+for a login. SISPAD does not redirect a dead session: it answers `200` with a GWT error that
+names SII's login page on `zeus.sii.cl`. That answer is now `session_expired` (exit 2), and in
+`alertas` it aborts the read like every other dead session.
+
+A MINOR: a result field is added (ADR-021 amendment). Nothing breaks.
 
 ## 0.21.0 — 2026-11-16 — La boleta
 
