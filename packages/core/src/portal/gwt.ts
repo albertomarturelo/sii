@@ -19,7 +19,8 @@
 // Boxed leaves and collections resolve through the same schema (Integer="i", Timestamp=
 // "li", ArrayList/Vector="L", …); object/primitive arrays are handled by the "[" prefix.
 import { GWT_SCHEMA } from './gwt-schema.js';
-import { PeticionesError } from '../errors/index.js';
+import { GWT_LOGIN_HOSTS, HOSTS } from '../config/index.js';
+import { PeticionesError, SessionExpiredError } from '../errors/index.js';
 import type { PortalSession } from '../seams/index.js';
 
 /** A decoded GWT object-graph node. `sig` is the wire type signature; `fields` holds the
@@ -178,6 +179,10 @@ const SCRAPER_ROTO = 'No se pudo interpretar la respuesta de SII (scraper roto)'
 export function decodeGwtResponse(text: string): GwtValue {
   const body = text.trimStart();
   if (body.startsWith('//EX')) {
+    // A dead session is refused in-band, not by a redirect, so the driver's URL check never
+    // sees it (#287). It is a login wall, never a business error.
+    if (isGwtLoginRedirect(body))
+      throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
     throw new PeticionesError(extractExceptionMessage(body));
   }
   if (!body.startsWith('//OK')) {
@@ -213,6 +218,28 @@ function parseArray(body: string): unknown[] {
     return v;
   } catch {
     throw new PeticionesError(SCRAPER_ROTO + ' (JSON inválido)');
+  }
+}
+
+// SISPAD answers a missing or dead session with `200` and
+//   //EX[2,1,["cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/<crc>",
+//             "302|https://zeus.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?<app>"],0,5]
+// (observed 2026-11-18, without cookies and with invalid ones, #287). The match is narrow: a
+// string-table entry that is exactly `302|<URL>`, the URL on a known login host AND on the login
+// path. A business `//EX` keeps its own message.
+function isGwtLoginRedirect(body: string): boolean {
+  try {
+    const st = parseArray(body).at(-3);
+    if (!Array.isArray(st)) return false;
+    return st.some((s) => {
+      if (typeof s !== 'string') return false;
+      const m = /^302\|(https:\/\/\S+)$/.exec(s);
+      if (!m?.[1]) return false;
+      const url = new URL(m[1]);
+      return GWT_LOGIN_HOSTS.includes(url.hostname) && url.pathname === HOSTS.loginPath;
+    });
+  } catch {
+    return false;
   }
 }
 

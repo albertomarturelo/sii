@@ -81,7 +81,23 @@ Revisión → Peticion en espera de Antecedentes → Petición Cerrada
 ```
 
 `Peticion en espera de Antecedentes` = **SII is waiting on the taxpayer** (a classic
-un-notified pending). `//EX[…]` or a `LOGIN_HOST` bounce ⇒ `SessionExpiredError`/"scraper roto".
+un-notified pending). A `LOGIN_HOST` bounce ⇒ `SessionExpiredError`; a changed shape ⇒ "scraper
+roto"; any other `//EX[…]` ⇒ `PeticionesError` with SII's message verbatim.
+
+**A dead session is refused IN-BAND, not by a redirect (observed 2026-11-18, #287).** Without
+cookies, and with the live jar's cookie names carrying invalid values, `/peticion` answers
+`200` (`application/json; charset=utf-8`) with:
+
+```text
+//EX[2,1,["cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/<crc>",
+          "302|https://zeus.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www3.sii.cl:443/sispadinternet/index.html"],0,5]
+```
+
+The driver sees no redirect, and the message has no space, so it used to fall through to
+« error de servicio » (`sii_error`, exit 1). The decoder now reads a string-table entry that is
+exactly `302|<URL>`, with the URL on `zeus.sii.cl` or `zeusr.sii.cl` (`GWT_LOGIN_HOSTS`) AND on the
+login path, as `SessionExpiredError` (`session_expired`, exit 2). The host is `zeus`, not the
+classic `zeusr`. Any other 302 stays a SII error.
 
 ## PII posture — no `raw`, tight allowlist (ADR-004 / ADR-006)
 

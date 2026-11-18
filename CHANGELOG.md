@@ -23,6 +23,10 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Fixed** — `peticiones list` (and the `peticiones` source of `alertas`): an expired session
+  now fails as `session_expired` (exit 2), not `sii_error` « error de servicio » (exit 1).
+  SISPAD refuses a dead session inside a `200` GWT answer naming SII's login page (#287).
+
 - **Added** — `f22 historial`: each `foliosConError` entry carries a stable `motivo`
   (`sii_no_entrega_historial` for SII's own `For input string` failure on a folio anulado,
   `sii_error` otherwise) and the folio's `vigente` / `estado` / `tipoImpugnado`; the human

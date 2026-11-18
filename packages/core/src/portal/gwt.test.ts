@@ -14,7 +14,7 @@ import {
   parseJsLiteral,
   postGwt7,
 } from './gwt.js';
-import { F29Error, PeticionesError } from '../errors/index.js';
+import { F29Error, PeticionesError, SessionExpiredError } from '../errors/index.js';
 import { FakePortalSession } from '../adapters/fake/index.js';
 import { encodeOk } from './__fixtures__/gwt-encode.js';
 
@@ -45,6 +45,40 @@ describe('gwt codec', () => {
     // one extra trailing token beyond a null root
     const wire = '//OK' + JSON.stringify([0, 0, [], 0, 5]);
     expect(() => decodeGwtResponse(wire)).toThrow(/scraper roto/);
+  });
+
+  // SISPAD's in-band login wall, as observed 2026-11-18 without cookies (#287); the CRC is
+  // synthetic.
+  const SDI_EX = 'cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/1234567890';
+  const exWith = (msg: string): string => `//EX[2,1,${JSON.stringify([SDI_EX, msg])},0,5]`;
+
+  it('reads the in-band `302|<login URL>` //EX of a dead session as SessionExpiredError (#287)', () => {
+    const wall = exWith(
+      '302|https://zeus.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www3.sii.cl:443/sispadinternet/index.html',
+    );
+    expect(() => decodeGwtResponse(wall)).toThrow(SessionExpiredError);
+    // zeusr (the classic LOGIN_HOST) is the same wall
+    const zeusr = exWith(
+      '302|https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?x',
+    );
+    expect(() => decodeGwtResponse(zeusr)).toThrow(SessionExpiredError);
+  });
+
+  it('keeps a 302 to anything but the login page a SII error, never a dead session', () => {
+    // another host on the login path
+    const otherHost = exWith(
+      '302|https://www3.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?x',
+    );
+    // the login host, another path
+    const otherPath = exWith('302|https://zeus.sii.cl/otra/pagina.html');
+    for (const body of [otherHost, otherPath]) {
+      expect(() => decodeGwtResponse(body)).toThrow(PeticionesError);
+      expect(() => decodeGwtResponse(body)).not.toThrow(SessionExpiredError);
+    }
+    // a business //EX still carries SII's own message
+    expect(() => decodeGwtResponse(exWith('El contribuyente no tiene acceso.'))).toThrow(
+      'SII rechazó la consulta de peticiones: El contribuyente no tiene acceso.',
+    );
   });
 
   it('isPolicyError flags an incompatible-policy //EX (the self-heal trigger)', () => {

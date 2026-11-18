@@ -54,6 +54,13 @@ export const HOSTS = {
 /** URL hostname that indicates an unauthenticated session (sii-py ADR-009). */
 export const LOGIN_HOST = 'zeusr.sii.cl';
 
+/** The login hosts a SII GWT app may name when it refuses a dead session IN-BAND. SISPAD
+ *  answers `200` with `//EX[…"302|https://zeus.sii.cl/AUT2000/InicioAutenticacion/
+ *  IngresoRutClave.html?<app URL>"…]` instead of redirecting (observed 2026-11-18 without
+ *  cookies and with invalid ones, #287): `zeus`, not `zeusr`, on the same login path. Read only
+ *  by the GWT decoder, together with the path, so it is never a general "unauthenticated" host. */
+export const GWT_LOGIN_HOSTS: readonly string[] = [LOGIN_HOST, 'zeus.sii.cl'];
+
 /** Full login page URL (host + path). */
 export const LOGIN_URL = `${HOSTS.login}${HOSTS.loginPath}`;
 

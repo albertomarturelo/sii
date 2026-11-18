@@ -6,7 +6,12 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { NotAuthenticatedError, ValidationError } from '../errors/index.js';
+import {
+  NotAuthenticatedError,
+  SessionExpiredError,
+  ValidationError,
+  classifyError,
+} from '../errors/index.js';
 import { initOperateState } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import { peticionesList } from './peticiones.js';
@@ -99,5 +104,26 @@ describe('peticiones task (fakes, no SII)', () => {
   it('raises NotAuthenticated when there is no session', async () => {
     const rt = makeRuntime();
     await expect(peticionesList(rt)).rejects.toThrow(NotAuthenticatedError);
+  });
+
+  it('reports a session SISPAD refuses in-band as session_expired, not a SII error (#287)', async () => {
+    // SISPAD's answer to a dead jar (observed 2026-11-18): 200 + //EX naming the login page.
+    const WALL =
+      '//EX[2,1,["cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/1234567890",' +
+      '"302|https://zeus.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www3.sii.cl:443/sispadinternet/index.html"],0,5]';
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          requestText: (url) => (url.endsWith('/peticion') ? WALL : ''),
+          cookies: { TOKEN: 't' },
+        },
+      }),
+    };
+    await seed(rt);
+    const err = await peticionesList(rt).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(SessionExpiredError);
+    expect(classifyError(err)).toMatchObject({ type: 'session_expired' });
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'peticiones_list', result: 'failed' });
   });
 });

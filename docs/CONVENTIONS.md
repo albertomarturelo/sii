@@ -131,7 +131,11 @@ These stay always on, because breaking them locks or misreads the account anywhe
   bounce at all (#236).** Mi SII's `CViewCarta.cgi` returns `{"codigoResp":-2,
   "glosaRespuesta":"Error: Autenticacion"}` (observed 2026-10-28). Its facade maps that code to
   `SessionExpiredError`: read as "no data", a dead session would pass for an empty list. Before
-  wiring another such CGI, POST it without cookies and see what it says. **"Alive" needs positive proof.** A probe that decides
+  wiring another such CGI, POST it without cookies and see what it says. **A GWT app answers it
+  in-band too (#287).** SISPAD returns `200` with a `//EX` whose only message is
+  `302|https://zeus.sii.cl/<login path>?<app>` (observed 2026-11-18): `zeus`, not `zeusr`, so
+  a host check on `LOGIN_HOST` alone misses it, and it read as « error de servicio »
+  (`sii_error`). The GWT decoder matches the login host AND path (`GWT_LOGIN_HOSTS`). **"Alive" needs positive proof.** A probe that decides
   whether to skip a login confirms the session by reading the principal's identity, never
   by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
   "dead" costs one login. **"Closed" needs proof too (#135).** Over HTTP, SII's
