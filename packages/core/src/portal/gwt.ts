@@ -220,23 +220,32 @@ function parseArray(body: string): unknown[] {
   }
 }
 
-// SISPAD answers a missing or dead session with `200` and
+// SII's SDI GWT apps refuse a missing or dead session IN-BAND, with `200` and
 //   //EX[2,1,["cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/<crc>",
-//             "302|https://zeus.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?<app>"],0,5]
-// (observed 2026-11-18, without cookies and with invalid ones, #287). The match is narrow: a
-// string-table entry that is exactly `302|<URL>`, the URL on a known login host AND on the login
-// path. A business `//EX` keeps its own message.
-function isGwtLoginRedirect(body: string): boolean {
-  try {
-    const st = parseArray(body).at(-3);
-    if (!Array.isArray(st)) return false;
-    return st.some((s) => {
-      if (typeof s !== 'string') return false;
-      const m = /^302\|(https:\/\/\S+)$/.exec(s);
-      if (!m?.[1]) return false;
+//             "302|https://<login host>/AUT2000/InicioAutenticacion/IngresoRutClave.html?<app>"],0,<v>]
+// SISPAD (protocol 5) names `zeus.sii.cl`, without cookies and with invalid ones (observed
+// 2026-11-18, #287). rfiInternet (protocol 7) names `zeusr.sii.cl` without cookies, while invalid
+// cookies get a real HTTP 302 the driver already reads as a dead session (observed 2026-11-18,
+// #291). The match is narrow: a string-table entry that is exactly `302|<URL>`, the URL on a known
+// login host AND on the login path. A business `//EX` keeps its own message.
+function isLoginWallTable(st: unknown): boolean {
+  if (!Array.isArray(st)) return false;
+  return st.some((s) => {
+    if (typeof s !== 'string') return false;
+    const m = /^302\|(https:\/\/\S+)$/.exec(s);
+    if (!m?.[1]) return false;
+    try {
       const url = new URL(m[1]);
       return GWT_LOGIN_HOSTS.includes(url.hostname) && url.pathname === HOSTS.loginPath;
-    });
+    } catch {
+      return false;
+    }
+  });
+}
+
+function isGwtLoginRedirect(body: string): boolean {
+  try {
+    return isLoginWallTable(parseArray(body).at(-3));
   } catch {
     return false;
   }
@@ -544,7 +553,12 @@ export class Gwt7Codec {
    *  message is raised verbatim (ADR-004). Anything else is "scraper roto"; never retried. */
   decodeResponse(text: string, returns?: string): Gwt7Value {
     const body = text.trimStart();
-    if (body.startsWith('//EX')) throw this.fail(gwt7ExceptionMessage(body));
+    if (body.startsWith('//EX')) {
+      // A dead session refused in-band is a login wall, not SII refusing the operation (#291).
+      // It is not an F29Error, so `callFormularioFacade` never turns it into F29RechazoError.
+      if (isGwt7LoginRedirect(body)) throw new SessionExpiredError();
+      throw this.fail(gwt7ExceptionMessage(body));
+    }
     if (!body.startsWith('//OK')) throw this.err('la respuesta no es //OK');
     const { payload, strings } = this.envelope(body);
     let p = payload.length - 1;
@@ -795,6 +809,15 @@ export function parseJsLiteral(src: string): unknown {
   ws();
   if (i !== src.length) fail('trailing data');
   return v;
+}
+
+function isGwt7LoginRedirect(body: string): boolean {
+  try {
+    const arr = parseJsLiteral(body.slice(4));
+    return Array.isArray(arr) && isLoginWallTable(arr.at(-3));
+  } catch {
+    return false;
+  }
 }
 
 // A protocol-7 `//EX` carries a serialized exception: its human message is in the string table,

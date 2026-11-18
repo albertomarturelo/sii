@@ -135,7 +135,10 @@ These stay always on, because breaking them locks or misreads the account anywhe
   in-band too (#287).** SISPAD returns `200` with a `//EX` whose only message is
   `302|https://zeus.sii.cl/<login path>?<app>` (observed 2026-11-18): `zeus`, not `zeusr`, so
   a host check on `LOGIN_HOST` alone misses it, and it read as « error de servicio »
-  (`sii_error`). The GWT decoder matches the login host AND path (`GWT_LOGIN_HOSTS`). **"Alive" needs positive proof.** A probe that decides
+  (`sii_error`). rfiInternet (the F29 submit's protocol 7) sends the same wall on `zeusr` to a
+  cookie-less call, and a real HTTP `302` to invalid cookies (#291). Both GWT decoders match the
+  login host AND path (`GWT_LOGIN_HOSTS`). On an irreversible call the wall is still not proof of
+  « nothing done » (ADR-029): the outcome is read, never assumed. **"Alive" needs positive proof.** A probe that decides
   whether to skip a login confirms the session by reading the principal's identity, never
   by "no bounce seen". A wrong "alive" locks an unattended caller out of recovery; a wrong
   "dead" costs one login. **"Closed" needs proof too (#135).** Over HTTP, SII's

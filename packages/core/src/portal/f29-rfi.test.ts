@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { FakePortalSession } from '../adapters/fake/index.js';
 import { HOSTS } from '../config/index.js';
-import { F29Error, F29RechazoError } from '../errors/index.js';
+import { F29Error, F29RechazoError, SessionExpiredError } from '../errors/index.js';
 import { Periodo } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
 import { type Gwt7Node, type Gwt7Param, type Gwt7Value, clearGwtPermutations } from './gwt.js';
@@ -74,6 +74,17 @@ describe('callFormularioFacade: what proves a call had no effect', () => {
     const e = await callFormularioFacade(s, 'inyectarBorradorRfi', []).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(F29Error);
     expect(e).not.toBeInstanceOf(F29RechazoError);
+  });
+
+  it("the in-band login wall is a dead session, never SII's refusal (#291)", async () => {
+    // rfiInternet's answer to a call without cookies (observed 2026-11-18); the CRC is synthetic.
+    const s = session(
+      '//EX[2,1,["cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/1234567890",' +
+        '"302|https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?https://www4.sii.cl/rfiInternet/index.html"],0,7]',
+    );
+    const e = await callFormularioFacade(s, 'findAllFormulario', []).catch((x: unknown) => x);
+    expect(e).toBeInstanceOf(SessionExpiredError);
+    expect(e).not.toBeInstanceOf(F29Error); // so never an F29RechazoError
   });
 });
 

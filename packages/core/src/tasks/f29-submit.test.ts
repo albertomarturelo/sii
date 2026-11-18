@@ -462,6 +462,32 @@ describe('f29Submit', () => {
     expect(steps.filter((s) => s === 'inyectar')).toHaveLength(1); // never retried
   });
 
+  it('a dead session on the filing call is unconfirmed too, never "nothing filed" (#291)', async () => {
+    // The login wall was observed on a catalog read, not on the filing call: ADR-029 keeps
+    // only SII's own refusal as proof of no effect, so the outcome is read, never assumed.
+    const rt = await makeRuntime();
+    let sent = false;
+    const { chain, steps } = fakeChain({
+      inyectar: () => {
+        sent = true;
+        return Promise.reject(new SessionExpiredError());
+      },
+      // the session is dead from the filing call on, so SII's state cannot be read either
+      estado: (_s, p) =>
+        sent
+          ? Promise.reject(new SessionExpiredError())
+          : Promise.resolve(
+              p.periodo.formatted !== '2026-10'
+                ? estado([{ estadoId: 1, estado: 'Vigente', folio: 9001 }])
+                : estado(),
+            ),
+    });
+    const e = await f29Submit(rt, { periodo: '2026-10', total: TOTAL }, chain).catch((x) => x);
+    expect((e as Error).message).toContain('NO lo vuelvas a enviar');
+    expect(steps.filter((x) => x === 'inyectar')).toHaveLength(1);
+    expect(audits(rt).at(-1)).toMatchObject({ action: 'f29_submit', result: 'unconfirmed' });
+  });
+
   it('a filing failure that is not SII refusing it is unconfirmed, never "nothing filed"', async () => {
     // e.g. SII filed but its answer could not be decoded: only a //EX proves no effect.
     const rt = await makeRuntime();

@@ -110,7 +110,7 @@ rule to `CONVENTIONS.md` (ADR-007).
   layout does not). Body-RUT (validate `--rut` vs the operable set, like RCV). PII-dense (own +
   functionary + third-party) ⇒ NO `raw`, tight allowlist. (ADR-020)
   **GWT writes (protocol 7, rfiInternet — the F29 submit) follow the same rules in reverse
-  (#159).** The encoder is `Gwt7Codec` in `portal/gwt.ts`; write layouts come from the
+  (#159)**, the in-band login wall included (#291, `sii-contract/f29.md` § Submit). The encoder is `Gwt7Codec` in `portal/gwt.ts`; write layouts come from the
   permutation's SERIALIZERS (`rfi-schema.ts`). A node carries its class name only; the CRC of every
   signature, like the service's policy, is read from the live permutation at call time and never
   written as a constant. A class or field missing from the layouts throws "scraper roto"; nothing
