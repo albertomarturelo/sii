@@ -17,7 +17,7 @@ export function registerWhoamiTools(server: McpServer, runtime: Runtime): void {
         'razón social o nombre, y email. Útil para saber con qué cuenta se está trabajando. ' +
         'También `regimen`, lo que el SII registra para la cuenta: `inicioActividades` y ' +
         '`terminoGiro` (YYYY-MM-DD), `obligadoF29Desde` (YYYY-MM: desde ese mes debe F29 todos ' +
-        'los meses, también sin movimiento), `segundaCategoria` (true: solo honorarios, debe F29 ' +
+        'los meses, también sin movimiento, hasta el mes de `terminoGiro` si lo hay), `segundaCategoria` (true: solo honorarios, debe F29 ' +
         'solo en los meses con retención del emisor; false: régimen de primera categoría) y ' +
         '`diaF29` (12 o 20). `null` es desconocido: no lo asumas. ' +
         'EXPONE PII PROPIA del usuario (nombre/razón social + email) al modelo. Lectura en vivo ' +

@@ -116,8 +116,9 @@ export interface RegimenTributario {
   /** `fechaTerminoGiro` as YYYY-MM-DD. */
   readonly terminoGiro: string | null;
   /** YYYY-MM: the month F29 is due every month from, i.e. the later of the inicio de actividades
-   *  and the start of an observed primera-categoría regime. `null` when either is unknown or no
-   *  such regime is in force. */
+   *  and the start of an observed primera-categoría regime, until the month of `terminoGiro` when
+   *  set (the bound `alertas` applies). `null` when either is unknown or no such regime is in
+   *  force. */
   readonly obligadoF29Desde: string | null;
   /** `true`: segunda categoría only (SII's `SGPE` registration says so). `false`: a
    *  primera-categoría regime is in force. `null`: neither is proven, or `atributos` was not
