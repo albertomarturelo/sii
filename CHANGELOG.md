@@ -23,10 +23,22 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed** — `f29 submit` (and its MCP tools): a dead session that rfiInternet refuses inside a
-  `200` GWT answer now fails as `session_expired`, not `sii_error` « SII rechazó la operación
-  (error de servicio) ». On the filing call itself the outcome is still read from SII, never
-  assumed « not filed », per ADR-029 (#291).
+## 0.22.1 — 2026-11-18 — El muro
+
+A patch for one fix (#291), the F29 side of 0.22.0's peticiones fix.
+
+**An expired session in `f29 submit` asks for a login.** `sii f29 submit` and the MCP tools
+`f29_submit_preview` and `f29_submit` could report a dead session as `sii_error` « SII rechazó la
+operación (error de servicio) », as if SII had refused the F29. SII's F29 form app refuses a call
+without a session inside a `200` GWT answer that names the login page, like SISPAD in 0.22.0. That
+answer is now `session_expired` (exit 2). It mostly showed in the MCP, which keeps SII's form code
+cached between calls.
+
+**The filing call keeps its rule.** If the session dies on the call that files, the result is still
+« could not confirm, do not resend, check `f29 status` », never « not filed »: SII's own refusal
+remains the only proof that nothing was filed (ADR-029).
+
+A PATCH: a fix only. Nothing is added and nothing breaks.
 
 ## 0.22.0 — 2026-11-18 — Los motivos
 
