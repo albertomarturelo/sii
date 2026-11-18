@@ -35,7 +35,7 @@ export function nonJsonResponseError(
   // error, not an expired session — don't mislabel it "sesión expiró" (observed 2026-10-18: www4
   // answered HTTP 500 text/html to a malformed request; ADR-027 GH live validation).
   if (bouncedToLogin || (ct.includes('text/html') && status < 500)) {
-    return new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+    return new SessionExpiredError();
   }
   const snippet = bodySnippet(body);
   const claimsJson = ct.includes('json');
@@ -60,9 +60,7 @@ function bodySnippet(body: string): string {
  *  `LOGIN_HOST` (URL-based, ADR-009). Returns an actionable `SessionExpiredError`, else
  *  null. Pure → unit-tested without a browser. */
 export function formLoginWallError(finalUrl: string): Error | null {
-  return new URL(finalUrl).hostname === LOGIN_HOST
-    ? new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.')
-    : null;
+  return new URL(finalUrl).hostname === LOGIN_HOST ? new SessionExpiredError() : null;
 }
 
 /** Larger than the observed stub (344 bytes) with room for a longer origin URL; a real portal

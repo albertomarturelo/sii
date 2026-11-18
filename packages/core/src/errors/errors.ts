@@ -14,8 +14,14 @@ export class NotAuthenticatedError extends SiiError {}
 
 /** A cached session existed but the cookies are dead. Carries an actionable
  *  recovery message (e.g. re-run the browser login). Subclass of NotAuthenticated
- *  so a generic catch still treats it as "not authenticated". */
-export class SessionExpiredError extends NotAuthenticatedError {}
+ *  so a generic catch still treats it as "not authenticated". The default message is the one
+ *  every dead-session detector shares, so they cannot drift apart (#287 review); a site with
+ *  more to say (SII's own glosa) passes its own. */
+export class SessionExpiredError extends NotAuthenticatedError {
+  constructor(message = 'La sesión expiró. Ejecuta `sii auth login`.') {
+    super(message);
+  }
+}
 
 /** The www2 APP SESSION (the second cookies-only layer `www2.sii.cl/app/*` needs — ADR-026) is
  *  missing or expired: `/app/session/status` did not answer a session JSON. A subclass of
