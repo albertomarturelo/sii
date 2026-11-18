@@ -17,7 +17,7 @@ import {
   type ErrorKind,
 } from '../errors/index.js';
 import { DEFAULT_SETTINGS, HOSTS } from '../config/index.js';
-import { parseDatosCntrNow, type DatosCntr } from '../auth/datos-cntr.js';
+import { parseDatosCntrNow, regimenTributario } from '../auth/datos-cntr.js';
 import {
   fetchF22Declaraciones,
   fetchF22Observaciones,
@@ -177,92 +177,27 @@ interface RegimenF29 {
   readonly segundaCategoria: boolean;
 }
 
-// SII's FAQ: F29 is mandatory every month, sin movimiento included, for "todos aquellos
-// contribuyentes afectos a la Ley de Impuestos a las Ventas y Servicios" from the « Inicio de
-// Actividades en la primera categoría » (preguntas_frecuentes/impuestos_mensuales/
-// 001_130_1051.htm and 001_130_1053.htm, updated 05/06/2025, read 2026-10-23), until the término
-// de giro (001_130_2312.htm). The `atributos` codes of a primera-categoría regime, as observed:
-// only exact codes, a new one joins with its citation. A persona with only honorarios has an
-// inicio de actividades too but none of these (observed 2026-10-23: `NOTI`, `SGPE`).
-const REGIMEN_PRIMERA_CATEGORIA = new Set([
-  '14D1', // « REGIMEN PRO PYME GENERAL (14D) », observed 2026-10-23 on an empresa
-]);
-
-/** `"2026-03-26 00:00:00.0"` (observed) ⇒ that month; anything else ⇒ null (no bound). */
-function mesDe(s: string | null | undefined): Periodo | null {
-  const m = s ? /^(\d{4})-(\d{2})-\d{2}/.exec(s) : null;
-  return m ? Periodo.of(Number(m[1]), Number(m[2])) : null;
-}
-
-/** An atributo's `fechaInicio`, `"26-03-2026"` (observed) ⇒ that month; anything else ⇒ null. */
-function mesDeAtributo(s: string | null | undefined): Periodo | null {
-  const m = s ? /^\d{2}-(\d{2})-(\d{4})$/.exec(s.trim()) : null;
-  return m ? Periodo.of(Number(m[2]), Number(m[1])) : null;
+/** `"YYYY-MM-DD"` or `"YYYY-MM"` (the shared regime's forms) ⇒ that month; null ⇒ null. */
+function mesDe(s: string | null): Periodo | null {
+  return s ? Periodo.tryParse(s.slice(0, 7)) : null;
 }
 
 const antes = (a: Periodo, b: Periodo): boolean =>
   a.year < b.year || (a.year === b.year && a.month < b.month);
 
-/** An atributo still in force: no end date, not deleted. */
-const activo = (a: NonNullable<DatosCntr['atributos']>[number]): boolean =>
-  a.fechaTermino == null && a.eliminado == null;
-
-/** The month the account entered an observed primera-categoría regime, and the inicio de
- *  actividades, whichever is later: an account that moved from honorarios into the regime owed
- *  nothing before it (#209 review). Either one unknown ⇒ null. */
-function obligadoDesde(
-  inicio: Periodo | null,
-  atributos: NonNullable<DatosCntr['atributos']>,
-): Periodo | null {
-  if (!inicio) return null; // no lower bound: "due every month" would reach before the account
-  const desde = atributos
-    .filter((a) => REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? '') && activo(a))
-    .map((a) => mesDeAtributo(a.fechaInicio));
-  const meses = desde.filter((p): p is Periodo => p !== null);
-  // An active regime whose start does not parse is not proof of when the obligation began.
-  if (meses.length === 0 || meses.length < desde.length) return null;
-  const regimen = meses.reduce((a, b) => (antes(a, b) ? a : b));
-  return antes(regimen, inicio) ? inicio : regimen;
-}
-
-// Segunda categoría owes no F29 « sin movimiento » (preguntas_frecuentes/impuestos_mensuales/
-// 001_130_1154.htm, read 2026-10-29); it owes the F29 of a month whose boletas carry retención del
-// emisor (ayudas/nuevos_contribuyentes/boleta-honorarios.html, read 2026-10-29). SII registers the
-// category in the `SGPE` atributo's `valor`, observed 2026-10-23 on a honorarios-only persona as
-// « Tipo contribuyente=1 y Categoría Contribuyente = 2 ». Only that exact category counts: « = 1 y
-// 2 » or any other text is unknown and keeps the activity rule. `valor` is read for SGPE only:
-// under NOTI it is the email. SII's own `valor` carries three U+001A where the « í » goes, and two
-// spaces before the « y » (observed 2026-10-29, live #245). That is in SII's body, not a decoding
-// artefact: a TextDecoder never yields U+001A (an undecodable byte becomes U+FFFD, #224). So
-// whatever stands for the accent is accepted; the anchor on « = 2 » keeps « = 1 y 2 » out.
-const SEGUNDA_CATEGORIA = /Categor\S*a\s+Contribuyente\s*=\s*2\s*$/i;
-
-function segundaCategoria(atributos: NonNullable<DatosCntr['atributos']>): boolean {
-  const activos = atributos.filter(activo);
-  if (activos.some((a) => REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? ''))) return false;
-  return activos.some((a) => {
-    const valor = a['valor'];
-    return (
-      a.atrCodigo?.trim() === 'SGPE' && typeof valor === 'string' && SEGUNDA_CATEGORIA.test(valor)
-    );
-  });
-}
-
 async function leerRegimen(session: PortalSession): Promise<RegimenF29> {
   // A dead jar bounces here and the seam raises SessionExpiredError (aborts the read). A live
   // page without the object only loses the bounds: no window, and the later day-20 deadline.
+  // The derivation is `whoami`'s too (`regimenTributario`, #257), so the two never disagree.
   const { body } = await session.requestText(HOSTS.miSii, { method: 'GET' });
-  const datos = parseDatosCntrNow(body);
-  const c = datos?.contribuyente;
-  const inicio = mesDe(c?.fechaInicioActividades);
+  const r = regimenTributario(parseDatosCntrNow(body));
   return {
-    inicio,
-    obligadoDesde: obligadoDesde(inicio, datos?.atributos ?? []),
-    segundaCategoria: segundaCategoria(datos?.atributos ?? []),
-    termino: mesDe(c?.fechaTerminoGiro),
-    // `"S"` observed. A day-12 taxpayer says "N"; an unknown value keeps the 20th, the later of
-    // the two, so the alerta is never early.
-    dia: c?.autorizadoDeclararDia20?.trim().toUpperCase() === 'N' ? 12 : 20,
+    inicio: mesDe(r.inicioActividades),
+    obligadoDesde: mesDe(r.obligadoF29Desde),
+    segundaCategoria: r.segundaCategoria === true,
+    termino: mesDe(r.terminoGiro),
+    // An unknown day keeps the 20th, the later of the two, so the alerta is never early.
+    dia: r.diaF29 ?? 20,
   };
 }
 

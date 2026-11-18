@@ -33,8 +33,8 @@ import {
   writeSession,
 } from './session.js';
 import type { StoredSession } from './session.js';
-import { parseDatosCntrNow } from './datos-cntr.js';
-import type { DatosCntr } from './datos-cntr.js';
+import { parseDatosCntrNow, regimenTributario } from './datos-cntr.js';
+import type { DatosCntr, RegimenTributario } from './datos-cntr.js';
 import type { LoginBlockEntry } from './login-block.js';
 import {
   clearLoginBlock,
@@ -81,6 +81,9 @@ export interface AuthWhoami {
   /** Razón social (empresa) or full name (persona); null if the portal omitted it. */
   readonly nombre: string | null;
   readonly email: string | null;
+  /** The tax regime SII holds for the account, from the same `DatosCntrNow` (no extra request,
+   *  #257): the derivation `alertas` uses, with unknown left `null`. */
+  readonly regimen: RegimenTributario;
 }
 
 /** The www2 APP-SESSION layer as reported by status (ADR-026). LOCAL: `authenticated` means the
@@ -750,6 +753,12 @@ export async function whoami(runtime: Runtime): Promise<AuthWhoami> {
     const identity = identityOnRead(datos);
     const email = (datos?.contribuyente?.eMail ?? '').trim() || null;
     recordAudit(runtime, { action: 'whoami', result: 'ok', rut: identity.rut });
-    return { rut: identity.rut, accountType: identity.accountType, nombre: identity.nombre, email };
+    return {
+      rut: identity.rut,
+      accountType: identity.accountType,
+      nombre: identity.nombre,
+      email,
+      regimen: regimenTributario(datos),
+    };
   });
 }

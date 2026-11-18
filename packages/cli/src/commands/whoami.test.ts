@@ -11,7 +11,17 @@ const datos = (): unknown => ({
     nombres: 'Juan',
     apellidoPaterno: 'Pérez',
     eMail: 'juan@example.cl',
+    fechaInicioActividades: '2020-05-04 00:00:00.0',
+    fechaTerminoGiro: null,
+    autorizadoDeclararDia20: 'S',
   },
+  atributos: [
+    {
+      atrCodigo: 'SGPE',
+      fechaInicio: '04-05-2020',
+      valor: 'Tipo contribuyente=1 y Categoría Contribuyente = 2',
+    },
+  ],
 });
 
 function makeRuntime(): Runtime {
@@ -34,6 +44,12 @@ describe('sii whoami command (fake runtime, no SII)', () => {
     expect(out).toContain('11.111.111-1');
     expect(out).toContain('Nombre: Juan Pérez');
     expect(out).toContain('Email: juan@example.cl');
+    // The regime (#257); unknown reads «—», never an assumed value.
+    expect(out).toContain('Inicio de actividades:     2020-05-04');
+    expect(out).toContain('Término de giro:           —');
+    expect(out).toContain('F29 todos los meses desde: —');
+    expect(out).toContain('Segunda categoría:         sí');
+    expect(out).toContain('Día de vencimiento F29:    20');
   });
 
   it('whoami emits the curated JSON by default', async () => {
@@ -50,6 +66,13 @@ describe('sii whoami command (fake runtime, no SII)', () => {
       accountType: 'persona',
       nombre: 'Juan Pérez',
       email: 'juan@example.cl',
+      regimen: {
+        inicioActividades: '2020-05-04',
+        terminoGiro: null,
+        obligadoF29Desde: null,
+        segundaCategoria: true,
+        diaF29: 20,
+      },
     });
   });
 });

@@ -11,6 +11,7 @@ import type {
   LoginBlockEntry,
   LoginOptions,
   LoginSource,
+  RegimenTributario,
 } from '../auth/index.js';
 import type { Runtime } from '../seams/index.js';
 
@@ -84,4 +85,5 @@ export type {
   LoginBlockEntry,
   LoginOptions,
   LoginSource,
+  RegimenTributario,
 };

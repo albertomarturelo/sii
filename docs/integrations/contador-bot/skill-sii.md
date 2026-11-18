@@ -118,7 +118,7 @@ Read-only unless stated. `<periodo>` is `YYYY-MM` (or `YYYYMM`); `<año>` is `YY
 | `sii auth status [--refresh]` | Local session state and `loginBlocked`; `--refresh` checks it live |
 | `sii auth login --rut <rut> --clave-stdin < /workspace/.sii-secrets/<rut>` | Mints a session (or reuses a live one) |
 | `sii auth logout` | Closes the session; `serverClosed` says whether SII confirmed it |
-| `sii whoami` | The account's RUT, type, razón social/nombre and email (the user's own PII) |
+| `sii whoami` | The account's RUT, type, razón social/nombre and email (the user's own PII), and `regimen`: `inicioActividades`, `terminoGiro`, `obligadoF29Desde` (F29 due every month from that month, sin movimiento included, until the month of `terminoGiro` when set), `segundaCategoria` (`true`: F29 only in months with retención del emisor) and `diaF29` (12 or 20). `null` means SII's value is unknown: say so, never assume one |
 | `sii operate --list` / `sii operate <rut>` / `sii operate --self` | The operable RUTs (self + represented empresas) / select one |
 | `sii f29 formulario <periodo>` | SII's IVA **propuesta** for the período, códigos labeled (glosa) and grouped |
 | `sii f29 status <periodo>` | The declaraciones of the período, with `estado` (see § 5) |

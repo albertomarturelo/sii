@@ -10,7 +10,10 @@ export function registerWhoami(program: Command, runtime: Runtime): void {
   program
     .command('whoami')
     .description(
-      'Muestra la cuenta autenticada: RUT, tipo, razón social/nombre y email (tu PII propia).',
+      'Session-keyed (la cuenta autenticada, ignora operate). Muestra la cuenta autenticada: ' +
+        'RUT, tipo, razón social/nombre y email (tu PII propia), y el régimen que el SII registra: ' +
+        'inicio de actividades, término de giro, desde cuándo debe F29 todos los meses, si es ' +
+        'segunda categoría y el día de vencimiento del F29. Lo desconocido sale como «—».',
     )
     .action(async () => {
       const res = await whoami(runtime);
@@ -19,6 +22,17 @@ export function registerWhoami(program: Command, runtime: Runtime): void {
         out(`Tipo:  ${res.accountType}`);
         out(`${res.accountType === 'empresa' ? 'Razón social' : 'Nombre'}: ${res.nombre ?? '—'}`);
         out(`Email: ${res.email ?? '—'}`);
+        const r = res.regimen;
+        const cat = r.segundaCategoria === null ? '—' : r.segundaCategoria ? 'sí' : 'no';
+        const filas: [string, string | number | null][] = [
+          ['Inicio de actividades', r.inicioActividades],
+          ['Término de giro', r.terminoGiro],
+          ['F29 todos los meses desde', r.obligadoF29Desde],
+          ['Segunda categoría', cat],
+          ['Día de vencimiento F29', r.diaF29],
+        ];
+        const ancho = Math.max(...filas.map(([k]) => k.length)) + 1;
+        for (const [k, v] of filas) out(`${`${k}:`.padEnd(ancho)} ${v ?? '—'}`);
       });
     });
 }

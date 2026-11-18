@@ -627,6 +627,14 @@ describe('whoami — authenticated principal identity + email (own PII)', () => 
       accountType: 'persona',
       nombre: 'Juan Sintético Pérez Soto',
       email: 'sintetico@example.cl',
+      // No regime code among its atributos, so neither category is proven (#257).
+      regimen: {
+        inicioActividades: '2010-01-01',
+        terminoGiro: null,
+        obligadoF29Desde: null,
+        segundaCategoria: null,
+        diaF29: 12,
+      },
     });
   });
 
@@ -639,6 +647,107 @@ describe('whoami — authenticated principal identity + email (own PII)', () => 
       accountType: 'empresa',
       nombre: 'Comercial Sintética SpA',
       email: null,
+      regimen: {
+        inicioActividades: null,
+        terminoGiro: null,
+        obligadoF29Desde: null,
+        segundaCategoria: null, // no atributos read: unknown, never "no"
+        diaF29: null,
+      },
+    });
+  });
+
+  // #257: the regime from the same DatosCntrNow read (shapes observed 2026-10-23 / 2026-11-18,
+  // values synthetic).
+  const conRegimen =
+    (contribuyente: Record<string, unknown>, atributos?: unknown) => (): unknown => ({
+      contribuyente: {
+        rut: 96500000,
+        dv: '3',
+        razonSocial: 'Comercial Sintética SpA',
+        ...contribuyente,
+      },
+      ...(atributos !== undefined && { atributos }),
+    });
+
+  it('empresa in a primera-categoría regime: obligated from the later of inicio and regime', async () => {
+    const rt = makeRuntime(
+      liveDriver(
+        conRegimen(
+          {
+            fechaInicioActividades: '2026-03-26 00:00:00.0',
+            fechaTerminoGiro: null,
+            autorizadoDeclararDia20: 'S',
+          },
+          [
+            { atrCodigo: '14D1', fechaInicio: '01-04-2026', fechaTermino: null, eliminado: null },
+            {
+              atrCodigo: 'NOTI',
+              fechaInicio: '26-03-2026',
+              valor: 'notifica@example.cl',
+              descAtrCodigo: 'NOTIFICACION',
+            },
+          ],
+        ),
+      ),
+    );
+    await login(rt);
+    const who = await whoami(rt);
+    expect(who.regimen).toEqual({
+      inicioActividades: '2026-03-26',
+      terminoGiro: null,
+      obligadoF29Desde: '2026-04',
+      segundaCategoria: false,
+      diaF29: 20,
+    });
+    // Neither `valor` (NOTI's is the email) nor `descAtrCodigo` reaches the result or the audit.
+    const out = JSON.stringify(who) + JSON.stringify((rt.audit as RecordingAuditSink).entries);
+    expect(out).not.toContain('notifica@example.cl');
+    expect(out).not.toContain('NOTIFICACION');
+    expect(JSON.stringify((rt.audit as RecordingAuditSink).entries)).not.toContain('2026-03-26');
+  });
+
+  it("persona de segunda categoría (SGPE, with SII's U+001A for the accent)", async () => {
+    const rt = makeRuntime(
+      liveDriver(
+        conRegimen(
+          { razonSocial: null, nombres: 'Ana', fechaInicioActividades: '2020-05-04 00:00:00.0' },
+          [
+            {
+              atrCodigo: 'SGPE',
+              fechaInicio: '04-05-2020',
+              valor: 'Tipo contribuyente=1  y Categor\u001a\u001a\u001aa Contribuyente = 2',
+            },
+          ],
+        ),
+      ),
+    );
+    await login(rt);
+    const { regimen } = await whoami(rt);
+    expect(regimen.segundaCategoria).toBe(true);
+    expect(regimen.obligadoF29Desde).toBeNull();
+    expect(regimen.diaF29).toBeNull(); // SII sent no day: unknown, not an assumed 20
+  });
+
+  it('término de giro is read; a lost atributos leaves segundaCategoria unknown, never the identity', async () => {
+    const rt = makeRuntime(
+      liveDriver(
+        conRegimen(
+          {
+            fechaInicioActividades: '2015-01-10 00:00:00.0',
+            fechaTerminoGiro: '2025-12-31 00:00:00.0',
+          },
+          'not-an-array',
+        ),
+      ),
+    );
+    await login(rt);
+    const who = await whoami(rt);
+    expect(who.nombre).toBe('Comercial Sintética SpA');
+    expect(who.regimen).toMatchObject({
+      inicioActividades: '2015-01-10',
+      terminoGiro: '2025-12-31',
+      segundaCategoria: null,
     });
   });
 

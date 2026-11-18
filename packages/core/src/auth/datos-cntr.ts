@@ -102,3 +102,122 @@ function extractObjectLiteral(source: string, name: string): string | null {
   }
   return null; // unbalanced — treat as absent
 }
+
+// --- The account's tax regime (#257) ---------------------------------------------------------
+// One derivation for `alertas` (its F29 window) and `whoami` (the curated `regimen`), so the two
+// can never disagree. Every function here is TOTAL: an odd value reads as unknown (`null`),
+// never as an error, because `whoami` is the identity read (#214).
+
+/** The account's tax regime as SII holds it in `DatosCntrNow`. Unknown stays `null`: a consumer
+ *  storing the fact must not get an assumed default (`alertas` applies its own). */
+export interface RegimenTributario {
+  /** `fechaInicioActividades` as YYYY-MM-DD. */
+  readonly inicioActividades: string | null;
+  /** `fechaTerminoGiro` as YYYY-MM-DD. */
+  readonly terminoGiro: string | null;
+  /** YYYY-MM: the month F29 is due every month from, i.e. the later of the inicio de actividades
+   *  and the start of an observed primera-categoría regime, until the month of `terminoGiro` when
+   *  set (the bound `alertas` applies). `null` when either is unknown or no such regime is in
+   *  force. */
+  readonly obligadoF29Desde: string | null;
+  /** `true`: segunda categoría only (SII's `SGPE` registration says so). `false`: a
+   *  primera-categoría regime is in force. `null`: neither is proven, or `atributos` was not
+   *  read; an unrecognised `SGPE` text (e.g. both categories) is `null` too. */
+  readonly segundaCategoria: boolean | null;
+  /** The F29 due day: `autorizadoDeclararDia20` `"S"` ⇒ 20, `"N"` ⇒ 12, anything else `null`. */
+  readonly diaF29: 12 | 20 | null;
+}
+
+type Atributo = NonNullable<DatosCntr['atributos']>[number];
+
+// SII's FAQ: F29 is mandatory every month, sin movimiento included, for "todos aquellos
+// contribuyentes afectos a la Ley de Impuestos a las Ventas y Servicios" from the « Inicio de
+// Actividades en la primera categoría » (preguntas_frecuentes/impuestos_mensuales/
+// 001_130_1051.htm and 001_130_1053.htm, updated 05/06/2025, read 2026-10-23), until the término
+// de giro (001_130_2312.htm). The `atributos` codes of a primera-categoría regime, as observed:
+// only exact codes, a new one joins with its citation. A persona with only honorarios has an
+// inicio de actividades too but none of these (observed 2026-10-23: `NOTI`, `SGPE`).
+const REGIMEN_PRIMERA_CATEGORIA = new Set([
+  '14D1', // « REGIMEN PRO PYME GENERAL (14D) », observed 2026-10-23 on an empresa
+]);
+
+// Segunda categoría owes no F29 « sin movimiento » (preguntas_frecuentes/impuestos_mensuales/
+// 001_130_1154.htm, read 2026-10-29); it owes the F29 of a month whose boletas carry retención del
+// emisor (ayudas/nuevos_contribuyentes/boleta-honorarios.html, read 2026-10-29). SII registers the
+// category in the `SGPE` atributo's `valor`, observed 2026-10-23 on a honorarios-only persona as
+// « Tipo contribuyente=1 y Categoría Contribuyente = 2 » (re-observed 2026-11-18, #257). Only that
+// exact category counts: « = 1 y 2 » or any other text is unknown. `valor` is read for SGPE only:
+// under NOTI it is the email. SII's own `valor` carries three U+001A where the « í » goes, and two
+// spaces before the « y » (observed 2026-10-29, live #245). That is in SII's body, not a decoding
+// artefact: a TextDecoder never yields U+001A (an undecodable byte becomes U+FFFD, #224). So
+// whatever stands for the accent is accepted; the anchor on « = 2 » keeps « = 1 y 2 » out.
+const SEGUNDA_CATEGORIA = /Categor\S*a\s+Contribuyente\s*=\s*2\s*$/i;
+
+/** YYYY-MM-DD for a real calendar date, else null. */
+function fecha(y: number, m: number, d: number): string | null {
+  const t = new Date(Date.UTC(y, m - 1, d));
+  if (t.getUTCFullYear() !== y || t.getUTCMonth() !== m - 1 || t.getUTCDate() !== d) return null;
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+/** `"2026-03-26 00:00:00.0"` (observed) ⇒ `"2026-03-26"`; anything else ⇒ null. */
+function fechaContribuyente(s: string | null | undefined): string | null {
+  const m = typeof s === 'string' ? /^(\d{4})-(\d{2})-(\d{2})/.exec(s.trim()) : null;
+  return m ? fecha(Number(m[1]), Number(m[2]), Number(m[3])) : null;
+}
+
+/** An atributo's `fechaInicio`, `"26-03-2026"` (observed) ⇒ `"2026-03-26"`; else null. */
+function fechaAtributo(s: unknown): string | null {
+  const m = typeof s === 'string' ? /^(\d{2})-(\d{2})-(\d{4})$/.exec(s.trim()) : null;
+  return m ? fecha(Number(m[3]), Number(m[2]), Number(m[1])) : null;
+}
+
+/** An atributo still in force: no end date, not deleted. */
+const activo = (a: Atributo): boolean => a.fechaTermino == null && a.eliminado == null;
+
+const primeraCategoria = (a: Atributo): boolean =>
+  REGIMEN_PRIMERA_CATEGORIA.has(a.atrCodigo?.trim() ?? '') && activo(a);
+
+/** The later of the inicio and the start of an observed primera-categoría regime, as YYYY-MM: an
+ *  account that moved from honorarios into the regime owed nothing before it (#209 review).
+ *  Either one unknown ⇒ null. */
+function obligadoF29Desde(inicio: string | null, atributos: readonly Atributo[]): string | null {
+  if (!inicio) return null; // no lower bound: "due every month" would reach before the account
+  const desde = atributos.filter(primeraCategoria).map((a) => fechaAtributo(a.fechaInicio));
+  const fechas = desde.filter((f): f is string => f !== null);
+  // An active regime whose start does not parse is not proof of when the obligation began.
+  if (fechas.length === 0 || fechas.length < desde.length) return null;
+  const regimen = fechas.reduce((a, b) => (a < b ? a : b)); // ISO dates sort as strings
+  return (regimen < inicio ? inicio : regimen).slice(0, 7);
+}
+
+function segundaCategoria(atributos: readonly Atributo[] | null | undefined): boolean | null {
+  if (!atributos) return null; // not read: unknown, never "no"
+  if (atributos.some(primeraCategoria)) return false;
+  const sgpe = atributos.some((a) => {
+    const valor = a['valor'];
+    return (
+      a.atrCodigo?.trim() === 'SGPE' &&
+      activo(a) &&
+      typeof valor === 'string' &&
+      SEGUNDA_CATEGORIA.test(valor)
+    );
+  });
+  return sgpe ? true : null;
+}
+
+/** The regime, derived from the `DatosCntrNow` the caller already read: no request. */
+export function regimenTributario(datos: DatosCntr | null): RegimenTributario {
+  const c = datos?.contribuyente;
+  const inicio = fechaContribuyente(c?.fechaInicioActividades);
+  const dia = typeof c?.autorizadoDeclararDia20 === 'string' ? c.autorizadoDeclararDia20 : '';
+  const flag = dia.trim().toUpperCase();
+  return {
+    inicioActividades: inicio,
+    terminoGiro: fechaContribuyente(c?.fechaTerminoGiro),
+    obligadoF29Desde: obligadoF29Desde(inicio, datos?.atributos ?? []),
+    segundaCategoria: segundaCategoria(datos?.atributos),
+    // `"S"` observed 2026-10-23 (empresa) and 2026-11-18 (persona, #257).
+    diaF29: flag === 'S' ? 20 : flag === 'N' ? 12 : null,
+  };
+}

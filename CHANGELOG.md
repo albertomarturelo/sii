@@ -23,6 +23,11 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added** — `whoami` (CLI `sii whoami`, MCP `whoami`) returns `regimen`: the inicio de
+  actividades, término de giro, the month F29 is due every month from, segunda categoría and the
+  F29 due day, from the read it already makes, with unknown as `null`. Core exports the
+  `RegimenTributario` type; `alertas` derives its F29 window from the same function (#257).
+
 - **Fixed** — `f22Terceros` / `f22TercerosDetalle` (CLI `f22 terceros`, MCP `f22_terceros*`)
   drop the taxpayer's own name on a session restored without a login too: when no login cached
   it, they read it from Mi SII first (one paced request), and refuse a session whose cookies
