@@ -365,7 +365,8 @@ async function submitWith(
       } catch (e) {
         // The filing call was sent: SII's state decides what happened. Never resend it. Only
         // SII's own refusal (//EX) proves nothing was filed; any other failure (a lost answer,
-        // a body we cannot decode, a dead session) leaves the outcome unknown.
+        // a body we cannot decode, a dead session — the in-band login wall included, observed only
+        // on a read, #291) leaves the outcome unknown.
         const estado = await chain.estado(session, { rut: principal, periodo }).catch(() => null);
         if (!estado?.declaraciones.some(esVigente)) {
           if (e instanceof F29RechazoError) throw e;

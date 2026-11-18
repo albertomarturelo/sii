@@ -306,6 +306,15 @@ describe('gwt protocol 7 codec', () => {
       /tipo sin esquema: test\.Nope/,
     );
     expect(() => codec.decodeResponse('<html>')).toThrow(/no es \/\/OK/);
+    // the in-band login wall (#291) is a dead session; a 302 elsewhere stays SII's message
+    const wall = (url: string): string =>
+      `//EX[2,1,["cl.sii.sdi.core.web.aa.gwt.shared.SdiSerializableServiceException/1",${JSON.stringify(`302|${url}`)}],0,7]`;
+    expect(() =>
+      codec.decodeResponse(
+        wall('https://zeusr.sii.cl/AUT2000/InicioAutenticacion/IngresoRutClave.html?x'),
+      ),
+    ).toThrow(SessionExpiredError);
+    expect(() => codec.decodeResponse(wall('https://zeusr.sii.cl/otra.html'))).toThrow(F29Error);
     expect(() => codec.decodeResponse('//OK[1,2,["test.Ref/1"],0,7]')).toThrow(/scraper roto/);
   });
 
