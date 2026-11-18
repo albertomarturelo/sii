@@ -26,7 +26,7 @@ Every decision behind a release is recorded as an ADR under
 - **Fixed** — `f29 submit` (and its MCP tools): a dead session that rfiInternet refuses inside a
   `200` GWT answer now fails as `session_expired`, not `sii_error` « SII rechazó la operación
   (error de servicio) ». On the filing call itself the outcome is still read from SII, never
-  assumed « not filed » (ADR-029) (#291).
+  assumed « not filed », per ADR-029 (#291).
 
 ## 0.22.0 — 2026-11-18 — Los motivos
 
