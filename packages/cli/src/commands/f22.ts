@@ -208,7 +208,8 @@ export function registerF22(program: Command, runtime: Runtime): void {
         'Información de terceros del año: lo que informaron sobre ti tus agentes retenedores e ' +
         'informantes (empresas, bancos, AFP, corredoras) en sus declaraciones juradas. Sin ' +
         '--dj: el resumen por DJ (una consulta al SII). Con --dj: las filas de esa DJ, con el ' +
-        'RUT y nombre de cada declarante (datos de terceros).',
+        'RUT y nombre de cada declarante (datos de terceros). Si la sesión no trae tu nombre en ' +
+        'caché, ambos lo leen antes de Mi SII (una consulta más) para omitirlo de las filas.',
     )
     .argument('<año>', 'Año tributario (YYYY); 2026 = ingresos de 2025.')
     .option('--dj <código>', 'Código de la DJ cuyas filas leer (p. ej. 1887).')

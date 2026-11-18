@@ -23,6 +23,11 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Fixed** — `f22Terceros` / `f22TercerosDetalle` (CLI `f22 terceros`, MCP `f22_terceros*`)
+  drop the taxpayer's own name on a session restored without a login too: when no login cached
+  it, they read it from Mi SII first (one paced request), and refuse a session whose cookies
+  answer for another RUT (#259).
+
 ## 0.22.1 — 2026-11-18 — El muro
 
 A patch for one fix (#291), the F29 side of 0.22.0's peticiones fix.

@@ -6,7 +6,12 @@ import {
   RecordingAuditSink,
 } from '../adapters/fake/index.js';
 import type { Runtime } from '../seams/index.js';
-import { F22Error, NotAuthenticatedError, ValidationError } from '../errors/index.js';
+import {
+  F22Error,
+  NotAuthenticatedError,
+  SessionExpiredError,
+  ValidationError,
+} from '../errors/index.js';
 import { initOperateState, setOperatingRut } from '../identity/index.js';
 import { writeSession } from '../auth/index.js';
 import {
@@ -593,13 +598,26 @@ describe('f22 tasks (fakes, no SII)', () => {
     },
   });
   /** A runtime whose getDjDetalle answers `pages(page)`; `posts` records each POST's data. */
-  function tercerosRuntime(pages: (page: number) => unknown): { rt: Runtime; posts: unknown[] } {
+  /** `miSii` scripts the Mi SII identity read (the restored-session path, #259): `miSiiReads`
+   *  counts it, and `'dead'` answers it as a dead jar. */
+  function tercerosRuntime(
+    pages: (page: number) => unknown,
+    miSii: 'dead' | (() => unknown) = () => ({
+      contribuyente: { rut: 20000042, dv: '0', nombres: 'JUAN', apellidoPaterno: 'PÉREZ' },
+    }),
+  ): { rt: Runtime; posts: unknown[]; miSiiReads: () => number } {
     const posts: unknown[] = [];
+    let reads = 0;
     const rt: Runtime = {
       ...makeRuntime(),
       portal: new FakePortalDriver({
         restoreSession: {
           cookies: { TOKEN: 't' },
+          datos: () => {
+            reads++;
+            if (miSii === 'dead') throw new SessionExpiredError();
+            return miSii();
+          },
           requestJson: (url, options?: JsonRequest) => {
             const data = (options?.body as { data?: Record<string, unknown> } | undefined)?.data;
             posts.push(data);
@@ -631,7 +649,7 @@ describe('f22 tasks (fakes, no SII)', () => {
         },
       }),
     };
-    return { rt, posts };
+    return { rt, posts, miSiiReads: () => reads };
   }
   const folios = (from: number, n: number) => Array.from({ length: n }, (_, i) => String(from + i));
 
@@ -660,6 +678,104 @@ describe('f22 tasks (fakes, no SII)', () => {
       period: '2026',
       count: 1,
     });
+  });
+
+  // #259: a session restored without a login has no operate state, so the name comes from Mi SII.
+  const restore = (rt: Runtime) =>
+    writeSession(rt.store, { rut: SELF, cookies: ['c'], savedAt: '2026-06-27T12:00:00Z' });
+
+  it('f22Terceros: the cached name needs no Mi SII read', async () => {
+    const { rt, miSiiReads } = tercerosRuntime(() => ({}));
+    await seed(rt);
+    await f22Terceros(rt, { anio: '2026' });
+    expect(miSiiReads()).toBe(0);
+  });
+
+  it('f22Terceros on a restored session (no operate state) reads the name from Mi SII and drops it', async () => {
+    const { rt, posts, miSiiReads } = tercerosRuntime(() => ({}));
+    await restore(rt);
+
+    const res = await f22Terceros(rt, { anio: '2026' });
+    expect(miSiiReads()).toBe(1);
+    expect(posts).toEqual([{ periodo: '202600' }]);
+    expect(res.declaraciones[0]?.filas).toEqual([
+      [{ columna: 'Cantidad de Informantes', valor: 1 }],
+    ]); // the same rows a fresh login gets
+    expect(slept(rt)).toEqual([1000]); // the F22 call is paced after the Mi SII read
+  });
+
+  it('f22Terceros reads Mi SII when the login stored the RUT as the name', async () => {
+    const { rt, miSiiReads } = tercerosRuntime(() => ({}));
+    await writeSession(rt.store, { rut: SELF, cookies: ['c'], savedAt: '2026-06-27T12:00:00Z' });
+    await initOperateState(rt.store, {
+      selfRut: SELF,
+      accountType: 'persona',
+      operable: [{ rut: SELF, razonSocial: SELF, isSelf: true }],
+    });
+    const res = await f22Terceros(rt, { anio: '2026' });
+    expect(miSiiReads()).toBe(1);
+    expect(JSON.stringify(res)).not.toContain('PÉREZ');
+  });
+
+  it('f22Terceros on a restored session: a dead jar at Mi SII aborts before any F22 call', async () => {
+    const { rt, posts } = tercerosRuntime(() => ({}), 'dead');
+    await restore(rt);
+    await expect(f22Terceros(rt, { anio: '2026' })).rejects.toBeInstanceOf(SessionExpiredError);
+    expect(posts).toEqual([]);
+    expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_terceros', result: 'failed' });
+  });
+
+  it('f22Terceros on a restored session: Mi SII without DatosCntrNow is an error, never the name kept', async () => {
+    const { rt, posts } = tercerosRuntime(
+      () => ({}),
+      () => null,
+    );
+    await restore(rt);
+    await expect(f22Terceros(rt, { anio: '2026' })).rejects.toThrow(/DatosCntrNow ausente/);
+    expect(posts).toEqual([]);
+  });
+
+  it('f22Terceros on a restored session refuses when Mi SII answers for another RUT', async () => {
+    const { rt, posts } = tercerosRuntime(
+      () => ({}),
+      () => ({
+        contribuyente: { rut: 11111111, dv: '1', nombres: 'OTRA', apellidoPaterno: 'PERSONA' },
+      }),
+    );
+    await restore(rt);
+    const err = await f22Terceros(rt, { anio: '2026' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NotAuthenticatedError);
+    expect(err).not.toBeInstanceOf(SessionExpiredError);
+    expect((err as Error).message).not.toContain('11111111'); // the other RUT is never echoed
+    expect(posts).toEqual([]);
+  });
+
+  it('f22TercerosDetalle on a restored session drops the own name read from Mi SII', async () => {
+    const page = {
+      metaData: { errors: null },
+      data: {
+        listDetalle: {
+          DETALLE: {
+            detalle: {
+              tabla: {
+                '00': trow('cabecera', [tc('Folio'), tc('Nombre'), tc('Monto')]),
+                '01': trow('dato', [tc('1'), tc('PÉREZ JUAN'), tc('1.000')]),
+              },
+              cantRegistros: 1,
+            },
+          },
+        },
+      },
+    };
+    const { rt, miSiiReads } = tercerosRuntime(() => page);
+    await restore(rt);
+
+    const res = await f22TercerosDetalle(rt, { anio: '2026', dj: '1891' });
+    expect(miSiiReads()).toBe(1);
+    expect(res.filas).toHaveLength(1);
+    expect(JSON.stringify(res.filas)).not.toContain('PÉREZ');
+    expect(res.filas[0]?.campos).toContainEqual({ columna: 'Monto', valor: 1000 });
+    expect(slept(rt)).toEqual([1000]);
   });
 
   it('f22Terceros refuses a representing pointer up front (session-keyed), no POST', async () => {

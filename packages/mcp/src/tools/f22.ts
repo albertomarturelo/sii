@@ -135,7 +135,8 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
         'EXPONE DATOS DE TERCEROS: el RUT y el nombre de cada declarante, que puede ser una ' +
         'persona natural (p. ej. un empleador). De las filas se omiten tu RUT y las columnas del ' +
         'partícipe o aportante (tu propia identidad); tu nombre también cuando se reconoce, ' +
-        'aunque un informante puede escribirlo a su manera. Session-keyed: lee tu propia ' +
+        'aunque un informante puede escribirlo a su manera; si la sesión no trae tu nombre en ' +
+        'caché, se lee antes de Mi SII (una consulta más, en ambos modos). Session-keyed: lee tu propia ' +
         'información; para una empresa, inicia sesión como ella.',
       inputSchema: {
         anio: z.string(),
