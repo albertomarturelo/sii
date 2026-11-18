@@ -4,6 +4,17 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.22.1 — 2026-11-18
+
+### Fixed
+
+- **rfiInternet's in-band login wall is a `SessionExpiredError` (#291).** A cookie-less call gets
+  `200` and `//EX[…"302|https://zeusr.sii.cl/<login path>?…"…]`; `Gwt7Codec.decodeResponse` raised
+  it through `fail`, so `callFormularioFacade` made it an `F29RechazoError`. Both GWT decoders now
+  share the narrow match (exactly `302|<URL>` on a known login host and the login path), and the
+  protocol-7 one raises `SessionExpiredError`, which is not an `F29Error`. `f29Submit` still
+  reports a dead session on `inyectarBorradorRfi` as unconfirmed (ADR-029).
+
 ## 0.22.0 — 2026-11-18
 
 ### Added

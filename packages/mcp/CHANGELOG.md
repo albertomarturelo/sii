@@ -9,6 +9,15 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.22.1 — 2026-11-18
+
+### Fixed
+
+- **`f29_submit_preview` and `f29_submit` on an expired session answer `session_expired`**, not
+  `sii_error` (#291). Most visible here: the server keeps SII's form code cached, so its call meets
+  the dead session. A session that dies on the filing call itself is still « could not confirm »
+  (ADR-029).
+
 ## 0.22.0 — 2026-11-18
 
 ### Added

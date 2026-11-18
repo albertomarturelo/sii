@@ -9,6 +9,14 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.22.1 — 2026-11-18
+
+### Fixed
+
+- **`sii f29 submit` on an expired session exits `2` with `session_expired`**, not `1` with
+  `sii_error` « SII rechazó la operación (error de servicio) » (#291). With `--confirm`, a session
+  that dies on the filing call itself is still « could not confirm » (ADR-029).
+
 ## 0.22.0 — 2026-11-18
 
 ### Added
