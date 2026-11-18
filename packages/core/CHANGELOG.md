@@ -4,6 +4,24 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.23.0 — 2026-11-18
+
+### Added
+
+- **`whoami` returns `regimen` (#257)**, a `RegimenTributario`: `inicioActividades`, `terminoGiro`,
+  `obligadoF29Desde`, `segundaCategoria`, `diaF29`, from the `DatosCntrNow` it already reads. The
+  derivation is `regimenTributario` (`auth/datos-cntr.ts`), which `alertas` now uses too; unknown is
+  `null` there and `alertas` keeps its own defaults (day 20, not segunda categoría). Every function
+  is total, so an odd value never fails the identity read (#214). The type is on the barrel.
+
+### Fixed
+
+- **`f22Terceros` / `f22TercerosDetalle` drop the own name on a restored session (#259).** The name
+  came only from the operate state a login writes. Without it (or with the RUT stored in its
+  place), the task reads it from Mi SII (`readPrincipalIdentity`, one paced GET) before the F22
+  call, and refuses with `NotAuthenticatedError` when Mi SII's principal is not the stored
+  session's RUT.
+
 ## 0.22.1 — 2026-11-18
 
 ### Fixed
