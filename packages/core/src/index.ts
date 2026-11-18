@@ -17,6 +17,7 @@ export type {
   AuthWww2Status,
   LoginBlockEntry,
   LoginOptions,
+  RegimenTributario,
 } from './tasks/auth.js';
 export { operate, operateSelf, operatingStatus, listOperable } from './tasks/operate.js';
 export type { OperateResult, OperableList } from './tasks/operate.js';

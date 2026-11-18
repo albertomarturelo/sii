@@ -15,6 +15,11 @@ export function registerWhoamiTools(server: McpServer, runtime: Runtime): void {
       description:
         'Muestra la cuenta con la que estás autenticado en el SII: RUT, tipo (persona/empresa), ' +
         'razón social o nombre, y email. Útil para saber con qué cuenta se está trabajando. ' +
+        'También `regimen`, lo que el SII registra para la cuenta: `inicioActividades` y ' +
+        '`terminoGiro` (YYYY-MM-DD), `obligadoF29Desde` (YYYY-MM: desde ese mes debe F29 todos ' +
+        'los meses, también sin movimiento), `segundaCategoria` (true: solo honorarios, debe F29 ' +
+        'solo en los meses con retención del emisor; false: régimen de primera categoría) y ' +
+        '`diaF29` (12 o 20). `null` es desconocido: no lo asumas. ' +
         'EXPONE PII PROPIA del usuario (nombre/razón social + email) al modelo. Lectura en vivo ' +
         'del principal de la sesión (ignora el puntero operate). No recibe argumentos.',
       // readOnly, but it DOES touch SII (a live session restore + portal read), like auth_logout.

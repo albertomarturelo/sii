@@ -64,8 +64,8 @@ remains future — CONVENTIONS: curated + raw for 30+ fields:
 | `apellidoPaterno` | string | ✓ | PII |
 | `apellidoMaterno` | string | ✓ | PII |
 | `razonSocial` | null | ✓ | **null for persona** → drives `accountType` |
-| `tipoContribuyenteCodigo` / `…Descripcion` | string | | |
-| `subtipoContribuyenteCodigo` / `…Descrip` | string | | |
+| `tipoContribuyenteCodigo` / `…Descripcion` | string | | SII's catalog of the kind of taxpayer (persona natural / empresa…); not the tax category (#257) |
+| `subtipoContribuyenteCodigo` / `…Descrip` | string | | a finer kind of taxpayer from the same catalog; not the regime (#257) |
 | `paisCodigo` | string | | |
 | `sexo` | string | | PII |
 | `numeroPasaporte` | null | | |
@@ -75,17 +75,17 @@ remains future — CONVENTIONS: curated + raw for 30+ fields:
 | `eMail` | string | ✓ | PII — surfaced by `whoami` (#70) |
 | `telefonoMovil` | string | | PII |
 | `fechaCreaRegistroCntr` / `fechaModiRegistroCntr` | string | | |
-| `fechaTerminoGiro` | null | | `null` observed 2026-10-23; when set, bounds `alertas`' F29 window |
-| `autorizadoDeclararDia20` | string | | `"S"` observed 2026-10-23 (empresa); read by `alertas` for the F29 due day (`"N"` ⇒ the 12th) |
-| `fechaInicioActividades` | string | | `"2026-03-26 00:00:00.0"` observed 2026-10-23; bounds `alertas`' F29 window |
+| `fechaTerminoGiro` | null | ✓ | `null` observed 2026-10-23 and 2026-11-18; when set, bounds `alertas`' F29 window; `whoami` `regimen.terminoGiro`. The set format is assumed to be `fechaInicioActividades`' (not observed populated) |
+| `autorizadoDeclararDia20` | string | ✓ | `"S"` observed 2026-10-23 (empresa) and 2026-11-18 (persona); the F29 due day: `alertas` (`"N"` ⇒ the 12th, else the 20th) and `whoami` `regimen.diaF29` (anything but `"S"`/`"N"` ⇒ `null`) |
+| `fechaInicioActividades` | string | ✓ | `"2026-03-26 00:00:00.0"` observed 2026-10-23 (same shape 2026-11-18); bounds `alertas`' F29 window; `whoami` `regimen.inicioActividades` |
 | `unidadOperativaCodigo` / `…Descripcion` / `…Direccion` | string | | |
 | `unidadOperativaGc*` | null | | |
 | `capitalPorEnterar` / `capitalEnterado` | string | | |
 | `fIndVerificacion` | null | | |
 | `fechaCreaRegistroNeg` / `fechaModiRegistroNeg` | string | | |
-| `segmentoCodigo` / `segmentoDescripcion` | string | | |
+| `segmentoCodigo` / `segmentoDescripcion` | string | | on a honorarios persona the code repeats its `SGPE` atributo (2026-11-18); the category itself is in that atributo's `valor`, so it is not read here (#257) |
 | `personaEmpresa` | string | | |
-| `glosaActividad` | string | | |
+| `glosaActividad` | string | | free text (the actividad's glosa); not curated |
 | `tipoActuacion` / `descripcionActuacion` | null | | |
 | `declaraTG` | string | | |
 | `personaMiSii` | string | | |
@@ -113,7 +113,28 @@ primera-categoría regime ⇒ F29 due every month), `CPYM` « CONTABILIDAD REGIM
 `EMTP` « EMPRESA DE MENOR TAMANO », `FPYM` « FACTURADOR ELECTRONICO MIPYME », `NOTI`, `REGS`
 « CONTRIBUYENTE PERTENECE AL REGISTRO DE SOCIEDADES », `SGMI` « MICRO EMPRESA »; persona
 (honorarios) — `NOTI`, `SGPE` « PERSONA » (`valor` « Tipo contribuyente=1 y Categoría
-Contribuyente = 2 »).
+Contribuyente = 2 »; re-observed 2026-11-18). `valor` is read for `SGPE` only.
+
+### The regime `whoami` and `alertas` share (#257)
+
+`regimenTributario` (`auth/datos-cntr.ts`) derives it from this object, with no extra request:
+`inicioActividades`, `terminoGiro`, `obligadoF29Desde` (the later of the inicio and an observed
+primera-categoría regime's start), `segundaCategoria` and `diaF29`. Unknown is `null`; `alertas`
+applies its own defaults on top (day 20, not segunda categoría), so its behaviour did not change.
+`segundaCategoria` is `false` only with a primera-categoría regime in force, `true` only with the
+`SGPE` category 2, and `null` otherwise (`atributos` not read, or neither proven).
+
+The issue's questions, from a structure-only probe (2026-11-18, persona, `valor` and
+`descAtrCodigo` redacted):
+
+1. **Both categories (« = 1 y 2 »):** not observed. Neither account holds it, so it reads `null`
+   (unknown), never as segunda categoría.
+2. **`tipoContribuyente*`, `subtipoContribuyente*`, `segmento*`, `glosaActividad`:** catalog codes
+   for the kind of taxpayer, and a free-text glosa. None says the tax category or regime, which the
+   `atributos` do; `whoami`'s `accountType` already covers persona vs empresa. Not curated.
+3. **IVA afecto or exento:** `DatosCntrNow` has no such field (every key checked by name). The
+   per-actividad IVA status is not in Mi SII's identity object; the situación tributaria (#204) is
+   where to look, not observed here.
 
 ## Verified this session (2026-06-28)
 
