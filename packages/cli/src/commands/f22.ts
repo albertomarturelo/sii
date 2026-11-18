@@ -207,7 +207,8 @@ export function registerF22(program: Command, runtime: Runtime): void {
       'Session-keyed (tu propia información; para una empresa, inicia sesión como ella). ' +
         'Información de terceros del año: lo que informaron sobre ti tus agentes retenedores e ' +
         'informantes (empresas, bancos, AFP, corredoras) en sus declaraciones juradas. Sin ' +
-        '--dj: el resumen por DJ (una consulta al SII). Con --dj: las filas de esa DJ, con el ' +
+        '--dj: el resumen por DJ (una consulta al SII; dos si la sesión no trae tu nombre en ' +
+        'caché, que se lee de Mi SII para omitirlo). Con --dj: las filas de esa DJ, con el ' +
         'RUT y nombre de cada declarante (datos de terceros).',
     )
     .argument('<año>', 'Año tributario (YYYY); 2026 = ingresos de 2025.')
