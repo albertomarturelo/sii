@@ -735,6 +735,21 @@ describe('f22 tasks (fakes, no SII)', () => {
     expect(posts).toEqual([]);
   });
 
+  it('f22Terceros on a restored session refuses when Mi SII answers for another RUT', async () => {
+    const { rt, posts } = tercerosRuntime(
+      () => ({}),
+      () => ({
+        contribuyente: { rut: 11111111, dv: '1', nombres: 'OTRA', apellidoPaterno: 'PERSONA' },
+      }),
+    );
+    await restore(rt);
+    const err = await f22Terceros(rt, { anio: '2026' }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NotAuthenticatedError);
+    expect(err).not.toBeInstanceOf(SessionExpiredError);
+    expect((err as Error).message).not.toContain('11111111'); // the other RUT is never echoed
+    expect(posts).toEqual([]);
+  });
+
   it('f22TercerosDetalle on a restored session drops the own name read from Mi SII', async () => {
     const page = {
       metaData: { errors: null },

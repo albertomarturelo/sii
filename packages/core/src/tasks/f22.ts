@@ -10,7 +10,7 @@ import { readOperateState } from '../identity/index.js';
 import { recordAudit } from '../audit/index.js';
 import { Anio } from '../periodo/index.js';
 import { Rut } from '../rut/index.js';
-import { F22Error, ValidationError } from '../errors/index.js';
+import { F22Error, NotAuthenticatedError, ValidationError } from '../errors/index.js';
 import { DEFAULT_SETTINGS } from '../config/index.js';
 import {
   eventoDateKey,
@@ -357,7 +357,17 @@ async function identidadPropia(
   const op = await readOperateState(runtime.store);
   const cached = op?.operable.find((o) => o.isSelf)?.razonSocial ?? null;
   if (cached !== null && Rut.tryParse(cached) === null) return { rut, nombre: cached };
-  const { nombre } = await readPrincipalIdentity(session);
+  const principal = await readPrincipalIdentity(session);
+  // The RUT dropped from the rows is the stored session's. A restored `session.json` is written by
+  // the caller, so a jar of another principal would keep its RUT in the rows and label the result
+  // with the wrong one: refuse before any F22 call (ADR-005). A login fixes it.
+  if (principal.rut !== rut.canonical) {
+    throw new NotAuthenticatedError(
+      'La sesión guardada no corresponde al contribuyente que Mi SII reconoce en sus cookies. ' +
+        'Inicia sesión de nuevo (`sii auth login`).',
+    );
+  }
+  const { nombre } = principal;
   await runtime.clock.sleep(pacingMs()); // pace the F22 call that follows (ADR-004)
   return { rut, nombre: nombre !== null && Rut.tryParse(nombre) === null ? nombre : null };
 }
