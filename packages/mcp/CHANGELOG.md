@@ -9,6 +9,18 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.23.0 — 2026-11-18
+
+### Added
+
+- **`whoami` returns `regimen` (#257)**; its description tells the model what each field means and
+  that `null` is unknown, never to be assumed.
+
+### Fixed
+
+- **`f22_terceros` (with or without `dj`) drops the own name on any session (#259)**, reading it
+  from Mi SII when no login cached it.
+
 ## 0.22.1 — 2026-11-18
 
 ### Fixed

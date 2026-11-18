@@ -9,6 +9,19 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.23.0 — 2026-11-18
+
+### Added
+
+- **`sii whoami` shows the account's regime (#257):** inicio de actividades, término de giro, the
+  month F29 is due every month from, segunda categoría and the F29 due day, in the JSON
+  (`regimen`) and in `--human`, where unknown reads «—».
+
+### Fixed
+
+- **`sii f22 terceros` drops your own name on any session (#259)**, reading it from Mi SII when no
+  login cached it, and refuses a session whose cookies answer for another RUT (exit 2).
+
 ## 0.22.1 — 2026-11-18
 
 ### Fixed

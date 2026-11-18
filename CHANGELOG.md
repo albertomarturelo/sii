@@ -23,15 +23,26 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Added** — `whoami` (CLI `sii whoami`, MCP `whoami`) returns `regimen`: the inicio de
-  actividades, término de giro, the month F29 is due every month from, segunda categoría and the
-  F29 due day, from the read it already makes, with unknown as `null`. Core exports the
-  `RegimenTributario` type; `alertas` derives its F29 window from the same function (#257).
+## 0.23.0 — 2026-11-18 — El régimen
 
-- **Fixed** — `f22Terceros` / `f22TercerosDetalle` (CLI `f22 terceros`, MCP `f22_terceros*`)
-  drop the taxpayer's own name on a session restored without a login too: when no login cached
-  it, they read it from Mi SII first (one paced request), and refuse a session whose cookies
-  answer for another RUT (#259).
+A minor for one read that adds what SII registers about the account (#257) and one fix to keep
+the taxpayer's own name out of a read (#259).
+
+**`whoami` says what kind of taxpayer the account is.** `sii whoami` and the MCP tool `whoami`
+return `regimen`, from the same Mi SII read they already made: `inicioActividades`, `terminoGiro`,
+`obligadoF29Desde` (the month F29 is due every month from, until the término de giro when set),
+`segundaCategoria` and `diaF29` (12 or 20). Unknown is `null`, never an assumed value:
+`segundaCategoria` is `false` only with a primera-categoría regime in force and `true` only with
+SII's segunda categoría registration. `alertas` now derives its F29 window from the same function,
+so the two cannot disagree; its results do not change. Core exports the `RegimenTributario` type.
+
+**`f22 terceros` drops the own name on any session.** `sii f22 terceros` and the MCP tool
+`f22_terceros` drop the taxpayer's own name from the rows by value. The name came from what a
+login caches, so a session restored without a login (a worker on a stored session) kept it. When no
+login cached it, the read now takes it from Mi SII first (one more paced request), and it refuses a
+session whose cookies answer for another RUT than the stored one (`not_authenticated`).
+
+A MINOR: a result field is added (ADR-021 amendment). Nothing breaks.
 
 ## 0.22.1 — 2026-11-18 — El muro
 
