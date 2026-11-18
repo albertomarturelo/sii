@@ -182,17 +182,19 @@ export function registerF22(program: Command, runtime: Runtime): void {
         }
         // SII errored on a folio — surface it, never hide it. Say which declaración it is (the
         // anulada one, typically) and, for the known SII-side failure, that nothing can fetch
-        // it (SII's own web fails identically — sii-contract/f22.md), keeping SII's message
-        // verbatim (ADR-004); the JSON `error` stays the raw string (#288).
+        // it, keeping SII's message verbatim (ADR-004); the JSON `error` stays the raw string
+        // (#288). « Su propia web falla igual » was observed on folios NO vigentes only
+        // (sii-contract/f22.md), so it is said only of one.
         for (const fe of r.foliosConError) {
           const cual = [
             fe.vigente === null ? null : fe.vigente ? 'vigente' : 'no vigente',
             fe.estado,
           ].filter((s): s is string => s !== null);
           const etiqueta = cual.length ? ` (${cual.join(', ')})` : '';
+          const web = fe.vigente === false ? '; su propia web falla igual' : '';
           out(
             fe.motivo === 'sii_no_entrega_historial'
-              ? `  ⚠ folio ${fe.folio}${etiqueta}: el SII no entrega el historial de este folio; su propia web falla igual (error interno del SII: ${fe.error})`
+              ? `  ⚠ folio ${fe.folio}${etiqueta}: el SII no entrega el historial de este folio${web} (error interno del SII: ${fe.error})`
               : `  ⚠ folio ${fe.folio}${etiqueta}: el SII no entregó su historial (${fe.error})`,
           );
         }

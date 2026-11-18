@@ -222,7 +222,11 @@ export interface F22Historial {
  *    out as SII sent it, a number; the padded value matches no field of any declaración), the
  *    SPA's full six-field request fails the same way, and SII's own web fails identically.
  *    Nothing on our side can fetch it; the declaración's estado is still in `f22 status`.
- *  - `sii_error`: any other SII message, verbatim in `error`. */
+ *    The motivo follows the message's signature on ANY folio, but the « SII's web fails too »
+ *    part was observed on folios no vigentes only, so a surface claims it only for one.
+ *  - `sii_error`: any other SII message, verbatim in `error`.
+ *  A per-item reason inside a successful result, NOT an ADR-012 error kind (`classifyError`
+ *  types a thrown error); `sii_error` shares that kind's spelling on purpose. */
 export type MotivoFolioConError = 'sii_no_entrega_historial' | 'sii_error';
 
 /** One folio whose `buscaEventos` SII failed, with the declaración it belongs to so the
