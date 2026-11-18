@@ -180,12 +180,20 @@ export function registerF22(program: Command, runtime: Runtime): void {
         } else {
           out(`${r.eventos.length} evento(s).`);
         }
-        // SII errored on a folio — surface it, never hide it. Frame it as SII-side (it is:
-        // SII's own UI fails identically on these folios — see sii-contract/f22.md) while
-        // keeping its message verbatim (ADR-004); the JSON `error` stays the raw string.
+        // SII errored on a folio — surface it, never hide it. Say which declaración it is (the
+        // anulada one, typically) and, for the known SII-side failure, that nothing can fetch
+        // it (SII's own web fails identically — sii-contract/f22.md), keeping SII's message
+        // verbatim (ADR-004); the JSON `error` stays the raw string (#288).
         for (const fe of r.foliosConError) {
+          const cual = [
+            fe.vigente === null ? null : fe.vigente ? 'vigente' : 'no vigente',
+            fe.estado,
+          ].filter((s): s is string => s !== null);
+          const etiqueta = cual.length ? ` (${cual.join(', ')})` : '';
           out(
-            `  ⚠ folio ${fe.folio}: el SII no entregó su historial (error interno del SII: ${fe.error})`,
+            fe.motivo === 'sii_no_entrega_historial'
+              ? `  ⚠ folio ${fe.folio}${etiqueta}: el SII no entrega el historial de este folio; su propia web falla igual (error interno del SII: ${fe.error})`
+              : `  ⚠ folio ${fe.folio}${etiqueta}: el SII no entregó su historial (${fe.error})`,
           );
         }
       });

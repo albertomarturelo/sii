@@ -411,9 +411,15 @@ describe('f22 tasks (fakes, no SII)', () => {
       data: {
         decls: [
           { folio: '12345', vgte: 'S', codConc: 'C1', fecIng: '15/04/2025' },
-          { folio: '67890', vgte: 'N', codConc: 'C1', fecIng: '10/05/2025' },
+          // SII sends the folio as a NUMBER (observed 2026-11-17); the anulada carries
+          // tipoImpugnado "1" (#288).
+          { folio: 67890, vgte: '0', codConc: 'C2', fecIng: '10/05/2025', tipoImpugnado: '1' },
+          { folio: 55555, vgte: '0', codConc: 'C1', fecIng: '11/05/2025' },
         ],
-        glosas: [{ codConclusion: 'C1', descripcion: 'Vigente' }],
+        glosas: [
+          { codConclusion: 'C1', descripcion: 'Aceptada' },
+          { codConclusion: 'C2', descripcion: 'Anulada' },
+        ],
       },
     };
     const rt: Runtime = {
@@ -427,6 +433,12 @@ describe('f22 tasks (fakes, no SII)', () => {
               const folio = String(
                 (options?.body as { data?: { folio?: unknown } } | undefined)?.data?.folio ?? '',
               );
+              if (folio === '55555')
+                return {
+                  data: null,
+                  errorMsg: 'Servicio no disponible',
+                  metaData: { errors: null },
+                };
               return folio === '67890'
                 ? {
                     data: null,
@@ -458,10 +470,26 @@ describe('f22 tasks (fakes, no SII)', () => {
     await seed(rt);
 
     const res = await f22Historial(rt, { anio: '2025' });
-    expect(res.folios).toEqual(['12345', '67890']); // both attempted
+    expect(res.folios).toEqual(['12345', '67890', '55555']); // all attempted
     expect(res.eventos.map((e) => e.codigo)).toEqual(['2']); // the good folio's event survives
     expect(res.foliosConError).toEqual([
-      { folio: '67890', error: 'For input string: "    000000"' }, // verbatim, not hidden
+      {
+        folio: '67890',
+        // SII's own parse failure: a stable motivo, the message still verbatim (#288)
+        motivo: 'sii_no_entrega_historial',
+        error: 'For input string: "    000000"',
+        vigente: false,
+        estado: 'Anulada',
+        tipoImpugnado: '1',
+      },
+      {
+        folio: '55555',
+        motivo: 'sii_error', // any other SII message
+        error: 'Servicio no disponible',
+        vigente: false,
+        estado: 'Aceptada',
+        tipoImpugnado: null,
+      },
     ]);
     // A folio error is NOT a task failure — the receipt is still ok.
     expect(entries(rt).at(-1)).toMatchObject({ action: 'f22_historial', result: 'ok' });
@@ -492,6 +520,37 @@ describe('f22 tasks (fakes, no SII)', () => {
     await expect(f22Historial(rt, { anio: '2025', folio: 'abc' })).rejects.toBeInstanceOf(
       ValidationError,
     );
+  });
+
+  it("f22Historial: a --folio outside the año's declaraciones still reports its error, with no declaración context", async () => {
+    const rt: Runtime = {
+      ...makeRuntime(),
+      portal: new FakePortalDriver({
+        restoreSession: {
+          cookies: { TOKEN: 't' },
+          requestJson: (url) =>
+            url.includes('buscaEventos')
+              ? {
+                  data: null,
+                  errorMsg: 'For input string: "    000000"',
+                  metaData: { errors: null },
+                }
+              : { metaData: { errors: [] }, data: { decls: [], glosas: [] } },
+        },
+      }),
+    };
+    await seed(rt);
+    const res = await f22Historial(rt, { anio: '2025', folio: '99999' });
+    expect(res.foliosConError).toEqual([
+      {
+        folio: '99999',
+        motivo: 'sii_no_entrega_historial',
+        error: 'For input string: "    000000"',
+        vigente: null,
+        estado: null,
+        tipoImpugnado: null,
+      },
+    ]);
   });
 
   // --- Información de terceros (#183) -------------------------------------------------

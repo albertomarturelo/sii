@@ -211,9 +211,16 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     await seed(rt);
     const out = await run(rt, 'f22', 'historial', '2025');
     expect(out).toContain('0 evento(s).');
-    // Framed as SII-side, but the verbatim message is preserved (ADR-004).
-    expect(out).toContain('⚠ folio 999: el SII no entregó su historial (error interno del SII:');
+    // Names the declaración and frames the known failure as SII-side (#288), keeping the
+    // verbatim message (ADR-004).
+    expect(out).toContain(
+      '⚠ folio 999 (vigente, Vigente): el SII no entrega el historial de este folio; su propia web falla igual (error interno del SII:',
+    );
     expect(out).toContain('For input string: "    000000"');
+    const json = (await runJson(rt, 'f22', 'historial', '2025')) as {
+      foliosConError: { motivo: string }[];
+    };
+    expect(json.foliosConError.map((f) => f.motivo)).toEqual(['sii_no_entrega_historial']);
   });
 
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {
