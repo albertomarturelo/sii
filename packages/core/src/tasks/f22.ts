@@ -5,7 +5,7 @@
 // returns a clean negative, not the empresa's F22). The older verbs IGNORE the operate
 // pointer; `f22Terceros*` refuse it up front (`assertOperatingSelf`, CONVENTIONS). The año is
 // validated locally BEFORE any session.
-import { assertOperatingSelf, withSession } from '../auth/index.js';
+import { assertOperatingSelf, readPrincipalIdentity, withSession } from '../auth/index.js';
 import { readOperateState } from '../identity/index.js';
 import { recordAudit } from '../audit/index.js';
 import { Anio } from '../periodo/index.js';
@@ -33,7 +33,7 @@ import type {
   F22Estado,
   ObservacionF22,
 } from '../portal/f22/index.js';
-import type { AuditEntry, Runtime } from '../seams/index.js';
+import type { AuditEntry, PortalSession, Runtime } from '../seams/index.js';
 
 export type {
   CampoTercero,
@@ -344,11 +344,21 @@ const assertSelfOperatingTerceros = (runtime: Runtime): Promise<void> =>
   );
 
 /** The principal's own identity, dropped from every row by value. The name is the razón social
- *  cached at login (local, no SII call); a login that could not read it stored the RUT there. */
-async function identidadPropia(runtime: Runtime, sessionRut: string): Promise<IdentidadPropia> {
+ *  cached at login (local, no SII call). Where there is none, it is read from Mi SII (one GET,
+ *  paced before the F22 call): a session restored without a login has no operate state, and a
+ *  login that could not read the name stored the RUT there. Without that read the same grid kept
+ *  the own name on one kind of session and dropped it on the other (#259). */
+async function identidadPropia(
+  runtime: Runtime,
+  session: PortalSession,
+  sessionRut: string,
+): Promise<IdentidadPropia> {
   const rut = Rut.parse(sessionRut);
   const op = await readOperateState(runtime.store);
-  const nombre = op?.operable.find((o) => o.isSelf)?.razonSocial ?? null;
+  const cached = op?.operable.find((o) => o.isSelf)?.razonSocial ?? null;
+  if (cached !== null && Rut.tryParse(cached) === null) return { rut, nombre: cached };
+  const { nombre } = await readPrincipalIdentity(session);
+  await runtime.clock.sleep(pacingMs()); // pace the F22 call that follows (ADR-004)
   return { rut, nombre: nombre !== null && Rut.tryParse(nombre) === null ? nombre : null };
 }
 
@@ -386,7 +396,7 @@ export async function f22Terceros(
   const start = runtime.clock.now().getTime();
   try {
     const result = await withSession(runtime, async (session, ctx) => {
-      const propio = await identidadPropia(runtime, ctx.sessionRut);
+      const propio = await identidadPropia(runtime, session, ctx.sessionRut);
       const declaraciones = await fetchF22TercerosResumen(session, { anio, propio });
       return { rut: propio.rut.canonical, anio: anio.canonical, declaraciones };
     });
@@ -432,7 +442,7 @@ export async function f22TercerosDetalle(
   const start = runtime.clock.now().getTime();
   try {
     const result = await withSession(runtime, async (session, ctx) => {
-      const propio = await identidadPropia(runtime, ctx.sessionRut);
+      const propio = await identidadPropia(runtime, session, ctx.sessionRut);
       const read = (p: number) =>
         fetchF22TercerosDetalle(session, { rut: propio.rut, anio, dj, pagina: p, propio });
       const first = await read(pagina ?? 1);

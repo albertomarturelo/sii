@@ -192,6 +192,14 @@ function identityOnRead(datos: DatosCntr | null): AuthIdentity {
   return identity;
 }
 
+/** The session principal's identity, read live from Mi SII in ONE GET (no navigation), for a
+ *  task that needs it where no login left it behind: a restored session has no operate state
+ *  (#259). A dead jar lands on `LOGIN_HOST` and the driver raises `SessionExpiredError`; a page
+ *  without `DatosCntrNow` is "scraper roto", never retried. Internal: not on the main barrel. */
+export async function readPrincipalIdentity(session: PortalSession): Promise<AuthIdentity> {
+  return identityOnRead(await readDatos(session));
+}
+
 function landedOnLoginHost(landed: string): boolean {
   return new URL(landed).hostname === LOGIN_HOST;
 }
