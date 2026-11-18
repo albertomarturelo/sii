@@ -45,11 +45,11 @@ describe('sii whoami command (fake runtime, no SII)', () => {
     expect(out).toContain('Nombre: Juan Pérez');
     expect(out).toContain('Email: juan@example.cl');
     // The regime (#257); unknown reads «—», never an assumed value.
-    expect(out).toContain('Inicio de actividades: 2020-05-04');
-    expect(out).toContain('Término de giro:       —');
+    expect(out).toContain('Inicio de actividades:     2020-05-04');
+    expect(out).toContain('Término de giro:           —');
     expect(out).toContain('F29 todos los meses desde: —');
-    expect(out).toContain('Segunda categoría:     sí');
-    expect(out).toContain('Día de vencimiento F29: 20');
+    expect(out).toContain('Segunda categoría:         sí');
+    expect(out).toContain('Día de vencimiento F29:    20');
   });
 
   it('whoami emits the curated JSON by default', async () => {
