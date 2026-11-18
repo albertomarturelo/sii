@@ -211,8 +211,38 @@ export interface F22Historial {
   readonly tieneDeclaracion: boolean;
   readonly folios: readonly string[]; // every folio attempted (the año's declaraciones / the override)
   readonly eventos: readonly EventoF22[]; // most-recent-first, across the folios that succeeded
-  readonly foliosConError: readonly { folio: string; error: string }[]; // verbatim SII error per failed folio
+  readonly foliosConError: readonly F22FolioConError[]; // one per folio SII failed, never hidden
 }
+
+/** Why a folio's historial did not come back. A caller branches on this, never on `error`'s
+ *  text (#288):
+ *  - `sii_no_entrega_historial`: SII's own Java `NumberFormatException` (`For input string:
+ *    "    <n>"`) over a space-padded value of ITS OWN. Observed live on a folio anulado by a
+ *    rectificatoria (2026-06-29, again 2026-11-17): our request is well formed (the folio goes
+ *    out as SII sent it, a number; the padded value matches no field of any declaración), the
+ *    SPA's full six-field request fails the same way, and SII's own web fails identically.
+ *    Nothing on our side can fetch it; the declaración's estado is still in `f22 status`.
+ *    The motivo follows the message's signature on ANY folio, but the « SII's web fails too »
+ *    part was observed on folios no vigentes only, so a surface claims it only for one.
+ *  - `sii_error`: any other SII message, verbatim in `error`.
+ *  A per-item reason inside a successful result, NOT an ADR-012 error kind (`classifyError`
+ *  types a thrown error); `sii_error` shares that kind's spelling on purpose. */
+export type MotivoFolioConError = 'sii_no_entrega_historial' | 'sii_error';
+
+/** One folio whose `buscaEventos` SII failed, with the declaración it belongs to so the
+ *  reader sees it is the anulada / no vigente one. `vigente` / `estado` / `tipoImpugnado` are
+ *  null when the folio (a `--folio` override) is not among the año's declaraciones. */
+export interface F22FolioConError {
+  readonly folio: string;
+  readonly motivo: MotivoFolioConError;
+  readonly error: string; // SII's message, verbatim (ADR-004)
+  readonly vigente: boolean | null;
+  readonly estado: string | null;
+  readonly tipoImpugnado: string | null;
+}
+
+// SII's server-side `Integer.parse` failure, observed 2026-06-29 and 2026-11-17 (#288).
+const SII_NUMBER_FORMAT = /^For input string: "/;
 
 export async function f22Historial(
   runtime: Runtime,
@@ -245,7 +275,7 @@ export async function f22Historial(
         tieneDeclaracion: decls.tieneDeclaracion,
       };
       const eventos: EventoF22[] = [];
-      const foliosConError: { folio: string; error: string }[] = [];
+      const foliosConError: F22FolioConError[] = [];
       for (const folio of folios) {
         await runtime.clock.sleep(pacingMs()); // pace each buscaEventos POST (ADR-004)
         try {
@@ -255,7 +285,15 @@ export async function f22Historial(
           // not bury the other folios' events. A session-level failure is NOT an F22Error and
           // propagates (aborting the whole read, as it should).
           if (e instanceof F22Error) {
-            foliosConError.push({ folio, error: e.message });
+            const decl = decls.declaraciones.find((d) => d.folio === folio);
+            foliosConError.push({
+              folio,
+              motivo: SII_NUMBER_FORMAT.test(e.message) ? 'sii_no_entrega_historial' : 'sii_error',
+              error: e.message,
+              vigente: decl?.vigente ?? null,
+              estado: decl?.estado ?? null,
+              tipoImpugnado: decl?.tipoImpugnado ?? null,
+            });
             continue;
           }
           throw e;

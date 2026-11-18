@@ -23,6 +23,11 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added** — `f22 historial`: each `foliosConError` entry carries a stable `motivo`
+  (`sii_no_entrega_historial` for SII's own `For input string` failure on a folio anulado,
+  `sii_error` otherwise) and the folio's `vigente` / `estado` / `tipoImpugnado`; the human
+  output names the declaración and says SII's own web fails the same way (#288).
+
 ## 0.21.0 — 2026-11-16 — La boleta
 
 A minor for one new surface (#282) and the fix it uncovered (#284).

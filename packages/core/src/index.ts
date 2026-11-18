@@ -46,6 +46,8 @@ export type {
   F22Overview,
   F22Observaciones,
   F22Historial,
+  F22FolioConError,
+  MotivoFolioConError,
   F22Terceros,
   F22TercerosDetalle,
   F22Grupos,

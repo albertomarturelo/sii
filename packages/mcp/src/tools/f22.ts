@@ -102,7 +102,10 @@ export function registerF22Tools(server: McpServer, runtime: Runtime): void {
         'Historial de eventos de la Declaración Anual de Renta (F22) de un año: la línea de ' +
         'tiempo (declaración recibida, devolución autorizada, giros de Tesorería, ' +
         'rectificatorias) con fecha y glosa verbatim del SII, más reciente primero. Por ' +
-        'defecto cubre todos los folios del año; `folio` acota a uno. Session-keyed: lee tu ' +
+        'defecto cubre todos los folios del año; `folio` acota a uno. Un folio que el SII no ' +
+        'sirve va en `foliosConError` con un `motivo` estable (`sii_no_entrega_historial`: el ' +
+        'SII falla sobre un folio anulado y su propia web también; `sii_error`: otro mensaje) ' +
+        'y su `vigente` / `estado`. Session-keyed: lee tu ' +
         'propia renta; para una empresa, inicia sesión como ella.',
       inputSchema: {
         anio: z.string(),

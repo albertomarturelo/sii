@@ -183,37 +183,82 @@ describe('sii f22 command (fake runtime, no SII)', () => {
     expect(json.eventos.map((e) => e.codigo)).toEqual(['2', '48']); // most-recent-first
   });
 
-  it('f22 historial surfaces a folio SII error verbatim (⚠) without burying it', async () => {
-    // buscaEventos errors on the (only) folio → no events, but the SII message is shown.
-    const rt: Runtime = {
-      ...makeF22Runtime(),
-      portal: new testing.FakePortalDriver({
-        loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
-        restoreSession: {
-          landingUrl: HOSTS.miSii,
-          evaluate: datos,
-          cookies: { TOKEN: 't' },
-          requestJson: (url) =>
-            url.includes('buscaDeclVgte')
-              ? BUSCA
-              : url.includes('buscaEventos')
-                ? {
-                    data: null,
-                    // Synthetic stand-in for SII's real parse error (the space-padding — the
-                    // structural cause — is preserved; the digits are synthetic).
-                    errorMsg: 'For input string: "    000000"',
-                    metaData: { errors: null },
-                  }
-                : { metaData: {}, data: null },
-        },
-      }),
-    };
+  // Synthetic stand-in for SII's real parse error (the space-padding — the structural cause —
+  // is preserved; the digits are synthetic).
+  const SII_PARSE_ERROR = 'For input string: "    000000"';
+  // A runtime whose buscaEventos fails every folio with `errorMsg`, over `busca`'s decls.
+  const historialErrorRuntime = (busca: unknown, errorMsg: string): Runtime => ({
+    ...makeF22Runtime(),
+    portal: new testing.FakePortalDriver({
+      loginSession: { landingUrl: HOSTS.miSii, evaluate: datos, storageState: { cookies: [] } },
+      restoreSession: {
+        landingUrl: HOSTS.miSii,
+        evaluate: datos,
+        cookies: { TOKEN: 't' },
+        requestJson: (url) =>
+          url.includes('buscaDeclVgte')
+            ? busca
+            : url.includes('buscaEventos')
+              ? { data: null, errorMsg, metaData: { errors: null } }
+              : { metaData: {}, data: null },
+      },
+    }),
+  });
+  // A folio anulado by a rectificatoria, as SII sends it (folio a number, vgte "0"; #288).
+  const BUSCA_ANULADA = {
+    metaData: { errors: [] },
+    data: {
+      decls: [{ folio: 888, vgte: '0', codConc: 'C9', fecIng: '15/04/2025', tipoImpugnado: '1' }],
+      glosas: [{ codConclusion: 'C9', descripcion: 'Anulada' }],
+    },
+  };
+
+  it('f22 historial names a folio anulado SII cannot serve, and keeps its message verbatim (⚠)', async () => {
+    const rt = historialErrorRuntime(BUSCA_ANULADA, SII_PARSE_ERROR);
     await seed(rt);
     const out = await run(rt, 'f22', 'historial', '2025');
     expect(out).toContain('0 evento(s).');
-    // Framed as SII-side, but the verbatim message is preserved (ADR-004).
-    expect(out).toContain('⚠ folio 999: el SII no entregó su historial (error interno del SII:');
-    expect(out).toContain('For input string: "    000000"');
+    // Names the declaración and frames the known failure as SII-side (#288), keeping the
+    // verbatim message (ADR-004).
+    expect(out).toContain(
+      `⚠ folio 888 (no vigente, Anulada): el SII no entrega el historial de este folio; su propia web falla igual (error interno del SII: ${SII_PARSE_ERROR})`,
+    );
+    const json = (await runJson(rt, 'f22', 'historial', '2025')) as {
+      foliosConError: { motivo: string }[];
+    };
+    expect(json.foliosConError.map((f) => f.motivo)).toEqual(['sii_no_entrega_historial']);
+  });
+
+  it("f22 historial does not claim SII's web fails too on a folio not known to be no vigente", async () => {
+    // Observed on folios no vigentes only: on the vigente one the claim is left out.
+    const rt = historialErrorRuntime(BUSCA, SII_PARSE_ERROR);
+    await seed(rt);
+    const out = await run(rt, 'f22', 'historial', '2025');
+    expect(out).toContain(
+      `⚠ folio 999 (vigente, Vigente): el SII no entrega el historial de este folio (error interno del SII: ${SII_PARSE_ERROR})`,
+    );
+    expect(out).not.toContain('su propia web falla igual');
+
+    // A --folio outside the año's declaraciones: no declaración to name, no parentheses.
+    const scoped = await run(rt, 'f22', 'historial', '2025', '--folio', '12345');
+    expect(scoped).toContain(
+      `⚠ folio 12345: el SII no entrega el historial de este folio (error interno del SII: ${SII_PARSE_ERROR})`,
+    );
+  });
+
+  it('f22 historial reports any other SII message on a folio as sii_error, verbatim', async () => {
+    const rt = historialErrorRuntime(BUSCA, 'Servicio no disponible');
+    await seed(rt);
+    const out = await run(rt, 'f22', 'historial', '2025');
+    expect(out).toContain(
+      '⚠ folio 999 (vigente, Vigente): el SII no entregó su historial (Servicio no disponible)',
+    );
+    const json = (await runJson(rt, 'f22', 'historial', '2025')) as {
+      foliosConError: { motivo: string; error: string }[];
+    };
+    expect(json.foliosConError).toMatchObject([
+      { motivo: 'sii_error', error: 'Servicio no disponible' },
+    ]);
   });
 
   it('JSON is the default: `f22 status <año>` emits the task object verbatim (no human text)', async () => {
