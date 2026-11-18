@@ -181,8 +181,7 @@ export function decodeGwtResponse(text: string): GwtValue {
   if (body.startsWith('//EX')) {
     // A dead session is refused in-band, not by a redirect, so the driver's URL check never
     // sees it (#287). It is a login wall, never a business error.
-    if (isGwtLoginRedirect(body))
-      throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+    if (isGwtLoginRedirect(body)) throw new SessionExpiredError();
     throw new PeticionesError(extractExceptionMessage(body));
   }
   if (!body.startsWith('//OK')) {

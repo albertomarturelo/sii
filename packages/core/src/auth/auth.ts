@@ -710,7 +710,7 @@ export async function logout(runtime: Runtime): Promise<AuthLogoutResult> {
 export async function statusRefresh(runtime: Runtime): Promise<AuthIdentityRefresh> {
   return withSession(runtime, async (s) => {
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
-      throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+      throw new SessionExpiredError();
     }
     const identity = identityOnRead(await readDatos(s));
     // The www2 layer, read live: a missing one is a plain `false` here, not an error — the
@@ -736,7 +736,7 @@ export async function statusRefresh(runtime: Runtime): Promise<AuthIdentityRefre
 export async function whoami(runtime: Runtime): Promise<AuthWhoami> {
   return withSession(runtime, async (s) => {
     if (landedOnLoginHost(await s.goto(HOSTS.miSii))) {
-      throw new SessionExpiredError('La sesión expiró. Ejecuta `sii auth login`.');
+      throw new SessionExpiredError();
     }
     const datos = await readDatos(s);
     const identity = identityOnRead(datos);

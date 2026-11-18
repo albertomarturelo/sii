@@ -123,6 +123,8 @@ describe('peticiones task (fakes, no SII)', () => {
     await seed(rt);
     const err = await peticionesList(rt).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SessionExpiredError);
+    // the message every dead-session detector shares (SessionExpiredError's default)
+    expect((err as Error).message).toBe('La sesión expiró. Ejecuta `sii auth login`.');
     expect(classifyError(err)).toMatchObject({ type: 'session_expired' });
     expect(entries(rt).at(-1)).toMatchObject({ action: 'peticiones_list', result: 'failed' });
   });
