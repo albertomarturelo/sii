@@ -291,10 +291,10 @@ en Pantalla » or « Upload » options SII also offers (they let the user type v
 
 ## Amendment (2026-11-19, #298): a control código SII's validator sets itself
 
-On a segunda categoría persona, every nil month past its due day was refused: SII's validated
+On a segunda categoría persona, a nil month past its due day was refused: SII's validated
 borrador declares **8813** = `1`, and the rule above reads any value as movement (`sobra`).
-Observed 2026-11-19 on two such períodos, by a read-only replay up to `getBorradorRfiValidado`
-(nothing saved):
+Observed 2026-11-19 on nil períodos past their due day, by a read-only replay up to
+`getBorradorRfiValidado` (nothing saved):
 
 - The primitiva layout's `CampoMetadata` for 8813 says « Porcentaje de Condonación aplicado al
   Spread. », type `ENTERO0`, not editable, no formula; no rule or formula of the layout reads it.

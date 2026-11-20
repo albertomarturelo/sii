@@ -372,7 +372,8 @@ describe('sin movimiento (#221)', () => {
       },
     });
     await f29Submit(rt, { periodo: '2026-10', total: 0, sinMovimiento: true }, filing.chain);
-    expect(guardados).toEqual([BORRADOR]);
+    expect(guardados).toHaveLength(1);
+    expect(guardados[0]).toBe(BORRADOR);
     // Another value of 8813, or a monto beside it, still blocks.
     for (const [validar, codigo] of [
       [con8813(2), '8813'],
