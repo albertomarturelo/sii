@@ -4,6 +4,18 @@ All notable changes to `@albertomarturelo/sii-core` are documented here. The for
 loosely based on [Keep a Changelog](https://keepachangelog.com/); the package is
 pre-1.0, so MINOR bumps may carry breaking changes (pin or use `~` downstream).
 
+## 0.23.1 — 2026-11-20
+
+### Fixed
+
+- **A control código SII's validator fills itself is not movement on the sin movimiento route
+  (#298).** `getBorradorRfiValidado` declares 8813 « Porcentaje de Condonación aplicado al
+  Spread. » = `1` on its own (`ENTERO0`, not editable, no formula; the filled form leaves it
+  `''`). `f29SubmitPreview` / `f29Submit` with `sinMovimiento` leave it out of the safety rule
+  only at that pinned value (`sinCodigosDeControl`, internal to the portal); any other value, and
+  every other código, still refuses. The validated borrador is saved unchanged. The propuesta
+  route keeps the plain rule.
+
 ## 0.23.0 — 2026-11-18
 
 ### Added
