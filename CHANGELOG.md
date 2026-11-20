@@ -23,9 +23,21 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
-- **Fixed** — `f29Submit` / `f29SubmitPreview` (CLI `f29 submit --sin-movimiento`, MCP
-  `sinMovimiento`) no longer refuse a nil month because SII's validator declares its control
-  código 8813 (= 1, a condonación percentage, not a monto); any other value still refuses (#298).
+## 0.23.1 — 2026-11-20 — La condonación
+
+A patch for one fix (#298).
+
+**`f29 submit --sin-movimiento` files a nil month again.** `sii f29 submit <periodo>
+--sin-movimiento` and the MCP tools `f29_submit_preview` / `f29_submit` with `sinMovimiento`
+refused a month without movement with one desacuerdo, `{ codigo: "8813", motivo: "sobra" }`, so
+`listoParaPresentar` was `false`. Observed on nil months past their due day. SII's own
+validation fills 8813 « Porcentaje de Condonación aplicado al Spread » with `1`: a condonación
+percentage, not a monto the taxpayer declares, and nothing in the form computes it. That value is
+no longer movement. Any other value of 8813 still refuses, and so does every interest or
+condonación monto beside it. The borrador is saved exactly as SII validated it (ADR-029
+amendment).
+
+A PATCH: a fix only. Nothing is added and nothing breaks.
 
 ## 0.23.0 — 2026-11-18 — El régimen
 

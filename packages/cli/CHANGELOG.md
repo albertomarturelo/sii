@@ -9,6 +9,14 @@ Versions move in **lockstep** with `@albertomarturelo/sii-core` and
 (ADR-003), so the domain detail behind each entry lives in the
 [core changelog](../core/CHANGELOG.md).
 
+## 0.23.1 — 2026-11-20
+
+### Fixed
+
+- **`sii f29 submit <periodo> --sin-movimiento` no longer refuses a nil month over código 8813**
+  (#298). SII's validation fills it with `1` (a condonación percentage, not a monto), which read
+  as `{ codigo: "8813", motivo: "sobra" }`. Any other value still refuses.
+
 ## 0.23.0 — 2026-11-18
 
 ### Added
