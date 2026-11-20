@@ -94,7 +94,7 @@ Show the body to the user, then:
 
 ```bash
 gh issue create --repo albertomarturelo/sii --title "<imperative, ≤80 chars, English>" \
-  --body-file <file in the scratchpad> --label "proposed,<type>,<scopes>"
+  --body-file <a temporary file> --label "proposed,<type>,<scopes>"
 ```
 
 Output the URL and how the owner promotes it: `gh issue edit <n> --remove-label proposed`.
