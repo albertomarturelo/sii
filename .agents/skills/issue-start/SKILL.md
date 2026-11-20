@@ -13,6 +13,10 @@ issues via `gh issue list --repo albertomarturelo/sii --state open`).
 
 1. **Fetch the issue:** `gh issue view <n> --repo albertomarturelo/sii`
 
+   If it carries the **`proposed`** label, **STOP**: a model or a user proposed it and the owner
+   has not accepted it yet (ADR-037). Say so; only the owner promotes it
+   (`gh issue edit <n> --remove-label proposed`). Never remove the label yourself.
+
 2. **Parse the 6 fixed sections:** `Context`, `Target`, `ADRs to load`,
    `Acceptance criteria`, `Reproduction` (fixes only),
    `Estimated sessions`. If any required section is missing, **STOP** and
