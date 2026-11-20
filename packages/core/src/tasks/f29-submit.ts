@@ -36,6 +36,7 @@ import {
   inyectarBorradorF29,
   recargosDeclarados,
   rfiCaller,
+  sinCodigosDeControl,
   validarBorradorF29,
   verificarBorradorF29,
   type F29BorradorValidado,
@@ -193,17 +194,21 @@ async function preparar(
         'No se presentó nada.',
     );
   }
+  // On the sin movimiento route SII's validator fills a control código itself (8813, #298); with
+  // its pinned value it is not movement. The borrador is still saved as SII validated it.
+  const declarados =
+    ruta === 'sinMovimiento' ? sinCodigosDeControl(validado.declarados) : validado.declarados;
   const desacuerdos = verificarBorradorF29(
     propuesta.codigos,
     validado.campos,
-    validado.declarados,
+    declarados,
     validado.textos,
   );
   if (ruta === 'sinMovimiento') {
     // Stricter than the propuesta's rule: a sin movimiento declaración is all zeros, so any
     // código SII declares with a value blocks it, even one a formula explains.
     const listados = new Set(desacuerdos.map((d) => d.codigo));
-    for (const codigo of [...validado.declarados.keys(), ...validado.textos.keys()]) {
+    for (const codigo of [...declarados.keys(), ...validado.textos.keys()]) {
       if (!listados.has(codigo)) desacuerdos.push({ codigo, motivo: 'sobra' });
     }
     desacuerdos.sort((a, b) => Number(a.codigo) - Number(b.codigo));

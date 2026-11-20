@@ -23,6 +23,10 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Fixed** — `f29Submit` / `f29SubmitPreview` (CLI `f29 submit --sin-movimiento`, MCP
+  `sinMovimiento`) no longer refuse a nil month because SII's validator declares its control
+  código 8813 (= 1, a condonación percentage, not a monto); any other value still refuses (#298).
+
 ## 0.23.0 — 2026-11-18 — El régimen
 
 A minor for one read that adds what SII registers about the account (#257) and one fix to keep

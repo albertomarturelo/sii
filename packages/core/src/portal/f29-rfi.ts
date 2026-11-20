@@ -448,6 +448,20 @@ export function recargosDeclarados(
   return CODIGOS_RECARGO.filter((c) => v.declarados.has(c) || v.textos.has(c));
 }
 
+/** Control códigos SII's validator fills on its own on the sin movimiento (customizado) route,
+ *  each pinned to the one value observed (ADR-029 amendment, #298). 8813 « Porcentaje de
+ *  Condonación aplicado al Spread. »: `ENTERO0`, not editable, no formula, and no rule reads it in
+ *  the primitiva layout. The filled form leaves it '', and `getBorradorRfiValidado` declares it
+ *  `1`, beside the interest montos (9311 / 9312, 8911 / 8912), which stay at zero and stay
+ *  checked. Observed on nil períodos past their due day, 2026-11-19. */
+const CONTROL_SIN_MOVIMIENTO: ReadonlyMap<string, number> = new Map([['8813', 1]]);
+
+/** `declarados` without the control códigos that carry exactly their pinned value. Any other
+ *  value is still declared, so the safety rule refuses it. */
+export function sinCodigosDeControl(declarados: ReadonlyMap<string, number>): Map<string, number> {
+  return new Map([...declarados].filter(([c, v]) => CONTROL_SIN_MOVIMIENTO.get(c) !== v));
+}
+
 /** Submit, call 1: save the validated borrador, with tipo 41 on the propuesta route and as SII
  *  validated it on the sin movimiento one. Saves, does NOT file. Returns the `Borrador` SII
  *  answers, which call 2 sends unchanged. */
