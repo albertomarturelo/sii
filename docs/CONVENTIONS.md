@@ -263,6 +263,10 @@ These stay always on, because breaking them locks or misreads the account anywhe
   dependent PR instead of retargeting it (#226 was closed this way and had to be reopened).
   After the base's squash, rebase the dependent `--onto origin/main <old base tip>` and gate
   its merge on CI for the new head.
+  **Never rename an open PR's head branch.** GitHub retargets the PRs whose BASE is the renamed
+  branch, but for the PR whose HEAD it is, it deletes the ref and CLOSES the PR (#299, renamed
+  to fix its name in review). To recover, push the same commit under the old name and reopen.
+  A wrong branch name is fixed before the PR opens, or left as is.
   **Two sessions in one checkout move each other's HEAD.** A branch created while another
   session had its own branch checked out started on that session's commit, and a later commit
   landed on `main` (#244's work; caught before any push). Check `git branch --show-current`
