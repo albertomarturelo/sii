@@ -16,6 +16,10 @@
 > **Amended 2026-10-29 (#221):** an opt-in `--sin-movimiento` files a período with no propuesta
 > through SII's customizado route, only when SII validates every código at zero. See
 > [Amendment](#amendment-2026-10-29-221-sin-movimiento).
+>
+> **Amended 2026-11-19 (#298):** on the sin movimiento route, a control código SII's validator
+> fills itself (8813, pinned to its observed value) is not movement. See
+> [Amendment](#amendment-2026-11-19-298-a-control-código-siis-validator-sets-itself).
 
 ## Status
 
@@ -284,6 +288,36 @@ primitiva layout re-encodes byte for byte into the browser's validation request.
 Rejected: inferring « sin movimiento » from an empty propuesta (the case above); the « Formulario
 en Pantalla » or « Upload » options SII also offers (they let the user type values, which is
 #137's scope); the headless browser (the cold replay reproduces the client byte for byte).
+
+## Amendment (2026-11-19, #298): a control código SII's validator sets itself
+
+On a segunda categoría persona, every nil month past its due day was refused: SII's validated
+borrador declares **8813** = `1`, and the rule above reads any value as movement (`sobra`).
+Observed 2026-11-19 on two such períodos, by a read-only replay up to `getBorradorRfiValidado`
+(nothing saved):
+
+- The primitiva layout's `CampoMetadata` for 8813 says « Porcentaje de Condonación aplicado al
+  Spread. », type `ENTERO0`, not editable, no formula; no rule or formula of the layout reads it.
+- The filled form stores `''` there, so the value comes from SII's server-side validation, not
+  from the client. The validated XML carries it as a `D` código of the interest block (`grpoId`
+  14): 8812 (the tasa base's percentage), 9311 / 9312 (the interest), 8911 / 8912 (the
+  condonación) and 931 / 932, all at zero, and no 92 / 93 / 94.
+
+So 8813 is a parameter of how SII would condone interest, not a monto the taxpayer declares. The
+interest itself is in the other códigos, which stay checked.
+
+- **Decided:** on the sin movimiento route, a declared código is left out of the safety rule when
+  it is in an explicit list of SII control códigos AND carries the pinned value observed: today
+  only 8813 = `1`. Any other value of 8813, and any other código, still refuses. The validated
+  borrador is saved unchanged, as SII's client does, 8813 included.
+- **The propuesta route is unchanged.** A late propuesta is refused before the rule (#235), and
+  8813 there is unobserved; #237 decides it with the late filing.
+- A new control código joins the list only after the same observation: its layout metadata, its
+  value in the validated borrador, and no formula behind it.
+
+Rejected: exempting by metadata (every non-editable campo with no formula): broader than what was
+observed, and it would let a server-filled monto through; zeroing 8813 before saving: the borrador
+would no longer be the one SII validated.
 
 ## Alternatives Considered
 

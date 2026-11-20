@@ -243,7 +243,9 @@ Rules around it:
   `--sin-movimiento --confirm 0`, only after the user confirmed the month had no movement
   (§ 5). It takes SII's « Declarar sin movimiento » route: the preview saves nothing at SII
   (`borradorGuardado: false`), and the CLI refuses when SII has a propuesta for the período or
-  validates any código with a value (`desacuerdos`, `listoParaPresentar: false`). The same
+  validates any código with a value (`desacuerdos`, `listoParaPresentar: false`). The one
+  exception is a control código SII's validator fills itself (8813 = 1, a condonación
+  percentage, not a monto), which is not movement. The same
   approval protocol applies: the user approves the filing explicitly.
 - It also refuses a **late** período (`sii_error`, "SII agrega recargos a …"): after the due date
   SII adds reajuste and intereses (códigos 92, 93, 94), and the CLI only files within the

@@ -15,6 +15,7 @@ import {
   inyectarBorradorF29,
   validarBorradorF29,
   recargosDeclarados,
+  sinCodigosDeControl,
   verificarBorradorF29,
 } from './f29-rfi.js';
 import { bool, cell, int, layout, map, op, ref, regla, s } from './__fixtures__/f29-rfi-layout.js';
@@ -491,6 +492,25 @@ describe('recargosDeclarados', () => {
     expect(recargosDeclarados({ declarados: new Map([['91', 1000]]), textos: new Map() })).toEqual(
       [],
     );
+  });
+});
+
+describe('sinCodigosDeControl', () => {
+  it('drops 8813 only at its pinned value, and keeps everything else (#298)', () => {
+    expect([...sinCodigosDeControl(new Map([['8813', 1]]))]).toEqual([]);
+    expect([...sinCodigosDeControl(new Map([['8813', 2]]))]).toEqual([['8813', 2]]);
+    expect([
+      ...sinCodigosDeControl(
+        new Map([
+          ['8813', 1],
+          ['8812', 1],
+          ['91', 1],
+        ]),
+      ),
+    ]).toEqual([
+      ['8812', 1],
+      ['91', 1],
+    ]);
   });
 });
 

@@ -340,6 +340,60 @@ describe('sin movimiento (#221)', () => {
     expect(submit.steps).not.toContain('guardar');
   });
 
+  it("lets SII's control código 8813 through at its pinned value, and nothing else (#298)", async () => {
+    const rt = await makeRuntime();
+    // As observed: the filled form leaves 8813 '', and SII's validation declares it 1.
+    const con8813 =
+      (valor: number, otros: [string, number][] = []) =>
+      () =>
+        Promise.resolve(
+          validado({
+            declarados: new Map([['8813', valor], ...otros]),
+            total: 0,
+            campos: [
+              { codigo: '89', valor: '', formula: true, numerico: true },
+              { codigo: '8813', valor: '', formula: false, numerico: true },
+            ],
+          }),
+        );
+    const ok = await f29SubmitPreview(
+      rt,
+      { periodo: '2026-10', sinMovimiento: true },
+      sinMov({ validar: con8813(1) }).chain,
+    );
+    expect(ok).toMatchObject({ desacuerdos: [], listoParaPresentar: true });
+    // The borrador SII validated is saved unchanged, 8813 included.
+    const guardados: Gwt7Node[] = [];
+    const filing = sinMov({
+      validar: con8813(1),
+      guardar: (_s, b) => {
+        guardados.push(b);
+        return Promise.resolve(b);
+      },
+    });
+    await f29Submit(rt, { periodo: '2026-10', total: 0, sinMovimiento: true }, filing.chain);
+    expect(guardados).toEqual([BORRADOR]);
+    // Another value of 8813, or a monto beside it, still blocks.
+    for (const [validar, codigo] of [
+      [con8813(2), '8813'],
+      [con8813(1, [['9312', 100]]), '9312'],
+    ] as const) {
+      const p = await f29SubmitPreview(
+        rt,
+        { periodo: '2026-10', sinMovimiento: true },
+        sinMov({ validar }).chain,
+      );
+      expect(p.desacuerdos).toEqual([{ codigo, motivo: 'sobra' }]);
+    }
+    // The propuesta route keeps the plain rule: 8813 there is unobserved (#237).
+    const propuestaRoute = fakeChain({
+      validar: () =>
+        Promise.resolve(validado({ declarados: new Map([...validado().declarados, ['8813', 1]]) })),
+    });
+    const p = await f29SubmitPreview(rt, { periodo: '2026-10' }, propuestaRoute.chain);
+    expect(p.desacuerdos).toEqual([{ codigo: '8813', motivo: 'sobra' }]);
+  });
+
   it('files with --confirm 0, saving on the sin movimiento route', async () => {
     const rt = await makeRuntime();
     const rutas: string[] = [];
