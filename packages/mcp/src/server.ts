@@ -3,7 +3,7 @@
 // this boundary: auth_login delegates to the browser flow and takes no password
 // argument (ADR-006). consoleLogin is deliberately unreachable here — it lives in
 // the CLI-only `@albertomarturelo/sii-core/cli` subpath, which this package never imports.
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -126,9 +126,9 @@ export function buildServer(runtime: Runtime): McpServer {
         'redactar el borrador sin datos del usuario (ADR-037). Texto estático; no toca el portal.',
       mimeType: 'text/markdown',
     },
-    (uri) => ({
+    async (uri) => ({
       contents: [
-        { uri: uri.href, mimeType: 'text/markdown', text: readFileSync(ISSUE_GUIDE, 'utf8') },
+        { uri: uri.href, mimeType: 'text/markdown', text: await readFile(ISSUE_GUIDE, 'utf8') },
       ],
     }),
   );
