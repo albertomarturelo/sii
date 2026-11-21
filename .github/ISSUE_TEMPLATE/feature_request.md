@@ -2,7 +2,7 @@
 name: Feature request
 about: Suggest a new command, MCP tool, surface, or capability
 title: "feat: "
-labels: feature
+labels: [feature, proposed]
 ---
 
 ## Problem / use case

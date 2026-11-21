@@ -3,6 +3,7 @@
 // this boundary: auth_login delegates to the browser flow and takes no password
 // argument (ADR-006). consoleLogin is deliberately unreachable here — it lives in
 // the CLI-only `@albertomarturelo/sii-core/cli` subpath, which this package never imports.
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -19,6 +20,7 @@ import {
   type Runtime,
 } from '@albertomarturelo/sii-core';
 import { toolText } from './tool-helpers.js';
+import { ISSUE_CLASS } from './issue-kinds.js';
 
 /** A tool result is the task's object, the same one `sii <cmd>` prints as JSON (ADR-012). */
 const json = (value: unknown): string => JSON.stringify(value, null, 2);
@@ -44,9 +46,28 @@ const jsonResource = (uri: URL, value: unknown) => ({
 const pkgVersion = (createRequire(import.meta.url)('../package.json') as { version: string })
   .version;
 
+// The issue guide (ADR-037), shipped through package.json `files` and read one level up from
+// dist/ (from src/ under vitest), like package.json above. Read per request: static text.
+const ISSUE_GUIDE = new URL('../issue-guide.md', import.meta.url);
+
+// What the model reads at the handshake: when to open sii://issues/guide. The likely-bug kinds
+// come from the same typed map the guide's table is tested against, so the two cannot drift.
+const likelyBug = Object.entries(ISSUE_CLASS)
+  .filter(([, c]) => c === 'likely bug')
+  .map(([kind]) => `\`${kind}\``)
+  .join(' o ');
+const INSTRUCTIONS = [
+  'Servidor MCP de sii: el SII de Chile para un contribuyente. Cada error de tool trae un `type` estable.',
+  `Si una tool falla con ${likelyBug}, con un \`type\` « suspect » cuya condición se cumple, o el usuario pide algo que ninguna tool hace, lee sii://issues/guide antes de sugerir un issue en GitHub.`,
+  'Solo redactas el borrador, sin RUT, nombres, montos, folios ni períodos; el usuario decide si lo publica.',
+].join('\n');
+
 /** Build the MCP server over an injected Runtime (tests pass fakes; no SII). */
 export function buildServer(runtime: Runtime): McpServer {
-  const server = new McpServer({ name: 'sii', version: pkgVersion });
+  const server = new McpServer(
+    { name: 'sii', version: pkgVersion },
+    { instructions: INSTRUCTIONS },
+  );
 
   // --- Resources: read-only context the model reads to orient (ROADMAP) ---
   server.registerResource(
@@ -93,6 +114,23 @@ export function buildServer(runtime: Runtime): McpServer {
       mimeType: 'application/json',
     },
     async (uri) => jsonResource(uri, HOSTS),
+  );
+
+  server.registerResource(
+    'issues-guide',
+    'sii://issues/guide',
+    {
+      title: 'Guía para reportar un issue',
+      description:
+        'Cuándo vale la pena un issue en el repo de sii, cómo leer el `type` de un error y cómo ' +
+        'redactar el borrador sin datos del usuario (ADR-037). Texto estático; no toca el portal.',
+      mimeType: 'text/markdown',
+    },
+    (uri) => ({
+      contents: [
+        { uri: uri.href, mimeType: 'text/markdown', text: readFileSync(ISSUE_GUIDE, 'utf8') },
+      ],
+    }),
   );
 
   // --- Tools: actions, each a thin call into a @albertomarturelo/sii-core task ---

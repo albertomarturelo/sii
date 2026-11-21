@@ -23,6 +23,10 @@ Every decision behind a release is recorded as an ADR under
      in each package's changelog, and leaves only this comment; release.yml refuses a tag
      while an entry remains. -->
 
+- **Added** — the MCP server sends `instructions` at the handshake and serves a new resource,
+  `sii://issues/guide`: when an error or a missing capability is worth an issue on the repo, and
+  how to draft one without the user's data. The model only drafts; the user publishes (#304).
+
 ## 0.23.1 — 2026-11-20 — La condonación
 
 A patch for one fix (#298).
