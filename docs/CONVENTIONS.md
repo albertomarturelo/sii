@@ -275,6 +275,11 @@ These stay always on, because breaking them locks or misreads the account anywhe
 - **Status docs go in a SEPARATE commit from feature code.** `ROADMAP.md`
   bookkeeping is its own commit; the feature commit carries code
   plus its tightly-coupled docs only (the ADR + any `sii-contract/*.md`).
+- **A model proposes issues; only the owner accepts them (ADR-037).** A model opens an issue
+  through `issue-propose` only, labelled `proposed`, after its gates (duplicate searched, scope,
+  evidence class, no account state or PII). `/issue-start` refuses a `proposed` issue; the owner
+  promotes it by removing the label. Over the MCP (#304) the model never publishes: it hands the user a
+  redacted draft built from `sii://issues/guide`.
 - **Run `/review-pr` on a PR before asking for its merge, including your own.** A fresh review
   found two correctness gaps in #223 and a wrong promise in ADR-031 (#232); #232 was offered
   for merge before it ran, and the owner had to ask.

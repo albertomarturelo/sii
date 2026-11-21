@@ -38,7 +38,8 @@ finds the same index. Its `@` references are the always-on part; `ROADMAP.md` an
 file describing steps you can follow by hand. The checklists in those files are
 the contract; `/<name>` is only the convenience that runs them for you. The
 session and issue rituals run only when invoked by name; `new-decision`,
-`review-pr` and `validate-context` may also be picked up by the agent on its own.
+`review-pr`, `validate-context` and `issue-propose` may also be picked up by the agent on
+its own.
 
 Run them in this order:
 
@@ -51,6 +52,9 @@ Run them in this order:
    *Mandatory — `/issue-start` parses that body by section header, so a free-form
    issue cannot be picked up. Open the issue before you write code, and if
    `Estimated sessions` is more than 1, split it into sub-issues before starting.*
+   An agent that spots work outside its task uses **`issue-propose`** instead
+   (`issue-propose/SKILL.md`, ADR-037): the issue arrives labelled `proposed`, and
+   `/issue-start` refuses it until the maintainer accepts it by removing the label.
 3. **`/issue-start <n>`** (`issue-start/SKILL.md`) — loads the issue and **its listed ADRs
    before touching code**, then creates the branch. Produces the branch + the
    acceptance checklist you will paste into the PR. *Mandatory — the ADRs named in
