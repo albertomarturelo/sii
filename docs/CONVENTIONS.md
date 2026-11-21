@@ -314,3 +314,7 @@ These stay always on, because breaking them locks or misreads the account anywhe
   export), `Removed` or **Breaking** makes it a MINOR. `release.yml` refuses a patch tag whose
   sections say otherwise, and any tag while `## Unreleased` still holds an entry. 0.12.2 shipped
   an `Added` field in a patch; the rule applies from 0.15.0.
+- **Tag the release PR's merge commit, by SHA, after it merges.** A tag on `main` before the merge
+  carries the old versions: `release.yml` refuses it (tag ≠ `package.json`) and nothing publishes,
+  but the tag has to be deleted on GitHub and pushed again (v0.23.1). A tag command handed to the
+  owner names the SHA (`git tag vX.Y.Z <merge sha>`), never `main`'s HEAD.
