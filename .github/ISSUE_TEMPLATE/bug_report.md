@@ -2,7 +2,7 @@
 name: Bug report
 about: Something in sii (CLI or MCP) behaves incorrectly
 title: "fix: "
-labels: fix
+labels: [fix, proposed]
 ---
 
 <!--

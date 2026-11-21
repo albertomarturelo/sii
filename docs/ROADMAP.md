@@ -98,7 +98,9 @@ Desktop, so structure it to the spec. The stdio server is built
 client (no SII), and binary-smoke-validated (`initialize` handshake):
 
 - **Resources** (read-only context): ✅ `sii://session`, `sii://operating`,
-  `sii://operable`, `sii://config`. NOT tools — the model reads them to orient.
+  `sii://operable`, `sii://config`, `sii://issues/guide` (#304, ADR-037: when a failure or a
+  missing capability is worth an issue, and how to draft it without the user's data; the
+  server's `instructions` point to it). NOT tools — the model reads them to orient.
 - **Tools** (actions): ✅ `auth_login` (no password — delegates to the browser
   flow), `auth_logout` (no args — best-effort server close + local wipe),
   `auth_status` (`refresh`), `operate` (`rut`/`self`/`list`); read surfaces

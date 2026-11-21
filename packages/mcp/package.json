@@ -39,7 +39,8 @@
     "dist",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "issue-guide.md"
   ],
   "dependencies": {
     "@albertomarturelo/sii-core": "workspace:^",

@@ -1,6 +1,7 @@
 // Server-level tests: tool/resource surface + the auth/operate tools, which are
 // registered in server.ts itself (per-module tool suites live in tools/*.test.ts;
 // the shared fixture is test-helpers.ts). Fakes only — no SII.
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   HOSTS,
@@ -120,12 +121,31 @@ describe('@albertomarturelo/sii-mcp server (in-memory client, fake runtime, no S
     const { resources } = await client.listResources();
     expect(resources.map((r) => r.uri).sort()).toEqual([
       'sii://config',
+      'sii://issues/guide',
       'sii://operable',
       'sii://operating',
       'sii://session',
     ]);
     const cfg = await client.readResource({ uri: 'sii://config' });
     expect(resourceText(cfg)).toContain(HOSTS.login);
+  });
+
+  it('serves the issue guide and points the model to it at the handshake (ADR-037)', async () => {
+    const client = await connect(makeRuntime());
+    const guide = await client.readResource({ uri: 'sii://issues/guide' });
+    expect(guide.contents[0]?.mimeType).toBe('text/markdown');
+    expect(resourceText(guide)).toContain('# Reporting an issue on sii');
+    const instructions = client.getInstructions() ?? '';
+    expect(instructions).toContain('sii://issues/guide');
+    expect(instructions).toContain('`unexpected_response`');
+    expect(instructions.split('\n')).toHaveLength(3);
+  });
+
+  it('ships the issue guide in the npm package', () => {
+    const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+      files: string[];
+    };
+    expect(pkg.files).toContain('issue-guide.md');
   });
 
   it('auth_status reports not-authenticated before login', async () => {
